@@ -1,36 +1,207 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Synora
+
+Modern collaborative social-learning platform built with **Next.js 16**, **React 19**, **Prisma 7**, **TypeScript**, and **Tailwind CSS v4**.
+
+Synora focuses on document sharing, structured content organization, and real-time interaction for students and collaborative learning communities.
+
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-7-0C344B?style=flat-square&logo=prisma&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwindcss&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+
+---
+
+## Features
+
+### Real-time Interaction
+- Real-time messaging and communication
+- Live notification updates
+- Interactive social collaboration features
+
+### Collaborative Workspace
+- Hierarchical content organization
+- Nested workspace navigation
+- Dynamic breadcrumb generation
+
+### Document & Resource Sharing
+- Upload and share learning materials
+- File attachment and preview support
+- Structured content organization
+
+### AI-assisted Features
+- Document summarization with Gemini API
+- Intelligent metadata tagging
+- Improved document discoverability
+
+### Modern Architecture
+- Next.js 16 App Router
+- React Server Components
+- Type-safe architecture with Prisma and TypeScript
+
+### UI/UX
+- Responsive and minimal interface
+- Built with Tailwind CSS v4 and shadcn/ui
+- Optimized for readability and modern interaction patterns
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js >= 20
+- PostgreSQL database
+
+---
+
+### Installation
+
+```bash
+# Clone repository
+git clone https://github.com/ychrisdev/synora.git
+
+# Navigate into project
+cd synora
+
+# Install dependencies
+npm install
+```
+
+---
+
+### Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+Update your database connection string inside `.env`.
+
+---
+
+### Database Setup
+
+```bash
+npx prisma generate
+npx prisma db push
+```
+
+---
+
+### Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Application runs at:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```text
+src/
+├── app/                      # Next.js App Router
+│
+├── components/
+│   ├── ui/                   # shadcn/ui shared components
+│   ├── layout/               # Navbar, Sidebar, Shell
+│   ├── feed/                 # Feed & posts UI
+│   ├── chat/                 # Messaging UI
+│   ├── document/             # Document/file components
+│   ├── workspace/            # Recursive content/workspace
+│   ├── group/                # Community/group components
+│   ├── profile/              # User profile UI
+│   ├── notification/         # Notification components
+│   └── shared/               # Reusable business components
+│
+├── features/                 # Feature/domain logic
+│   ├── auth/
+│   ├── posts/
+│   ├── chat/
+│   ├── documents/
+│   ├── workspace/
+│   ├── groups/
+│   └── notifications/
+│
+├── hooks/                    # Shared hooks
+│
+├── lib/                      # Utilities & configs
+│   ├── prisma/
+│   ├── socket/
+│   ├── auth/
+│   ├── ai/
+│   └── utils/
+│
+├── services/                 # API/service layer
+│
+├── store/                    # Zustand stores
+│
+├── types/                    # Shared TypeScript types
+│
+├── styles/                   # Global styles
+│
+└── constants/                # Static configs/constants
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tech Stack
 
-## Deploy on Vercel
+| Category         | Technologies                          |
+| ---------------- | ------------------------------------- |
+| Framework        | Next.js 16                            |
+| Frontend         | React 19 + TypeScript                 |
+| Styling          | Tailwind CSS v4 + Shadcn UI           |
+| Database         | PostgreSQL                            |
+| ORM              | Prisma 7                              |
+| State Management | Zustand                               |
+| Realtime         | Socket.io                             |
+| AI Integration   | Gemini API                            |
+| Deployment       | Vercel                                |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Development Commands
+
+```bash
+# Start development server
+npm run dev
+
+# Create production build
+npm run build
+
+# Start production server
+npm run start
+
+# Run ESLint
+npm run lint
+
+# Open Prisma Studio
+npx prisma studio
+
+# Generate Prisma Client
+npx prisma generate
+
+# Push database schema
+npx prisma db push
+```
+
+---
+
+## Live Demo
+
+[Live Demo](https://synora.vercel.app)
+
+---
+
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
