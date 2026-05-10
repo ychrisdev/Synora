@@ -39,11 +39,16 @@ export default function Topbar() {
           <Bell size={18} className="text-text-secondary" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
         </button>
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold">
+
+        {/* Avatar → Profile */}
+        <Link
+          href="/main/profile"
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+        >
+          <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
             NA
           </div>
-        </div>
+        </Link>
       </div>
     </header>
   );
