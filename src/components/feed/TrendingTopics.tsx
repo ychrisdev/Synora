@@ -1,3 +1,5 @@
+import { TrendingUp } from "lucide-react";
+
 const topics = [
   { rank: 1, tag: "#GiaiTich1", count: "1.2k bài viết", color: "bg-red-500" },
   { rank: 2, tag: "#ThiCuoiKy", count: "856 bài viết", color: "bg-orange-500" },
@@ -10,7 +12,7 @@ export default function TrendingTopics() {
   return (
     <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-base">📈</span>
+        <TrendingUp size={16} className="text-primary" />
         <h3 className="text-sm font-semibold text-text-primary">Chủ đề thịnh hành</h3>
       </div>
       <div className="flex flex-col gap-2">

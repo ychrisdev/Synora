@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, MessageCircle } from "lucide-react";
 
 export default function Topbar() {
   return (
@@ -18,7 +18,7 @@ export default function Topbar() {
       </Link>
 
       {/* Search */}
-      <div className="flex-1 max-w-xl">
+      <div className="flex-1 max-w-[480px]">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
@@ -30,16 +30,16 @@ export default function Topbar() {
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-3 ml-auto">
+      <div className="flex items-center gap-5 ml-auto">
+        <button className="relative p-2 rounded-full hover:bg-surface-100 transition-colors">
+          <MessageCircle size={18} className="text-text-secondary" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
+        </button>
         <button className="relative p-2 rounded-full hover:bg-surface-100 transition-colors">
           <Bell size={18} className="text-text-secondary" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
         </button>
         <div className="flex items-center gap-2.5">
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-text-primary leading-tight">Nguyễn Văn An</p>
-            <p className="text-xs text-primary">Học sinh</p>
-          </div>
           <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold">
             NA
           </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 
 const docs = [
   { id: 1, title: "Bí kíp 8.0+ IELTS Reading", type: "PDF", downloads: "2.4k lượt tải", color: "bg-red-500" },
@@ -10,7 +11,7 @@ export default function FeaturedDocs() {
   return (
     <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-base">📚</span>
+        <BookOpen size={16} className="text-primary" />
         <h3 className="text-sm font-semibold text-text-primary">Tài liệu nổi bật</h3>
       </div>
       <div className="flex flex-col gap-2">
