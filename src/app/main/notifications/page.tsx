@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, CheckCheck, ChevronUp, Bell, Users, ThumbsUp, MessageCircle, FileText, Trophy, Download } from "lucide-react";
+import {
+  Settings,
+  CheckCheck,
+  ChevronUp,
+  Bell,
+  Users,
+  ThumbsUp,
+  MessageCircle,
+  FileText,
+  Trophy,
+  Download,
+} from "lucide-react";
 import { clsx } from "clsx";
 
 const tabs = [
@@ -126,9 +137,30 @@ const notifications = [
 ];
 
 const groupInvitations = [
-  { id: 1, name: "Lập trình ReactJS", invitedBy: "Nguyễn Minh Quân", members: "1,240 tv", color: "bg-blue-500", initials: "RJ" },
-  { id: 2, name: "CLB Thiết kế đồ họa", invitedBy: "Trần Lê Quỳnh Anh", members: "840 tv", color: "bg-pink-500", initials: "DH" },
-  { id: 3, name: "Nhóm Hóa hữu cơ 2k6", invitedBy: "Lê Minh Tuấn", members: "320 tv", color: "bg-orange-500", initials: "HC" },
+  {
+    id: 1,
+    name: "Lập trình ReactJS",
+    invitedBy: "Nguyễn Minh Quân",
+    members: "1,240 tv",
+    color: "bg-blue-500",
+    initials: "RJ",
+  },
+  {
+    id: 2,
+    name: "CLB Thiết kế đồ họa",
+    invitedBy: "Trần Lê Quỳnh Anh",
+    members: "840 tv",
+    color: "bg-pink-500",
+    initials: "DH",
+  },
+  {
+    id: 3,
+    name: "Nhóm Hóa hữu cơ 2k6",
+    invitedBy: "Lê Minh Tuấn",
+    members: "320 tv",
+    color: "bg-orange-500",
+    initials: "HC",
+  },
 ];
 
 const summary = [
@@ -141,14 +173,54 @@ const summary = [
 function NotifIcon({ type }: { type: string }) {
   const base = "w-8 h-8 rounded-full flex items-center justify-center shrink-0";
   switch (type) {
-    case "like": return <div className={clsx(base, "bg-red-100")}><ThumbsUp size={15} className="text-red-500" /></div>;
-    case "comment": return <div className={clsx(base, "bg-blue-100")}><MessageCircle size={15} className="text-blue-500" /></div>;
-    case "milestone": return <div className={clsx(base, "bg-orange-100")}><FileText size={15} className="text-orange-500" /></div>;
-    case "invite": return <div className={clsx(base, "bg-green-100")}><Users size={15} className="text-green-500" /></div>;
-    case "award": return <div className={clsx(base, "bg-yellow-100")}><Trophy size={15} className="text-yellow-500" /></div>;
-    case "share": return <div className={clsx(base, "bg-purple-100")}><Download size={15} className="text-purple-500" /></div>;
-    case "group": return <div className={clsx(base, "bg-teal-100")}><Users size={15} className="text-teal-500" /></div>;
-    default: return <div className={clsx(base, "bg-surface-100")}><Bell size={15} className="text-text-muted" /></div>;
+    case "like":
+      return (
+        <div className={clsx(base, "bg-red-100")}>
+          <ThumbsUp size={15} className="text-red-500" />
+        </div>
+      );
+    case "comment":
+      return (
+        <div className={clsx(base, "bg-blue-100")}>
+          <MessageCircle size={15} className="text-blue-500" />
+        </div>
+      );
+    case "milestone":
+      return (
+        <div className={clsx(base, "bg-orange-100")}>
+          <FileText size={15} className="text-orange-500" />
+        </div>
+      );
+    case "invite":
+      return (
+        <div className={clsx(base, "bg-green-100")}>
+          <Users size={15} className="text-green-500" />
+        </div>
+      );
+    case "award":
+      return (
+        <div className={clsx(base, "bg-yellow-100")}>
+          <Trophy size={15} className="text-yellow-500" />
+        </div>
+      );
+    case "share":
+      return (
+        <div className={clsx(base, "bg-purple-100")}>
+          <Download size={15} className="text-purple-500" />
+        </div>
+      );
+    case "group":
+      return (
+        <div className={clsx(base, "bg-teal-100")}>
+          <Users size={15} className="text-teal-500" />
+        </div>
+      );
+    default:
+      return (
+        <div className={clsx(base, "bg-surface-100")}>
+          <Bell size={15} className="text-text-muted" />
+        </div>
+      );
   }
 }
 
@@ -165,18 +237,15 @@ export default function NotificationsPage() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-text-primary">Thông báo</h1>
-            <span className="px-2.5 py-0.5 bg-red-100 text-red-600 text-xs font-bold rounded-full">
-              18 chưa đọc
-            </span>
           </div>
           <div className="flex items-center gap-3">
             <button className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors">
-              <Settings size={15} />
-              Cài đặt
-            </button>
-            <button className="flex items-center gap-1.5 text-sm text-primary font-semibold hover:underline">
               <CheckCheck size={15} />
               Đánh dấu tất cả đã đọc
+            </button>
+            <button className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors">
+              <Settings size={15} />
+              Cài đặt
             </button>
           </div>
         </div>
@@ -191,7 +260,7 @@ export default function NotificationsPage() {
                 "px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                 activeTab === tab.id
                   ? "border-primary text-primary"
-                  : "border-transparent text-text-secondary hover:text-text-primary"
+                  : "border-transparent text-text-secondary hover:text-text-primary",
               )}
             >
               {tab.label}
@@ -205,7 +274,9 @@ export default function NotificationsPage() {
             <div key={group.group}>
               {/* Group header */}
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-text-muted tracking-wide">{group.group}</span>
+                <span className="text-xs font-semibold text-text-muted tracking-wide">
+                  {group.group}
+                </span>
                 <button className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
                   Thu gọn <ChevronUp size={13} />
                 </button>
@@ -220,7 +291,7 @@ export default function NotificationsPage() {
                       "flex items-start gap-3 p-3.5 rounded-xl border transition-colors cursor-pointer",
                       notif.unread
                         ? "bg-primary/5 border-primary/10 hover:bg-primary/10"
-                        : "bg-white border-surface-200 hover:bg-surface-50"
+                        : "bg-white border-surface-200 hover:bg-surface-50",
                     )}
                   >
                     {/* Icon / Avatars */}
@@ -230,7 +301,10 @@ export default function NotificationsPage() {
                           {notif.avatars.map((av, i) => (
                             <div
                               key={i}
-                              className={clsx("w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white", notif.avatarColors[i])}
+                              className={clsx(
+                                "w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white",
+                                notif.avatarColors[i],
+                              )}
                             >
                               {av}
                             </div>
@@ -244,27 +318,45 @@ export default function NotificationsPage() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-text-primary leading-snug">
-                        <span className={notif.unread ? "font-semibold" : "font-normal"}>{notif.text}</span>
+                        <span
+                          className={
+                            notif.unread ? "font-semibold" : "font-normal"
+                          }
+                        >
+                          {notif.text}
+                        </span>
                       </p>
                       {notif.sub && (
-                        <p className="text-xs text-text-muted mt-0.5 truncate">{notif.sub}</p>
+                        <p className="text-xs text-text-muted mt-0.5 truncate">
+                          {notif.sub}
+                        </p>
                       )}
                       {notif.action && (
                         <div className="flex items-center gap-2 mt-2">
                           {accepted.includes(notif.id) ? (
-                            <span className="text-xs text-green-600 font-semibold bg-green-100 px-3 py-1 rounded-lg">✓ Đã chấp nhận</span>
+                            <span className="text-xs text-green-600 font-semibold bg-green-100 px-3 py-1 rounded-lg">
+                              ✓ Đã chấp nhận
+                            </span>
                           ) : declined.includes(notif.id) ? (
-                            <span className="text-xs text-text-muted bg-surface-100 px-3 py-1 rounded-lg">Đã từ chối</span>
+                            <span className="text-xs text-text-muted bg-surface-100 px-3 py-1 rounded-lg">
+                              Đã từ chối
+                            </span>
                           ) : (
                             <>
                               <button
-                                onClick={(e) => { e.stopPropagation(); setAccepted(p => [...p, notif.id]); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAccepted((p) => [...p, notif.id]);
+                                }}
                                 className="flex items-center gap-1 text-xs font-semibold text-white bg-primary px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
                               >
                                 ✓ {notif.action.accept}
                               </button>
                               <button
-                                onClick={(e) => { e.stopPropagation(); setDeclined(p => [...p, notif.id]); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeclined((p) => [...p, notif.id]);
+                                }}
                                 className="flex items-center gap-1 text-xs font-medium text-text-secondary border border-surface-200 px-3 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
                               >
                                 ✕ {notif.action.decline}
@@ -277,7 +369,9 @@ export default function NotificationsPage() {
 
                     {/* Time + unread dot */}
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] text-text-muted whitespace-nowrap">{notif.time}</span>
+                      <span className="text-[11px] text-text-muted whitespace-nowrap">
+                        {notif.time}
+                      </span>
                       {notif.unread && (
                         <span className="w-2 h-2 bg-primary rounded-full shrink-0" />
                       )}
@@ -292,37 +386,35 @@ export default function NotificationsPage() {
 
       {/* Right sidebar */}
       <div className="w-[260px] shrink-0 flex flex-col gap-4">
-        {/* Summary */}
-        <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
-          <h3 className="text-sm font-bold text-text-primary mb-3">Tóm tắt</h3>
-          <div className="flex flex-col gap-2">
-            {summary.map((s) => (
-              <div key={s.label} className="flex items-center justify-between py-1 border-b border-surface-100 last:border-0">
-                <span className="text-sm text-text-secondary">{s.label}</span>
-                <span className={clsx("text-sm font-bold", s.highlight ? "text-red-500" : "text-text-primary")}>
-                  {s.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Group invitations */}
         <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-text-primary">Lời mời nhóm</h3>
-            <span className="bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">3</span>
+            <h3 className="text-sm font-bold text-text-primary">
+              Lời mời nhóm
+            </h3>
+            <span className="bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+              3
+            </span>
           </div>
           <div className="flex flex-col gap-3">
             {groupInvitations.map((inv) => (
               <div key={inv.id} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2.5">
-                  <div className={clsx("w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0", inv.color)}>
+                  <div
+                    className={clsx(
+                      "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0",
+                      inv.color,
+                    )}
+                  >
                     {inv.initials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-text-primary truncate">{inv.name}</p>
-                    <p className="text-[10px] text-text-muted">Mời bởi {inv.invitedBy} · {inv.members}</p>
+                    <p className="text-xs font-semibold text-text-primary truncate">
+                      {inv.name}
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      Mời bởi {inv.invitedBy} · {inv.members}
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-2">

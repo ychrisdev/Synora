@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, Search, Star, Download, SlidersHorizontal, ChevronDown } from "lucide-react";
-import { clsx } from "clsx";
+import { Upload, Search, Star, FileText, Users, Download, SlidersHorizontal, ChevronDown } from "lucide-react";
+import clsx from "clsx";
 
 const tabs = ["Tất cả", "PDF", "DOCX", "PPTX", "Đã lưu"];
 
@@ -21,10 +21,12 @@ const fileTypeColors: Record<string, string> = {
   PPTX: "bg-orange-500",
 };
 
+/* type FileType = "PDF" | "DOCX" | "PPTX"; */
+
 const stats = [
-  { value: "12,540", label: "tài liệu", icon: "📄" },
-  { value: "8,200", label: "người đóng góp", icon: "👥" },
-  { value: "2.4M", label: "lượt tải", icon: "⬇️" },
+  { value: "12,540", label: "tài liệu", icon: FileText },
+  { value: "8,200", label: "người đóng góp", icon: Users },
+  { value: "2.4M", label: "lượt tải", icon: Download },
 ];
 
 export default function LibraryPage() {
@@ -53,7 +55,7 @@ export default function LibraryPage() {
       <div className="grid grid-cols-3 gap-4 mb-5">
         {stats.map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border border-surface-200 shadow-card p-4 flex items-center gap-3">
-            <span className="text-2xl">{stat.icon}</span>
+            <stat.icon size={18} className="text-primary" />
             <div>
               <p className="text-lg font-bold text-text-primary">{stat.value}</p>
               <p className="text-xs text-text-secondary">{stat.label}</p>

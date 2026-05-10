@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, MessageCircle, ThumbsUp, SlidersHorizontal, UserPlus } from "lucide-react";
+import { Download, MessageCircle, ThumbsUp, SlidersHorizontal, UserPlus, Star } from "lucide-react";
 import { clsx } from "clsx";
 
 const subjects = ["Tất cả", "Toán", "Vật Lý", "Hóa học", "Văn học", "Tiếng Anh", "Lập trình", "Kinh tế"];
@@ -177,7 +177,7 @@ export default function ExplorePage() {
         {/* Suggested users */}
         <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">⭐</span>
+            <Star size={16} className="text-yellow-500" />
             <h3 className="text-sm font-semibold text-text-primary">Được đề xuất cho bạn</h3>
           </div>
           <div className="flex flex-col gap-2.5">
