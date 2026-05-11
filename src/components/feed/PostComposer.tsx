@@ -13,12 +13,16 @@ import {
   Lock,
 } from "lucide-react";
 
-interface AttachedFile {
+export interface AttachedFile {
   id: string;
   file: File;
   name: string;
   size: string;
   type: string;
+}
+
+interface PostComposerProps {
+  onPost?: (post: { content: string; tags: string[]; files: AttachedFile[] }) => void;
 }
 
 type Visibility = "public" | "friends" | "class";
@@ -163,7 +167,7 @@ function FileChip({
   );
 }
 
-export default function PostComposer() {
+export default function PostComposer({ onPost }: PostComposerProps) {
   const [content, setContent] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -236,6 +240,7 @@ export default function PostComposer() {
   const handleSubmit = async () => {
     if (!canPost) return;
     setIsSubmitting(true);
+    onPost?.({ content, tags, files: attachedFiles });
     await new Promise((r) => setTimeout(r, 1200));
     setContent("");
     setTags([]);
