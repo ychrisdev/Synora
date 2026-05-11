@@ -14,6 +14,8 @@ import {
   Link,
   EyeOff,
   Flag,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -140,36 +142,286 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function ImageGrid({ images }: { images: string[] }) {
+function ImageLightbox({
+  images,
+  initialIndex,
+  post,
+  onClose,
+}: {
+  images: string[];
+  initialIndex: number;
+  post: Post;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
+  const [postLiked, setPostLiked] = useState(false);
+  const [postLikes, setPostLikes] = useState(post.likes);
+
+  const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
+  const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const handleCommentSubmit = useCallback((content: string, image?: string) => {
+    setComments((prev) => [
+      ...prev,
+      {
+        id: `c-${Date.now()}`,
+        author: {
+          name: "Trần Lê Quỳnh Anh",
+          initials: "QA",
+          color: "bg-primary",
+        },
+        time: "Vừa xong",
+        content,
+        image,
+        likes: 0,
+        liked: false,
+        replies: [],
+        showReplyInput: false,
+      },
+    ]);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
+      <div
+        className="flex-1 flex items-center justify-center relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
+        >
+          <X size={16} />
+        </button>
+
+        {images.length > 1 && (
+          <button
+            onClick={prev}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
+
+        <img
+          src={images[index]}
+          alt=""
+          className="max-w-full max-h-screen object-contain px-16"
+        />
+
+        {images.length > 1 && (
+          <button
+            onClick={next}
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
+
+        {images.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIndex(i)}
+                className={clsx(
+                  "w-1.5 h-1.5 rounded-full transition-all",
+                  i === index ? "bg-white scale-125" : "bg-white/40",
+                )}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="w-[380px] shrink-0 bg-white flex flex-col h-screen"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
+          <div
+            className={clsx(
+              "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
+              post.author.color,
+            )}
+          >
+            {post.author.initials}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-text-primary">
+              {post.author.name}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-primary font-medium">
+                {post.author.role}
+              </span>
+              <span className="text-text-muted text-xs">·</span>
+              <span className="text-xs text-text-muted">{post.time}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          <p className="text-sm text-text-primary leading-relaxed mb-2">
+            {post.content}
+          </p>
+
+          {post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {post.tags.map((t) => (
+                <span key={t} className="text-xs text-primary font-medium">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-surface-100 pt-3 flex flex-col gap-3">
+            {comments.map((c) => (
+              <div key={c.id} className="flex gap-2.5">
+                <Avatar initials={c.author.initials} color={c.author.color} />
+                <div className="flex-1 min-w-0">
+                  <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
+                    <span className="text-xs font-semibold text-text-primary">
+                      {c.author.name}
+                    </span>
+                    <span className="text-[10px] text-text-muted ml-1.5">
+                      {c.time}
+                    </span>
+                    <p className="text-sm text-text-primary leading-relaxed mt-0.5">
+                      {c.content}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1 ml-1">
+                    <button className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors">
+                      Thích
+                    </button>
+                    <span className="text-text-muted text-[10px]">·</span>
+                    <button className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors">
+                      Trả lời
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-surface-100 px-3 py-2">
+          <div className="flex items-center gap-1 mb-2">
+            <button
+              onClick={() => {
+                setPostLiked((p) => !p);
+                setPostLikes((c) => (postLiked ? c - 1 : c + 1));
+              }}
+              className={clsx(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                postLiked
+                  ? "text-primary font-semibold"
+                  : "text-text-secondary hover:bg-surface-100",
+              )}
+            >
+              <ThumbsUp
+                size={15}
+                className={clsx(postLiked ? "fill-primary scale-110" : "")}
+              />
+              <span>{postLikes}</span>
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
+              <MessageCircle size={15} />
+              <span>{comments.length}</span>
+            </button>
+          </div>
+          <CommentInput onSubmit={handleCommentSubmit} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImageGrid({
+  images,
+  onImageClick,
+}: {
+  images: string[];
+  onImageClick: (index: number) => void;
+}) {
+  const extraCount = images.length - 3;
+
   if (images.length === 1)
     return (
       <div className="mb-3 rounded-xl overflow-hidden">
-        <img src={images[0]} alt="" className="w-full max-h-80 object-cover" />
+        <img
+          src={images[0]}
+          alt=""
+          onClick={() => onImageClick(0)}
+          className="w-full max-h-80 object-cover cursor-pointer hover:brightness-95 transition"
+        />
       </div>
     );
+
   if (images.length === 2)
     return (
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
         {images.map((src, i) => (
-          <img key={i} src={src} alt="" className="w-full h-44 object-cover" />
+          <img
+            key={i}
+            src={src}
+            alt=""
+            onClick={() => onImageClick(i)}
+            className="w-full h-44 object-cover cursor-pointer hover:brightness-95 transition"
+          />
         ))}
       </div>
     );
+
   return (
     <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
       <img
         src={images[0]}
         alt=""
-        className="w-full row-span-2 h-[244px] object-cover"
+        onClick={() => onImageClick(0)}
+        className="w-full row-span-2 h-[244px] object-cover cursor-pointer hover:brightness-95 transition"
       />
-      {images.slice(1, 3).map((src, i) => (
+      <img
+        src={images[1]}
+        alt=""
+        onClick={() => onImageClick(1)}
+        className="w-full h-[120px] object-cover cursor-pointer hover:brightness-95 transition"
+      />
+      <div className="relative">
         <img
-          key={i}
-          src={src}
+          src={images[2]}
           alt=""
-          className="w-full h-[120px] object-cover"
+          onClick={() => onImageClick(2)}
+          className="w-full h-[120px] object-cover cursor-pointer hover:brightness-95 transition"
         />
-      ))}
+        {extraCount > 0 && (
+          <button
+            onClick={() => onImageClick(2)}
+            className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-xl"
+          >
+            +{extraCount}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -649,10 +901,18 @@ export default function PostCard({ post }: { post: Post }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [showComments, setShowComments] = useState(false);
+  const [initialImageIndex, setInitialImageIndex] = useState<
+    number | undefined
+  >(undefined);
 
   const handleLike = () => {
     setLiked((prev) => !prev);
     setLikeCount((c) => (liked ? c - 1 : c + 1));
+  };
+
+  const handleImageClick = (index: number) => {
+    setInitialImageIndex(index);
+    setShowComments(true);
   };
 
   return (
@@ -701,7 +961,7 @@ export default function PostCard({ post }: { post: Post }) {
         )}
 
         {post.images && post.images.length > 0 && (
-          <ImageGrid images={post.images} />
+          <ImageGrid images={post.images} onImageClick={handleImageClick} />
         )}
 
         {post.attachment && (
@@ -767,8 +1027,20 @@ export default function PostCard({ post }: { post: Post }) {
         </div>
       </div>
 
-      {showComments && (
-        <CommentModal post={post} onClose={() => setShowComments(false)} />
+      {initialImageIndex !== undefined && post.images ? (
+        <ImageLightbox
+          images={post.images}
+          initialIndex={initialImageIndex}
+          post={post}
+          onClose={() => {
+            setInitialImageIndex(undefined);
+            setShowComments(false);
+          }}
+        />
+      ) : (
+        showComments && (
+          <CommentModal post={post} onClose={() => setShowComments(false)} />
+        )
       )}
     </>
   );
