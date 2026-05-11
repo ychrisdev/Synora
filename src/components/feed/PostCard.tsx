@@ -10,15 +10,20 @@ import {
   ImageIcon,
   Send,
   Smile,
+  Bookmark,
+  Link,
+  EyeOff,
+  Flag,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface Post {
   id: number;
   author: { name: string; initials: string; color: string; role: string };
   time: string;
   content: string;
+  images?: string[];
   tags: string[];
   attachment?: { name: string; size: string; type: string };
   likes: number;
@@ -76,9 +81,97 @@ const fileTypeColors: Record<string, string> = {
   PPTX: "bg-orange-500",
 };
 
+function MoreMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const items = [
+    { icon: <Bookmark size={15} />, label: "Lưu bài viết" },
+    { icon: <Link size={15} />, label: "Sao chép liên kết" },
+    null,
+    { icon: <EyeOff size={15} />, label: "Ẩn bài viết" },
+    { icon: <Flag size={15} />, label: "Báo cáo", danger: true },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="p-1.5 rounded-lg hover:bg-surface-100 text-text-muted transition-colors"
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-8 bg-white border border-surface-200 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden py-1">
+          {items.map((item, i) =>
+            item === null ? (
+              <div key={i} className="my-1 border-t border-surface-100" />
+            ) : (
+              <button
+                key={i}
+                onClick={() => setOpen(false)}
+                className={clsx(
+                  "w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-surface-50 transition-colors",
+                  item.danger ? "text-red-500" : "text-text-primary",
+                )}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function ImageGrid({ images }: { images: string[] }) {
+  if (images.length === 1)
+    return (
+      <div className="mb-3 rounded-xl overflow-hidden">
+        <img src={images[0]} alt="" className="w-full max-h-80 object-cover" />
+      </div>
+    );
+  if (images.length === 2)
+    return (
+      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
+        {images.map((src, i) => (
+          <img key={i} src={src} alt="" className="w-full h-44 object-cover" />
+        ))}
+      </div>
+    );
+  return (
+    <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
+      <img
+        src={images[0]}
+        alt=""
+        className="w-full row-span-2 h-[244px] object-cover"
+      />
+      {images.slice(1, 3).map((src, i) => (
+        <img
+          key={i}
+          src={src}
+          alt=""
+          className="w-full h-[120px] object-cover"
+        />
+      ))}
+    </div>
+  );
 }
 
 function Avatar({
@@ -448,11 +541,9 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
           </div>
 
           <div className="px-4 py-3 flex flex-col gap-3">
-            <p className="text-xs font-medium text-text-muted">Bình luận</p>
-
             {comments.length === 0 && (
               <p className="text-center text-sm text-text-muted py-4">
-                Chưa có bình luận nào. Hãy là người đầu tiên! 💬
+                Chưa có bình luận nào. Hãy là người đầu tiên!
               </p>
             )}
 
@@ -461,7 +552,7 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
                 <div className="flex gap-2.5">
                   <Avatar initials={c.author.initials} color={c.author.color} />
                   <div className="flex-1 min-w-0">
-                    <div className="bg-surface-50 rounded-2xl rounded-tl-sm px-3 py-2.5">
+                    <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
                       <span className="text-xs font-semibold text-text-primary">
                         {c.author.name}
                       </span>
@@ -589,9 +680,7 @@ export default function PostCard({ post }: { post: Post }) {
               <p className="text-xs text-text-muted">{post.time}</p>
             </div>
           </div>
-          <button className="p-1 rounded-lg hover:bg-surface-100 text-text-muted">
-            <MoreHorizontal size={16} />
-          </button>
+          <MoreMenu />
         </div>
 
         <p className="text-sm text-text-primary leading-relaxed mb-3">
@@ -609,6 +698,10 @@ export default function PostCard({ post }: { post: Post }) {
               </span>
             ))}
           </div>
+        )}
+
+        {post.images && post.images.length > 0 && (
+          <ImageGrid images={post.images} />
         )}
 
         {post.attachment && (
