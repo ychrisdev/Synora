@@ -16,9 +16,23 @@ import {
   Flag,
   ChevronLeft,
   ChevronRight,
+  Paperclip,
+  FileText,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useRef, useCallback, useEffect } from "react";
+
+const CURRENT_USER = {
+  name: "Trần Lê Quỳnh Anh",
+  initials: "QA",
+  color: "bg-primary",
+};
+
+const fileTypeColors: Record<string, string> = {
+  PDF: "bg-red-500",
+  DOCX: "bg-blue-600",
+  PPTX: "bg-orange-500",
+};
 
 interface Post {
   id: number;
@@ -32,12 +46,21 @@ interface Post {
   comments: number;
 }
 
+interface AttachedFile {
+  name: string;
+  size: string;
+  type: string;
+  dataUrl?: string;
+  isImage: boolean;
+}
+
 interface Comment {
   id: string;
   author: { name: string; initials: string; color: string };
   time: string;
   content: string;
   image?: string;
+  file?: AttachedFile;
   likes: number;
   liked: boolean;
   replies: Reply[];
@@ -53,6 +76,7 @@ interface Reply {
   likes: number;
   liked: boolean;
 }
+
 
 const MOCK_COMMENTS: Comment[] = [
   {
@@ -77,11 +101,65 @@ const MOCK_COMMENTS: Comment[] = [
   },
 ];
 
-const fileTypeColors: Record<string, string> = {
-  PDF: "bg-red-500",
-  DOCX: "bg-blue-600",
-  PPTX: "bg-orange-500",
-};
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileExt(name: string): string {
+  return name.split(".").pop()?.toUpperCase() ?? "FILE";
+}
+
+function isImageFile(name: string): boolean {
+  return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name);
+}
+
+function Avatar({
+  initials,
+  color,
+  size = "sm",
+}: {
+  initials: string;
+  color: string;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "md" ? "w-9 h-9 text-sm" : "w-8 h-8 text-xs";
+  return (
+    <div
+      className={clsx(
+        "rounded-full flex items-center justify-center text-white font-bold shrink-0",
+        dim,
+        color,
+      )}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function AttachmentBadge({ file }: { file: AttachedFile }) {
+  return (
+    <div className="flex items-center gap-2 mt-2 p-2 bg-surface-50 rounded-lg border border-surface-200 max-w-[240px]">
+      <div
+        className={clsx(
+          "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+          fileTypeColors[file.type] ?? "bg-gray-500",
+        )}
+      >
+        {file.isImage ? <ImageIcon size={14} /> : file.type}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-text-primary truncate">
+          {file.name}
+        </p>
+        <p className="text-[11px] text-text-muted">{file.size}</p>
+      </div>
+      <button className="p-1 rounded hover:bg-surface-200 text-text-secondary transition-colors shrink-0">
+        <Download size={13} />
+      </button>
+    </div>
+  );
+}
 
 function MoreMenu() {
   const [open, setOpen] = useState(false);
@@ -133,225 +211,6 @@ function MoreMenu() {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function ImageLightbox({
-  images,
-  initialIndex,
-  post,
-  onClose,
-}: {
-  images: string[];
-  initialIndex: number;
-  post: Post;
-  onClose: () => void;
-}) {
-  const [index, setIndex] = useState(initialIndex);
-  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
-  const [postLiked, setPostLiked] = useState(false);
-  const [postLikes, setPostLikes] = useState(post.likes);
-
-  const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
-  const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  const handleCommentSubmit = useCallback((content: string, image?: string) => {
-    setComments((prev) => [
-      ...prev,
-      {
-        id: `c-${Date.now()}`,
-        author: {
-          name: "Trần Lê Quỳnh Anh",
-          initials: "QA",
-          color: "bg-primary",
-        },
-        time: "Vừa xong",
-        content,
-        image,
-        likes: 0,
-        liked: false,
-        replies: [],
-        showReplyInput: false,
-      },
-    ]);
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
-      <div
-        className="flex-1 flex items-center justify-center relative"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
-        >
-          <X size={16} />
-        </button>
-
-        {images.length > 1 && (
-          <button
-            onClick={prev}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        )}
-
-        <img
-          src={images[index]}
-          alt=""
-          className="max-w-full max-h-screen object-contain px-16"
-        />
-
-        {images.length > 1 && (
-          <button
-            onClick={next}
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
-          >
-            <ChevronRight size={20} />
-          </button>
-        )}
-
-        {images.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setIndex(i)}
-                className={clsx(
-                  "w-1.5 h-1.5 rounded-full transition-all",
-                  i === index ? "bg-white scale-125" : "bg-white/40",
-                )}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div
-        className="w-[380px] shrink-0 bg-white flex flex-col h-screen"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
-          <div
-            className={clsx(
-              "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
-              post.author.color,
-            )}
-          >
-            {post.author.initials}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-text-primary">
-              {post.author.name}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-primary font-medium">
-                {post.author.role}
-              </span>
-              <span className="text-text-muted text-xs">·</span>
-              <span className="text-xs text-text-muted">{post.time}</span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition"
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <p className="text-sm text-text-primary leading-relaxed mb-2">
-            {post.content}
-          </p>
-
-          {post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {post.tags.map((t) => (
-                <span key={t} className="text-xs text-primary font-medium">
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-
-          <div className="border-t border-surface-100 pt-3 flex flex-col gap-3">
-            {comments.map((c) => (
-              <div key={c.id} className="flex gap-2.5">
-                <Avatar initials={c.author.initials} color={c.author.color} />
-                <div className="flex-1 min-w-0">
-                  <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
-                    <span className="text-xs font-semibold text-text-primary">
-                      {c.author.name}
-                    </span>
-                    <span className="text-[10px] text-text-muted ml-1.5">
-                      {c.time}
-                    </span>
-                    <p className="text-sm text-text-primary leading-relaxed mt-0.5">
-                      {c.content}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 mt-1 ml-1">
-                    <button className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors">
-                      Thích
-                    </button>
-                    <span className="text-text-muted text-[10px]">·</span>
-                    <button className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors">
-                      Trả lời
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="border-t border-surface-100 px-3 py-2">
-          <div className="flex items-center gap-1 mb-2">
-            <button
-              onClick={() => {
-                setPostLiked((p) => !p);
-                setPostLikes((c) => (postLiked ? c - 1 : c + 1));
-              }}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                postLiked
-                  ? "text-primary font-semibold"
-                  : "text-text-secondary hover:bg-surface-100",
-              )}
-            >
-              <ThumbsUp
-                size={15}
-                className={clsx(postLiked ? "fill-primary scale-110" : "")}
-              />
-              <span>{postLikes}</span>
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
-              <MessageCircle size={15} />
-              <span>{comments.length}</span>
-            </button>
-          </div>
-          <CommentInput onSubmit={handleCommentSubmit} />
-        </div>
-      </div>
     </div>
   );
 }
@@ -426,25 +285,154 @@ function ImageGrid({
   );
 }
 
-function Avatar({
-  initials,
-  color,
-  size = "sm",
+function CommentInput({
+  onSubmit,
+  inputRef,
 }: {
-  initials: string;
-  color: string;
-  size?: "sm" | "md";
+  onSubmit: (content: string, image?: string, file?: AttachedFile) => void;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }) {
-  const dim = size === "md" ? "w-9 h-9 text-sm" : "w-8 h-8 text-xs";
+  const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState<AttachedFile | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = getFileExt(file.name);
+    const isImg = isImageFile(file.name);
+    const size = formatFileSize(file.size);
+
+    if (isImg) {
+      const reader = new FileReader();
+      reader.onload = () =>
+        setAttachment({
+          name: file.name,
+          size,
+          type: ext,
+          dataUrl: reader.result as string,
+          isImage: true,
+        });
+      reader.readAsDataURL(file);
+    } else {
+      setAttachment({ name: file.name, size, type: ext, isImage: false });
+    }
+
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleSubmit = () => {
+    if (!text.trim() && !attachment) return;
+    onSubmit(
+      text.trim(),
+      attachment?.isImage ? attachment.dataUrl : undefined,
+      !attachment?.isImage ? (attachment ?? undefined) : undefined,
+    );
+    setText("");
+    setAttachment(null);
+  };
+
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const canSubmit = !!text.trim() || !!attachment;
+
   return (
-    <div
-      className={clsx(
-        "rounded-full flex items-center justify-center text-white font-bold shrink-0",
-        dim,
-        color,
-      )}
-    >
-      {initials}
+    <div className="flex gap-2.5">
+      <Avatar
+        initials={CURRENT_USER.initials}
+        color={CURRENT_USER.color}
+        size="sm"
+      />
+
+      <div className="flex-1 min-w-0">
+        {attachment && (
+          <div className="relative mb-2 inline-block">
+            {attachment.isImage && attachment.dataUrl ? (
+              <img
+                src={attachment.dataUrl}
+                alt="preview"
+                className="h-20 rounded-xl object-cover border border-surface-200"
+              />
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-2 bg-surface-100 rounded-xl border border-surface-200">
+                <FileText size={16} className="text-text-secondary shrink-0" />
+                <span className="text-xs text-text-primary max-w-[160px] truncate">
+                  {attachment.name}
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  {attachment.size}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => setAttachment(null)}
+              className="absolute -top-1.5 -right-1.5 bg-text-primary text-white rounded-full p-0.5"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-end gap-2 bg-surface-50 border border-surface-200 rounded-2xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-all">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Viết bình luận..."
+            rows={1}
+            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-muted outline-none bg-transparent leading-relaxed max-h-28"
+            style={{ height: "auto" }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${el.scrollHeight}px`;
+            }}
+          />
+
+          <div className="flex items-center gap-1 shrink-0">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
+              className="hidden"
+              onChange={handleFile}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="p-1 text-text-muted hover:text-primary transition-colors"
+              title="Đính kèm tệp"
+            >
+              <Paperclip size={16} />
+            </button>
+
+            <button
+              className="p-1 text-text-muted hover:text-amber-500 transition-colors"
+              title="Emoji"
+            >
+              <Smile size={16} />
+            </button>
+
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className={clsx(
+                "p-1.5 rounded-full transition-all",
+                canSubmit
+                  ? "text-white bg-primary hover:bg-primary-600 shadow-sm"
+                  : "text-text-muted cursor-not-allowed",
+              )}
+            >
+              <Send size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -461,9 +449,11 @@ function ReplyInput({
   const [text, setText] = useState("");
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
-      <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-        QA
-      </div>
+      <Avatar
+        initials={CURRENT_USER.initials}
+        color={CURRENT_USER.color}
+        size="sm"
+      />
       <div className="flex-1 flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-full px-3 py-1.5 focus-within:border-primary transition-colors">
         <input
           autoFocus
@@ -496,115 +486,399 @@ function ReplyInput({
   );
 }
 
-function CommentInput({
-  onSubmit,
-  inputRef,
+function CommentList({
+  comments,
+  replyingToId,
+  onLike,
+  onToggleReply,
+  onSubmitReply,
+  onCancelReply,
 }: {
-  onSubmit: (content: string, image?: string) => void;
-  inputRef?: React.RefObject<HTMLInputElement>;
+  comments: Comment[];
+  replyingToId: string | null;
+  onLike: (id: string) => void;
+  onToggleReply: (id: string) => void;
+  onSubmitReply: (commentId: string, text: string, replyTo: string) => void;
+  onCancelReply: () => void;
 }) {
-  const [text, setText] = useState("");
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      {comments.length === 0 && (
+        <p className="text-center text-sm text-text-muted py-4">
+          Chưa có bình luận nào. Hãy là người đầu tiên!
+        </p>
+      )}
 
-  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-    if (fileRef.current) fileRef.current.value = "";
-  };
+      {comments.map((c) => (
+        <div key={c.id}>
+          <div className="flex gap-2.5">
+            <Avatar initials={c.author.initials} color={c.author.color} />
+            <div className="flex-1 min-w-0">
+              <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
+                <span className="text-xs font-semibold text-text-primary">
+                  {c.author.name}
+                </span>
+                <span className="text-[10px] text-text-muted ml-1.5">
+                  {c.time}
+                </span>
+                <p className="text-sm text-text-primary leading-relaxed mt-0.5">
+                  {c.content}
+                </p>
+                {c.image && (
+                  <img
+                    src={c.image}
+                    alt="đính kèm"
+                    className="mt-2 rounded-lg max-h-48 object-cover border border-surface-200"
+                  />
+                )}
+                {c.file && <AttachmentBadge file={c.file} />}
+              </div>
+              <div className="flex items-center gap-1 mt-1 ml-1">
+                <button
+                  onClick={() => onLike(c.id)}
+                  className={clsx(
+                    "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                    c.liked
+                      ? "text-primary"
+                      : "text-text-muted hover:text-text-secondary",
+                  )}
+                >
+                  <ThumbsUp size={11} />
+                  <span>{c.likes > 0 ? c.likes : "Thích"}</span>
+                </button>
+                <span className="text-text-muted text-[10px]">·</span>
+                <button
+                  onClick={() => onToggleReply(c.id)}
+                  className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                >
+                  Trả lời
+                </button>
+              </div>
+            </div>
+          </div>
 
-  const handleSubmit = () => {
-    if (!text.trim() && !imagePreview) return;
-    onSubmit(text.trim(), imagePreview ?? undefined);
-    setText("");
-    setImagePreview(null);
-  };
+          {c.replies.length > 0 && (
+            <div className="ml-10 mt-2 flex flex-col gap-2">
+              {c.replies.map((r) => (
+                <div key={r.id} className="flex gap-2">
+                  <Avatar initials={r.author.initials} color={r.author.color} />
+                  <div className="flex-1 min-w-0">
+                    <div className="bg-surface-50 rounded-2xl rounded-tl-sm px-3 py-2">
+                      <span className="text-xs font-semibold text-text-primary">
+                        {r.author.name}
+                      </span>
+                      <span className="text-[10px] text-text-muted ml-1.5">
+                        {r.time}
+                      </span>
+                      <p className="text-sm text-text-primary leading-relaxed mt-0.5">
+                        {r.replyTo && (
+                          <span className="text-primary font-medium">
+                            @{r.replyTo}{" "}
+                          </span>
+                        )}
+                        {r.content}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
+          {replyingToId === c.id && (
+            <ReplyInput
+              replyTo={c.author.name}
+              onSubmit={(text) => onSubmitReply(c.id, text, c.author.name)}
+              onCancel={onCancelReply}
+            />
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function useComments(initialLikes: number) {
+  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
+  const [postLiked, setPostLiked] = useState(false);
+  const [postLikes, setPostLikes] = useState(initialLikes);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+
+  const handlePostLike = useCallback(() => {
+    setPostLiked((p) => !p);
+    setPostLikes((c) => (postLiked ? c - 1 : c + 1));
+  }, [postLiked]);
+
+  const handleCommentLike = useCallback((id: string) => {
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 }
+          : c,
+      ),
+    );
+  }, []);
+
+  const toggleReplyInput = useCallback((id: string) => {
+    setReplyingToId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const submitReply = useCallback(
+    (commentId: string, text: string, replyToName: string) => {
+      const replyTo =
+        replyToName === CURRENT_USER.name ? undefined : replyToName;
+
+      const reply: Reply = {
+        id: `r-${Date.now()}`,
+        author: CURRENT_USER,
+        time: "Vừa xong",
+        content: text,
+        replyTo,
+        likes: 0,
+        liked: false,
+      };
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId ? { ...c, replies: [...c.replies, reply] } : c,
+        ),
+      );
+      setReplyingToId(null);
+    },
+    [],
+  );
+
+  const submitComment = useCallback(
+    (content: string, image?: string, file?: AttachedFile) => {
+      setComments((prev) => [
+        ...prev,
+        {
+          id: `c-${Date.now()}`,
+          author: CURRENT_USER,
+          time: "Vừa xong",
+          content,
+          image,
+          file,
+          likes: 0,
+          liked: false,
+          replies: [],
+          showReplyInput: false,
+        },
+      ]);
+    },
+    [],
+  );
+
+  return {
+    comments,
+    postLiked,
+    postLikes,
+    replyingToId,
+    handlePostLike,
+    handleCommentLike,
+    toggleReplyInput,
+    submitReply,
+    submitComment,
+    cancelReply: () => setReplyingToId(null),
   };
+}
+
+function ImageLightbox({
+  images,
+  initialIndex,
+  post,
+  onClose,
+}: {
+  images: string[];
+  initialIndex: number;
+  post: Post;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const {
+    comments,
+    postLiked,
+    postLikes,
+    replyingToId,
+    handlePostLike,
+    handleCommentLike,
+    toggleReplyInput,
+    submitReply,
+    submitComment,
+    cancelReply,
+  } = useComments(post.likes);
+
+  const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
+  const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
-    <div className="flex gap-2.5 pt-2 mb-4">
-      <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs shrink-0">
-        QA
-      </div>
+    <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
+      <div
+        className="flex-1 flex items-center justify-center relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
+        >
+          <X size={16} />
+        </button>
 
-      <div className="flex-1 min-w-0">
-        {imagePreview && (
-          <div className="relative mb-2 inline-block">
-            <img
-              src={imagePreview}
-              alt="preview"
-              className="h-20 rounded-xl object-cover border border-surface-200"
-            />
-            <button
-              onClick={() => setImagePreview(null)}
-              className="absolute -top-1.5 -right-1.5 bg-text-primary text-white rounded-full p-0.5"
-            >
-              <X size={11} />
-            </button>
-          </div>
+        {images.length > 1 && (
+          <button
+            onClick={prev}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+          >
+            <ChevronLeft size={20} />
+          </button>
         )}
 
-        <div className="flex items-end gap-2 bg-surface-50 border border-surface-200 rounded-2xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-all">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Viết bình luận..."
-            rows={1}
-            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-muted outline-none bg-transparent leading-relaxed max-h-28"
-            style={{ height: "auto" }}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = `${el.scrollHeight}px`;
-            }}
-          />
+        <img
+          src={images[index]}
+          alt=""
+          className="max-w-full max-h-screen object-contain px-16"
+        />
 
-          <div className="flex items-center gap-1 shrink-0">
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleImage}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={next}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+            >
+              <ChevronRight size={20} />
+            </button>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setIndex(i)}
+                  className={clsx(
+                    "w-1.5 h-1.5 rounded-full transition-all",
+                    i === index ? "bg-white scale-125" : "bg-white/40",
+                  )}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div
+        className="w-[380px] shrink-0 bg-white flex flex-col h-screen"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
+          <div
+            className={clsx(
+              "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
+              post.author.color,
+            )}
+          >
+            {post.author.initials}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-text-primary">
+              {post.author.name}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-primary font-medium">
+                {post.author.role}
+              </span>
+              <span className="text-text-muted text-xs">·</span>
+              <span className="text-xs text-text-muted">{post.time}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          <p className="text-sm text-text-primary leading-relaxed mb-2">
+            {post.content}
+          </p>
+
+          {post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {post.tags.map((t) => (
+                <span key={t} className="text-xs text-primary font-medium">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {post.attachment && (
+            <div className="flex items-center gap-2.5 p-2.5 bg-surface-50 rounded-lg border border-surface-200 mb-3">
+              <div
+                className={clsx(
+                  "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+                  fileTypeColors[post.attachment.type] ?? "bg-gray-500",
+                )}
+              >
+                {post.attachment.type}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-text-primary truncate">
+                  {post.attachment.name}
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  {post.attachment.size}
+                </p>
+              </div>
+              <button className="p-1.5 rounded-md hover:bg-surface-200 text-text-secondary transition-colors">
+                <Download size={14} />
+              </button>
+            </div>
+          )}
+
+          <div className="border-t border-surface-100 pt-3 flex flex-col gap-3">
+            <CommentList
+              comments={comments}
+              replyingToId={replyingToId}
+              onLike={handleCommentLike}
+              onToggleReply={toggleReplyInput}
+              onSubmitReply={submitReply}
+              onCancelReply={cancelReply}
             />
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="p-1 text-text-muted hover:text-primary transition-colors"
-              title="Đính kèm ảnh"
-            >
-              <ImageIcon size={16} />
-            </button>
+          </div>
+        </div>
 
+        <div className="border-t border-surface-100 px-3 py-2">
+          <div className="flex items-center gap-1 mb-2">
             <button
-              className="p-1 text-text-muted hover:text-amber-500 transition-colors"
-              title="Emoji"
-            >
-              <Smile size={16} />
-            </button>
-
-            <button
-              onClick={handleSubmit}
-              disabled={!text.trim() && !imagePreview}
+              onClick={handlePostLike}
               className={clsx(
-                "p-1.5 rounded-full transition-all",
-                text.trim() || imagePreview
-                  ? "text-white bg-primary hover:bg-primary-600 shadow-sm"
-                  : "text-text-muted cursor-not-allowed",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
+                postLiked
+                  ? "text-primary font-semibold"
+                  : "text-text-secondary hover:bg-surface-100",
               )}
             >
-              <Send size={13} />
+              <ThumbsUp
+                size={15}
+                className={clsx(postLiked ? "fill-primary scale-110" : "")}
+              />
+              <span>{postLikes}</span>
+            </button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
+              <MessageCircle size={15} />
+              <span>{comments.length}</span>
             </button>
           </div>
+          <CommentInput onSubmit={submitComment} />
         </div>
       </div>
     </div>
@@ -612,82 +886,33 @@ function CommentInput({
 }
 
 function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
-  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
-  const [postLiked, setPostLiked] = useState(false);
-  const [postLikes, setPostLikes] = useState(post.likes);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const {
+    comments,
+    postLiked,
+    postLikes,
+    replyingToId,
+    handlePostLike,
+    handleCommentLike,
+    toggleReplyInput,
+    submitReply,
+    submitComment,
+    cancelReply,
+  } = useComments(post.likes);
 
-  const handlePostLike = () => {
-    setPostLiked((prev) => !prev);
-    setPostLikes((c) => (postLiked ? c - 1 : c + 1));
-  };
-
-  const handleCommentLike = useCallback((id: string) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              liked: !c.liked,
-              likes: c.liked ? c.likes - 1 : c.likes + 1,
-            }
-          : c,
-      ),
-    );
-  }, []);
-
-  const toggleReplyInput = useCallback((id: string) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, showReplyInput: !c.showReplyInput } : c,
-      ),
-    );
-  }, []);
-
-  const submitReply = useCallback(
-    (commentId: string, content: string, replyTo: string) => {
-      const reply: Reply = {
-        id: `r-${Date.now()}`,
-        author: {
-          name: "Trần Lê Quỳnh Anh",
-          initials: "QA",
-          color: "bg-primary",
-        },
-        time: "Vừa xong",
-        content,
-        replyTo,
-        likes: 0,
-        liked: false,
-      };
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === commentId
-            ? { ...c, replies: [...c.replies, reply], showReplyInput: false }
-            : c,
-        ),
-      );
-    },
-    [],
+  const [lightboxIndex, setLightboxIndex] = useState<number | undefined>(
+    undefined,
   );
 
-  const handleSubmit = useCallback((content: string, image?: string) => {
-    const newComment: Comment = {
-      id: `c-${Date.now()}`,
-      author: {
-        name: "Trần Lê Quỳnh Anh",
-        initials: "QA",
-        color: "bg-primary",
-      },
-      time: "Vừa xong",
-      content,
-      image,
-      likes: 0,
-      liked: false,
-      replies: [],
-      showReplyInput: false,
-    };
-    setComments((prev) => [...prev, newComment]);
-  }, []);
+  if (lightboxIndex !== undefined && post.images) {
+    return (
+      <ImageLightbox
+        images={post.images}
+        initialIndex={lightboxIndex}
+        post={post}
+        onClose={() => setLightboxIndex(undefined)}
+      />
+    );
+  }
 
   return (
     <div
@@ -726,6 +951,7 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
             <p className="text-sm text-text-primary leading-relaxed mb-2">
               {post.content}
             </p>
+
             {post.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {post.tags.map((t) => (
@@ -735,26 +961,38 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
                 ))}
               </div>
             )}
+
+            {post.images && post.images.length > 0 && (
+              <div className="mb-2">
+                <ImageGrid
+                  images={post.images}
+                  onImageClick={(i) => setLightboxIndex(i)}
+                />
+              </div>
+            )}
+
             {post.attachment && (
-              <div className="flex items-center gap-2.5 p-2.5 bg-surface-50 rounded-lg border border-surface-200">
-                <div
-                  className={clsx(
-                    "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
-                    fileTypeColors[post.attachment.type] || "bg-gray-500",
-                  )}
-                >
-                  {post.attachment.type}
+              <div className="flex items-center justify-between p-3 bg-surface-50 rounded-lg border border-surface-200">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={clsx(
+                      "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0",
+                      fileTypeColors[post.attachment.type] ?? "bg-gray-500",
+                    )}
+                  >
+                    {post.attachment.type}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">
+                      {post.attachment.name}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {post.attachment.size}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-text-primary truncate">
-                    {post.attachment.name}
-                  </p>
-                  <p className="text-[11px] text-text-muted">
-                    {post.attachment.size}
-                  </p>
-                </div>
-                <button className="p-1.5 rounded-md hover:bg-surface-200 text-text-secondary transition-colors">
-                  <Download size={14} />
+                <button className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors">
+                  <Download size={16} />
                 </button>
               </div>
             )}
@@ -779,10 +1017,7 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
               />
               <span>{postLikes}</span>
             </button>
-            <button
-              onClick={() => inputRef.current?.focus()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors"
-            >
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
               <MessageCircle size={15} />
               <span>{comments.length}</span>
             </button>
@@ -793,104 +1028,19 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
           </div>
 
           <div className="px-4 py-3 flex flex-col gap-3">
-            {comments.length === 0 && (
-              <p className="text-center text-sm text-text-muted py-4">
-                Chưa có bình luận nào. Hãy là người đầu tiên!
-              </p>
-            )}
-
-            {comments.map((c) => (
-              <div key={c.id}>
-                <div className="flex gap-2.5">
-                  <Avatar initials={c.author.initials} color={c.author.color} />
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
-                      <span className="text-xs font-semibold text-text-primary">
-                        {c.author.name}
-                      </span>
-                      <span className="text-[10px] text-text-muted ml-1.5">
-                        {c.time}
-                      </span>
-                      <p className="text-sm text-text-primary leading-relaxed mt-0.5">
-                        {c.content}
-                      </p>
-                      {c.image && (
-                        <img
-                          src={c.image}
-                          alt="đính kèm"
-                          className="mt-2 rounded-lg max-h-48 object-cover border border-surface-200"
-                        />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1 ml-1">
-                      <button
-                        onClick={() => handleCommentLike(c.id)}
-                        className={clsx(
-                          "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                          c.liked
-                            ? "text-primary"
-                            : "text-text-muted hover:text-text-secondary",
-                        )}
-                      >
-                        <ThumbsUp size={11} />
-                        <span>{c.likes > 0 ? c.likes : "Thích"}</span>
-                      </button>
-                      <span className="text-text-muted text-[10px]">·</span>
-                      <button
-                        onClick={() => toggleReplyInput(c.id)}
-                        className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
-                      >
-                        Trả lời
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {c.replies.length > 0 && (
-                  <div className="ml-10 mt-2 flex flex-col gap-2">
-                    {c.replies.map((r) => (
-                      <div key={r.id} className="flex gap-2">
-                        <Avatar
-                          initials={r.author.initials}
-                          color={r.author.color}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="bg-surface-50 rounded-2xl rounded-tl-sm px-3 py-2">
-                            <span className="text-xs font-semibold text-text-primary">
-                              {r.author.name}
-                            </span>
-                            <span className="text-[10px] text-text-muted ml-1.5">
-                              {r.time}
-                            </span>
-                            <p className="text-sm text-text-primary leading-relaxed mt-0.5">
-                              {r.replyTo && (
-                                <span className="text-primary font-medium">
-                                  @{r.replyTo}{" "}
-                                </span>
-                              )}
-                              {r.content}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {c.showReplyInput && (
-                  <ReplyInput
-                    replyTo={c.author.name}
-                    onSubmit={(text) => submitReply(c.id, text, c.author.name)}
-                    onCancel={() => toggleReplyInput(c.id)}
-                  />
-                )}
-              </div>
-            ))}
+            <CommentList
+              comments={comments}
+              replyingToId={replyingToId}
+              onLike={handleCommentLike}
+              onToggleReply={toggleReplyInput}
+              onSubmitReply={submitReply}
+              onCancelReply={cancelReply}
+            />
           </div>
         </div>
 
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
-          <CommentInput onSubmit={handleSubmit} inputRef={inputRef} />
+          <CommentInput onSubmit={submitComment} />
         </div>
       </div>
     </div>
