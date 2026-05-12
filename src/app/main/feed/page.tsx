@@ -4,6 +4,7 @@ import { useState } from "react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
+import { mapFilesToPostFields } from "@/components/feed/PostCard";
 import TrendingTopics from "@/components/feed/TrendingTopics";
 import FeaturedDocs from "@/components/feed/FeaturedDocs";
 
@@ -53,36 +54,35 @@ const INITIAL_POSTS = [
 export default function FeedPage() {
   const [posts, setPosts] = useState(INITIAL_POSTS);
 
-  const handlePost = ({ content, tags, files }: { content: string; tags: string[]; files: AttachedFile[] }) => {
-  
-  const imageTypes = ["JPG", "JPEG", "PNG", "GIF", "WEBP"];
-  const imageFiles = files.filter((f) => imageTypes.includes(f.type));
-  const docFiles = files.filter((f) => !imageTypes.includes(f.type));
-
-  const images = imageFiles.map((f) => URL.createObjectURL(f.file));
-
-  const attachment = docFiles[0]
-    ? { name: docFiles[0].name, size: docFiles[0].size, type: docFiles[0].type }
-    : undefined;
-
-  const newPost = {
-    id: Date.now(),
-    author: {
-      name: "Trần Lê Quỳnh Anh",
-      initials: "QA",
-      color: "bg-purple-500",
-      role: "Sinh viên năm 2",
-    },
-    time: "Vừa xong",
+  const handlePost = ({
     content,
     tags,
-    images,
-    attachment,
-    likes: 0,
-    comments: 0,
+    files,
+  }: {
+    content: string;
+    tags: string[];
+    files: AttachedFile[];
+  }) => {
+    const { images, mediaTypes, attachment } = mapFilesToPostFields(files);
+    const newPost = {
+      id: Date.now(),
+      author: {
+        name: "Trần Lê Quỳnh Anh",
+        initials: "QA",
+        color: "bg-purple-500",
+        role: "Sinh viên năm 2",
+      },
+      time: "Vừa xong",
+      content,
+      tags,
+      images,
+      mediaTypes,
+      attachment,
+      likes: 0,
+      comments: 0,
+    };
+    setPosts((prev) => [newPost, ...prev]);
   };
-  setPosts((prev) => [newPost, ...prev]);
-};
 
   return (
     <div className="flex w-full py-5 items-start">

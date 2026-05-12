@@ -40,10 +40,55 @@ interface Post {
   time: string;
   content: string;
   images?: string[];
+  mediaTypes?: string[];
   tags: string[];
-  attachment?: { name: string; size: string; type: string };
+  attachment?: { name: string; size: string; type: string; url?: string };
   likes: number;
   comments: number;
+}
+
+const MEDIA_IMAGE_TYPES = new Set([
+  "JPG",
+  "JPEG",
+  "PNG",
+  "GIF",
+  "WEBP",
+  "BMP",
+  "SVG",
+]);
+const MEDIA_VIDEO_TYPES = new Set(["MP4", "MOV", "AVI", "WEBM", "MKV"]);
+
+export function mapFilesToPostFields(
+  files: Array<{
+    file: File;
+    name: string;
+    size: string;
+    type: string;
+    previewUrl?: string;
+  }>,
+) {
+  const images: string[] = [];
+  const mediaTypes: string[] = [];
+  let attachment: Post["attachment"] | undefined;
+
+  for (const f of files) {
+    if (MEDIA_IMAGE_TYPES.has(f.type) && f.previewUrl) {
+      images.push(f.previewUrl);
+      mediaTypes.push("image");
+    } else if (MEDIA_VIDEO_TYPES.has(f.type) && f.previewUrl) {
+      images.push(f.previewUrl);
+      mediaTypes.push("video");
+    } else {
+      const url = f.previewUrl ?? URL.createObjectURL(f.file);
+      attachment = { name: f.name, size: f.size, type: f.type, url };
+    }
+  }
+
+  return {
+    images: images.length ? images : undefined,
+    mediaTypes: mediaTypes.length ? mediaTypes : undefined,
+    attachment,
+  };
 }
 
 interface AttachedFile {
@@ -76,7 +121,6 @@ interface Reply {
   likes: number;
   liked: boolean;
 }
-
 
 const MOCK_COMMENTS: Comment[] = [
   {
@@ -112,6 +156,36 @@ function getFileExt(name: string): string {
 
 function isImageFile(name: string): boolean {
   return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name);
+}
+
+function isVideoItem(src: string, mediaType?: string): boolean {
+  if (mediaType) return mediaType === "video";
+  return /\.(mp4|mov|avi|webm|mkv)$/i.test(src);
+}
+
+function RichContent({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  return (
+    <p className={className}>
+      {text.split(/(#[\wÀ-ỹ]+)/gu).map((part, i) =>
+        /^#[\wÀ-ỹ]+$/u.test(part) ? (
+          <span
+            key={i}
+            className="text-primary font-medium hover:underline cursor-pointer"
+          >
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </p>
+  );
 }
 
 function Avatar({
@@ -154,9 +228,6 @@ function AttachmentBadge({ file }: { file: AttachedFile }) {
         </p>
         <p className="text-[11px] text-text-muted">{file.size}</p>
       </div>
-      <button className="p-1 rounded hover:bg-surface-200 text-text-secondary transition-colors shrink-0">
-        <Download size={13} />
-      </button>
     </div>
   );
 }
@@ -215,11 +286,63 @@ function MoreMenu() {
   );
 }
 
+function MediaThumb({
+  src,
+  mediaType,
+  onClick,
+  className,
+  overlay,
+}: {
+  src: string;
+  mediaType?: string;
+  onClick: () => void;
+  className?: string;
+  overlay?: React.ReactNode;
+}) {
+  const isVideo = isVideoItem(src, mediaType);
+  return (
+    <div
+      className={clsx(
+        "relative overflow-hidden cursor-pointer group",
+        className,
+      )}
+      onClick={onClick}
+    >
+      {isVideo ? (
+        <video
+          src={src}
+          muted
+          preload="metadata"
+          className="w-full h-full object-cover group-hover:brightness-90 transition"
+        />
+      ) : (
+        <img
+          src={src}
+          alt=""
+          className="w-full h-full object-cover group-hover:brightness-95 transition"
+        />
+      )}
+      {isVideo && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/35 transition-colors pointer-events-none">
+          <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 ml-0.5">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </div>
+        </div>
+      )}
+      {overlay}
+    </div>
+  );
+}
+
 function ImageGrid({
   images,
+  mediaTypes,
   onImageClick,
 }: {
   images: string[];
+  mediaTypes?: string[];
   onImageClick: (index: number) => void;
 }) {
   const extraCount = images.length - 3;
@@ -227,11 +350,11 @@ function ImageGrid({
   if (images.length === 1)
     return (
       <div className="mb-3 rounded-xl overflow-hidden">
-        <img
+        <MediaThumb
           src={images[0]}
-          alt=""
+          mediaType={mediaTypes?.[0]}
           onClick={() => onImageClick(0)}
-          className="w-full max-h-80 object-cover cursor-pointer hover:brightness-95 transition"
+          className="w-full h-72 object-cover"
         />
       </div>
     );
@@ -240,12 +363,12 @@ function ImageGrid({
     return (
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
         {images.map((src, i) => (
-          <img
+          <MediaThumb
             key={i}
             src={src}
-            alt=""
+            mediaType={mediaTypes?.[i]}
             onClick={() => onImageClick(i)}
-            className="w-full h-44 object-cover cursor-pointer hover:brightness-95 transition"
+            className="w-full h-44"
           />
         ))}
       </div>
@@ -253,44 +376,39 @@ function ImageGrid({
 
   return (
     <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
-      <img
+      <MediaThumb
         src={images[0]}
-        alt=""
+        mediaType={mediaTypes?.[0]}
         onClick={() => onImageClick(0)}
-        className="w-full row-span-2 h-[244px] object-cover cursor-pointer hover:brightness-95 transition"
+        className="w-full row-span-2 h-[244px]"
       />
-      <img
+      <MediaThumb
         src={images[1]}
-        alt=""
+        mediaType={mediaTypes?.[1]}
         onClick={() => onImageClick(1)}
-        className="w-full h-[120px] object-cover cursor-pointer hover:brightness-95 transition"
+        className="w-full h-[120px]"
       />
-      <div className="relative">
-        <img
-          src={images[2]}
-          alt=""
-          onClick={() => onImageClick(2)}
-          className="w-full h-[120px] object-cover cursor-pointer hover:brightness-95 transition"
-        />
-        {extraCount > 0 && (
-          <button
-            onClick={() => onImageClick(2)}
-            className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-xl"
-          >
-            +{extraCount}
-          </button>
-        )}
-      </div>
+      <MediaThumb
+        src={images[2]}
+        mediaType={mediaTypes?.[2]}
+        onClick={() => onImageClick(2)}
+        className="w-full h-[120px]"
+        overlay={
+          extraCount > 0 ? (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-xl pointer-events-none">
+              +{extraCount}
+            </div>
+          ) : undefined
+        }
+      />
     </div>
   );
 }
 
 function CommentInput({
   onSubmit,
-  inputRef,
 }: {
   onSubmit: (content: string, image?: string, file?: AttachedFile) => void;
-  inputRef?: React.RefObject<HTMLInputElement>;
 }) {
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<AttachedFile | null>(null);
@@ -299,11 +417,9 @@ function CommentInput({
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const ext = getFileExt(file.name);
     const isImg = isImageFile(file.name);
     const size = formatFileSize(file.size);
-
     if (isImg) {
       const reader = new FileReader();
       reader.onload = () =>
@@ -318,7 +434,6 @@ function CommentInput({
     } else {
       setAttachment({ name: file.name, size, type: ext, isImage: false });
     }
-
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -349,7 +464,6 @@ function CommentInput({
         color={CURRENT_USER.color}
         size="sm"
       />
-
       <div className="flex-1 min-w-0">
         {attachment && (
           <div className="relative mb-2 inline-block">
@@ -378,7 +492,6 @@ function CommentInput({
             </button>
           </div>
         )}
-
         <div className="flex items-end gap-2 bg-surface-50 border border-surface-200 rounded-2xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-all">
           <textarea
             value={text}
@@ -394,7 +507,6 @@ function CommentInput({
               el.style.height = `${el.scrollHeight}px`;
             }}
           />
-
           <div className="flex items-center gap-1 shrink-0">
             <input
               ref={fileRef}
@@ -410,14 +522,12 @@ function CommentInput({
             >
               <Paperclip size={16} />
             </button>
-
             <button
               className="p-1 text-text-muted hover:text-amber-500 transition-colors"
               title="Emoji"
             >
               <Smile size={16} />
             </button>
-
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
@@ -508,7 +618,6 @@ function CommentList({
           Chưa có bình luận nào. Hãy là người đầu tiên!
         </p>
       )}
-
       {comments.map((c) => (
         <div key={c.id}>
           <div className="flex gap-2.5">
@@ -556,7 +665,6 @@ function CommentList({
               </div>
             </div>
           </div>
-
           {c.replies.length > 0 && (
             <div className="ml-10 mt-2 flex flex-col gap-2">
               {c.replies.map((r) => (
@@ -584,7 +692,6 @@ function CommentList({
               ))}
             </div>
           )}
-
           {replyingToId === c.id && (
             <ReplyInput
               replyTo={c.author.name}
@@ -599,7 +706,9 @@ function CommentList({
 }
 
 function useComments(initialLikes: number) {
-  const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
+  const [comments, setComments] = useState<Comment[]>(() =>
+    MOCK_COMMENTS.map((c) => ({ ...c })),
+  );
   const [postLiked, setPostLiked] = useState(false);
   const [postLikes, setPostLikes] = useState(initialLikes);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -613,7 +722,11 @@ function useComments(initialLikes: number) {
     setComments((prev) =>
       prev.map((c) =>
         c.id === id
-          ? { ...c, liked: !c.liked, likes: c.liked ? c.likes - 1 : c.likes + 1 }
+          ? {
+              ...c,
+              liked: !c.liked,
+              likes: c.liked ? c.likes - 1 : c.likes + 1,
+            }
           : c,
       ),
     );
@@ -627,7 +740,6 @@ function useComments(initialLikes: number) {
     (commentId: string, text: string, replyToName: string) => {
       const replyTo =
         replyToName === CURRENT_USER.name ? undefined : replyToName;
-
       const reply: Reply = {
         id: `r-${Date.now()}`,
         author: CURRENT_USER,
@@ -682,13 +794,69 @@ function useComments(initialLikes: number) {
   };
 }
 
-function ImageLightbox({
+type ModalState =
+  | { type: "none" }
+  | { type: "comment" }
+  | { type: "lightbox"; index: number };
+
+function AttachmentRow({
+  attachment,
+  className,
+}: {
+  attachment: NonNullable<Post["attachment"]>;
+  className?: string;
+}) {
+  const isMedia =
+    MEDIA_IMAGE_TYPES.has(attachment.type) ||
+    MEDIA_VIDEO_TYPES.has(attachment.type);
+  if (isMedia) return null;
+  return (
+    <div
+      className={clsx(
+        "flex items-center justify-between p-3 bg-surface-50 rounded-lg border border-surface-200",
+        className,
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div
+          className={clsx(
+            "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0",
+            fileTypeColors[attachment.type] ?? "bg-gray-500",
+          )}
+        >
+          {attachment.type}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-text-primary">
+            {attachment.name}
+          </p>
+          <p className="text-xs text-text-muted">{attachment.size}</p>
+        </div>
+      </div>
+      <a
+        href={attachment.url ?? "#"}
+        download={attachment.name}
+        onClick={(e) => {
+          if (!attachment.url) e.preventDefault();
+        }}
+        className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors"
+        title="Tải xuống"
+      >
+        <Download size={16} />
+      </a>
+    </div>
+  );
+}
+
+function MediaLightbox({
   images,
+  mediaTypes,
   initialIndex,
   post,
   onClose,
 }: {
   images: string[];
+  mediaTypes?: string[];
   initialIndex: number;
   post: Post;
   onClose: () => void;
@@ -720,6 +888,9 @@ function ImageLightbox({
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const currentSrc = images[index];
+  const isVideo = isVideoItem(currentSrc, mediaTypes?.[index]);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
       <div
@@ -732,7 +903,6 @@ function ImageLightbox({
         >
           <X size={16} />
         </button>
-
         {images.length > 1 && (
           <button
             onClick={prev}
@@ -741,13 +911,21 @@ function ImageLightbox({
             <ChevronLeft size={20} />
           </button>
         )}
-
-        <img
-          src={images[index]}
-          alt=""
-          className="max-w-full max-h-screen object-contain px-16"
-        />
-
+        {isVideo ? (
+          <video
+            key={currentSrc}
+            src={currentSrc}
+            controls
+            autoPlay
+            className="max-w-full max-h-screen object-contain px-16"
+          />
+        ) : (
+          <img
+            src={currentSrc}
+            alt=""
+            className="max-w-full max-h-screen object-contain px-16"
+          />
+        )}
         {images.length > 1 && (
           <>
             <button
@@ -773,10 +951,11 @@ function ImageLightbox({
       </div>
 
       <div
-        className="w-[380px] shrink-0 bg-white flex flex-col h-screen"
+        className="w-[380px] shrink-0 bg-white flex flex-col"
+        style={{ height: "100vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100 shrink-0">
           <div
             className={clsx(
               "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
@@ -797,87 +976,55 @@ function ImageLightbox({
               <span className="text-xs text-text-muted">{post.time}</span>
             </div>
           </div>
+        </div>
+        <div className="px-4 pt-3 pb-2 shrink-0">
+          <RichContent
+            text={post.content}
+            className="text-sm text-text-primary leading-relaxed"
+          />
+          {post.attachment && (
+            <AttachmentRow attachment={post.attachment} className="mt-2" />
+          )}
+        </div>
+        <div className="flex items-center gap-1 px-3 py-1.5 border-y border-surface-100 shrink-0">
           <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition"
+            onClick={handlePostLike}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
+              postLiked
+                ? "text-primary font-semibold"
+                : "text-text-secondary hover:bg-surface-100",
+            )}
           >
-            <X size={14} />
+            <ThumbsUp
+              size={15}
+              className={clsx(
+                "transition-transform duration-150",
+                postLiked ? "fill-primary scale-110" : "",
+              )}
+            />
+            <span>{postLikes}</span>
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
+            <MessageCircle size={15} />
+            <span>{comments.length}</span>
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
+            <Share2 size={15} />
+            <span>Chia sẻ</span>
           </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          <p className="text-sm text-text-primary leading-relaxed mb-2">
-            {post.content}
-          </p>
-
-          {post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {post.tags.map((t) => (
-                <span key={t} className="text-xs text-primary font-medium">
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {post.attachment && (
-            <div className="flex items-center gap-2.5 p-2.5 bg-surface-50 rounded-lg border border-surface-200 mb-3">
-              <div
-                className={clsx(
-                  "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
-                  fileTypeColors[post.attachment.type] ?? "bg-gray-500",
-                )}
-              >
-                {post.attachment.type}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-text-primary truncate">
-                  {post.attachment.name}
-                </p>
-                <p className="text-[11px] text-text-muted">
-                  {post.attachment.size}
-                </p>
-              </div>
-              <button className="p-1.5 rounded-md hover:bg-surface-200 text-text-secondary transition-colors">
-                <Download size={14} />
-              </button>
-            </div>
-          )}
-
-          <div className="border-t border-surface-100 pt-3 flex flex-col gap-3">
-            <CommentList
-              comments={comments}
-              replyingToId={replyingToId}
-              onLike={handleCommentLike}
-              onToggleReply={toggleReplyInput}
-              onSubmitReply={submitReply}
-              onCancelReply={cancelReply}
-            />
-          </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+          <CommentList
+            comments={comments}
+            replyingToId={replyingToId}
+            onLike={handleCommentLike}
+            onToggleReply={toggleReplyInput}
+            onSubmitReply={submitReply}
+            onCancelReply={cancelReply}
+          />
         </div>
-
-        <div className="border-t border-surface-100 px-3 py-2">
-          <div className="flex items-center gap-1 mb-2">
-            <button
-              onClick={handlePostLike}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                postLiked
-                  ? "text-primary font-semibold"
-                  : "text-text-secondary hover:bg-surface-100",
-              )}
-            >
-              <ThumbsUp
-                size={15}
-                className={clsx(postLiked ? "fill-primary scale-110" : "")}
-              />
-              <span>{postLikes}</span>
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
-              <MessageCircle size={15} />
-              <span>{comments.length}</span>
-            </button>
-          </div>
+        <div className="border-t border-surface-100 px-4 py-3 shrink-0">
           <CommentInput onSubmit={submitComment} />
         </div>
       </div>
@@ -899,17 +1046,16 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
     cancelReply,
   } = useComments(post.likes);
 
-  const [lightboxIndex, setLightboxIndex] = useState<number | undefined>(
-    undefined,
-  );
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  if (lightboxIndex !== undefined && post.images) {
+  if (lightboxIndex !== null && post.images) {
     return (
-      <ImageLightbox
+      <MediaLightbox
         images={post.images}
+        mediaTypes={post.mediaTypes}
         initialIndex={lightboxIndex}
         post={post}
-        onClose={() => setLightboxIndex(undefined)}
+        onClose={() => setLightboxIndex(null)}
       />
     );
   }
@@ -919,126 +1065,89 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto">
-          <div className="flex items-start gap-3 px-4 pt-4 pb-2 mt-4">
-            <Avatar
-              initials={post.author.initials}
-              color={post.author.color}
-              size="md"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-text-primary">
-                {post.author.name}
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs text-primary font-medium">
-                  {post.author.role}
-                </span>
-                <span className="text-text-muted text-xs">·</span>
-                <span className="text-xs text-text-muted">{post.time}</span>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors shrink-0"
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="px-4 pb-3">
-            <p className="text-sm text-text-primary leading-relaxed mb-2">
-              {post.content}
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+        style={{ maxHeight: "90vh" }}
+      >
+        <div className="flex items-start gap-3 px-4 pt-4 pb-3 shrink-0">
+          <Avatar
+            initials={post.author.initials}
+            color={post.author.color}
+            size="md"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-text-primary">
+              {post.author.name}
             </p>
-
-            {post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {post.tags.map((t) => (
-                  <span key={t} className="text-xs text-primary font-medium">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {post.images && post.images.length > 0 && (
-              <div className="mb-2">
-                <ImageGrid
-                  images={post.images}
-                  onImageClick={(i) => setLightboxIndex(i)}
-                />
-              </div>
-            )}
-
-            {post.attachment && (
-              <div className="flex items-center justify-between p-3 bg-surface-50 rounded-lg border border-surface-200">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={clsx(
-                      "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0",
-                      fileTypeColors[post.attachment.type] ?? "bg-gray-500",
-                    )}
-                  >
-                    {post.attachment.type}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">
-                      {post.attachment.name}
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {post.attachment.size}
-                    </p>
-                  </div>
-                </div>
-                <button className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors">
-                  <Download size={16} />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-xs text-primary font-medium">
+                {post.author.role}
+              </span>
+              <span className="text-text-muted text-xs">·</span>
+              <span className="text-xs text-text-muted">{post.time}</span>
+            </div>
           </div>
-
-          <div className="flex items-center gap-1 px-3 pb-3 border-b border-surface-100">
-            <button
-              onClick={handlePostLike}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                postLiked
-                  ? "text-primary font-medium"
-                  : "text-text-secondary hover:bg-surface-100",
-              )}
-            >
-              <ThumbsUp
-                size={15}
-                className={clsx(
-                  "transition-transform duration-150",
-                  postLiked ? "scale-110 fill-primary" : "",
-                )}
-              />
-              <span>{postLikes}</span>
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
-              <MessageCircle size={15} />
-              <span>{comments.length}</span>
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
-              <Share2 size={15} />
-              <span>Chia sẻ</span>
-            </button>
-          </div>
-
-          <div className="px-4 py-3 flex flex-col gap-3">
-            <CommentList
-              comments={comments}
-              replyingToId={replyingToId}
-              onLike={handleCommentLike}
-              onToggleReply={toggleReplyInput}
-              onSubmitReply={submitReply}
-              onCancelReply={cancelReply}
-            />
-          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors shrink-0"
+          >
+            <X size={14} />
+          </button>
         </div>
-
+        <div className="px-4 pb-3 shrink-0">
+          <RichContent
+            text={post.content}
+            className="text-sm text-text-primary leading-relaxed mb-2"
+          />
+          {post.images && post.images.length > 0 && (
+            <div className="mb-2">
+              <ImageGrid
+                images={post.images}
+                mediaTypes={post.mediaTypes}
+                onImageClick={(i) => setLightboxIndex(i)}
+              />
+            </div>
+          )}
+          {post.attachment && <AttachmentRow attachment={post.attachment} />}
+        </div>
+        <div className="flex items-center gap-1 px-3 py-1 border-y border-surface-100 shrink-0">
+          <button
+            onClick={handlePostLike}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
+              postLiked
+                ? "text-primary font-medium"
+                : "text-text-secondary hover:bg-surface-100",
+            )}
+          >
+            <ThumbsUp
+              size={15}
+              className={clsx(
+                "transition-transform duration-150",
+                postLiked ? "scale-110 fill-primary" : "",
+              )}
+            />
+            <span>{postLikes}</span>
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
+            <MessageCircle size={15} />
+            <span>{comments.length}</span>
+          </button>
+          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
+            <Share2 size={15} />
+            <span>Chia sẻ</span>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
+          <CommentList
+            comments={comments}
+            replyingToId={replyingToId}
+            onLike={handleCommentLike}
+            onToggleReply={toggleReplyInput}
+            onSubmitReply={submitReply}
+            onCancelReply={cancelReply}
+          />
+        </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
           <CommentInput onSubmit={submitComment} />
         </div>
@@ -1050,10 +1159,8 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
 export default function PostCard({ post }: { post: Post }) {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(post.likes);
-  const [showComments, setShowComments] = useState(false);
-  const [initialImageIndex, setInitialImageIndex] = useState<
-    number | undefined
-  >(undefined);
+
+  const [modal, setModal] = useState<ModalState>({ type: "none" });
 
   const handleLike = () => {
     setLiked((prev) => !prev);
@@ -1061,8 +1168,7 @@ export default function PostCard({ post }: { post: Post }) {
   };
 
   const handleImageClick = (index: number) => {
-    setInitialImageIndex(index);
-    setShowComments(true);
+    setModal({ type: "lightbox", index });
   };
 
   return (
@@ -1093,51 +1199,21 @@ export default function PostCard({ post }: { post: Post }) {
           <MoreMenu />
         </div>
 
-        <p className="text-sm text-text-primary leading-relaxed mb-3">
-          {post.content}
-        </p>
-
-        {post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {post.tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-xs text-primary font-medium hover:underline cursor-pointer"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
+        <RichContent
+          text={post.content}
+          className="text-sm text-text-primary leading-relaxed mb-3"
+        />
 
         {post.images && post.images.length > 0 && (
-          <ImageGrid images={post.images} onImageClick={handleImageClick} />
+          <ImageGrid
+            images={post.images}
+            mediaTypes={post.mediaTypes}
+            onImageClick={handleImageClick}
+          />
         )}
 
         {post.attachment && (
-          <div className="flex items-center justify-between p-3 bg-surface-50 rounded-lg border border-surface-200 mb-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={clsx(
-                  "w-9 h-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0",
-                  fileTypeColors[post.attachment.type] || "bg-gray-500",
-                )}
-              >
-                {post.attachment.type}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-primary">
-                  {post.attachment.name}
-                </p>
-                <p className="text-xs text-text-muted">
-                  {post.attachment.size}
-                </p>
-              </div>
-            </div>
-            <button className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors">
-              <Download size={16} />
-            </button>
-          </div>
+          <AttachmentRow attachment={post.attachment} className="mb-3" />
         )}
 
         <div className="flex items-center justify-between pt-2 border-t border-surface-100">
@@ -1160,16 +1236,14 @@ export default function PostCard({ post }: { post: Post }) {
               />
               <span>{likeCount}</span>
             </button>
-
             <button
-              onClick={() => setShowComments(true)}
+              onClick={() => setModal({ type: "comment" })}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors"
             >
               <MessageCircle size={15} />
               <span>{post.comments}</span>
             </button>
           </div>
-
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors">
             <Share2 size={15} />
             Chia sẻ
@@ -1177,21 +1251,17 @@ export default function PostCard({ post }: { post: Post }) {
         </div>
       </div>
 
-      {initialImageIndex !== undefined && post.images ? (
-        <ImageLightbox
+      {modal.type === "lightbox" && post.images ? (
+        <MediaLightbox
           images={post.images}
-          initialIndex={initialImageIndex}
+          mediaTypes={post.mediaTypes}
+          initialIndex={modal.index}
           post={post}
-          onClose={() => {
-            setInitialImageIndex(undefined);
-            setShowComments(false);
-          }}
+          onClose={() => setModal({ type: "none" })}
         />
-      ) : (
-        showComments && (
-          <CommentModal post={post} onClose={() => setShowComments(false)} />
-        )
-      )}
+      ) : modal.type === "comment" ? (
+        <CommentModal post={post} onClose={() => setModal({ type: "none" })} />
+      ) : null}
     </>
   );
 }
