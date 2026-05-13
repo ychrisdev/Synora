@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Topbar from "@/components/layout/Topbar";
+import Topbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 
 export default function MainLayout({

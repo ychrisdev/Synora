@@ -1,4 +1,4 @@
-import Topbar from "@/components/layout/Topbar";
+import Topbar from "@/components/layout/Navbar";
 
 export default function ProfileLayout({
   children,
