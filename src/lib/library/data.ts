@@ -33,6 +33,7 @@ export const SORT_OPTIONS: { key: import("./types").SortKey; label: string }[] =
   { key: "newest",         label: "Mới nhất" },
   { key: "mostDownloaded", label: "Nhiều tải nhất" },
   { key: "oldest",         label: "Cũ nhất" },
+  { key: "saved", label: "Đã lưu" },
 ];
 
 export const FILE_TYPE_COLORS: Record<string, string> = {

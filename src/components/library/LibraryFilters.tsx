@@ -1,9 +1,9 @@
 "use client";
 
-import { Upload, Search, Star, X } from "lucide-react";
+import { Upload, Search, X } from "lucide-react";
 import clsx from "clsx";
 import { TYPE_TABS, SORT_OPTIONS } from "@/lib/library/data";
-import type { SortKey, ViewMode } from "@/lib/library/types";
+import type { SortKey } from "@/lib/library/types";
 import SubjectTabs from "./SubjectTabs";
 
 interface LibraryFiltersProps {
@@ -15,18 +15,19 @@ interface LibraryFiltersProps {
   setActiveSort: (v: SortKey) => void;
   activeType: string;
   setActiveType: (v: string) => void;
-  viewMode: ViewMode;
-  setViewMode: (v: ViewMode) => void;
   savedCount: number;
   onUpload: () => void;
 }
 
 export default function LibraryFilters({
-  query, setQuery,
-  activeSubject, setActiveSubject,
-  activeSort, setActiveSort,
-  activeType, setActiveType,
-  viewMode, setViewMode,
+  query,
+  setQuery,
+  activeSubject,
+  setActiveSubject,
+  activeSort,
+  setActiveSort,
+  activeType,
+  setActiveType,
   savedCount,
   onUpload,
 }: LibraryFiltersProps) {
@@ -34,7 +35,10 @@ export default function LibraryFilters({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
         <div className="flex-1 relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+          />
           <input
             type="text"
             value={query}
@@ -94,21 +98,9 @@ export default function LibraryFilters({
               )}
             >
               {opt.label}
+              {opt.key === "saved" && savedCount > 0 && ` (${savedCount})`}
             </button>
           ))}
-          <div className="w-px h-4 bg-surface-200 mx-0.5" />
-          <button
-            onClick={() => setViewMode(viewMode === "saved" ? "all" : "saved")}
-            className={clsx(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
-              viewMode === "saved"
-                ? "bg-white text-yellow-500 shadow-sm"
-                : "text-text-muted hover:text-text-secondary",
-            )}
-          >
-            <Star size={12} fill={viewMode === "saved" ? "currentColor" : "none"} />
-            Đã lưu {viewMode === "saved" && savedCount > 0 && `(${savedCount})`}
-          </button>
         </div>
       </div>
     </div>

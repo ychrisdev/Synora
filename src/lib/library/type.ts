@@ -1,5 +1,4 @@
-export type SortKey = "newest" | "mostDownloaded" | "oldest";
-export type ViewMode = "all" | "saved";
+export type SortKey = "newest" | "mostDownloaded" | "oldest" | "saved";
 
 export interface Document {
   id: number;
