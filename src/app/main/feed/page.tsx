@@ -6,7 +6,7 @@ import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
 import { mapFilesToPostFields } from "@/components/feed/PostCard";
 import TrendingTopics from "@/components/feed/TrendingTopics";
-import FeaturedDocs from "@/components/feed/FeaturedDocs";
+import WhoToFollow from "@/components/feed/WhoToFollow";
 
 const INITIAL_POSTS = [
   {
@@ -95,7 +95,7 @@ export default function FeedPage() {
 
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         <TrendingTopics />
-        <FeaturedDocs />
+        <WhoToFollow />
       </div>
     </div>
   );
