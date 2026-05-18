@@ -1,5 +1,5 @@
 import { Crown, Shield } from "lucide-react";
-import type { Member } from "@/lib/chat/type";
+import type { Member } from "@/lib/chat/types";
 
 export function RoleBadge({ role }: { role: Member["role"] }) {
   if (role === "admin")

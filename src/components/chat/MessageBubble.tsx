@@ -8,7 +8,7 @@ import {
 import { clsx } from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { useOutsideClick } from "@/lib/chat/hooks";
-import type { Message } from "@/lib/chat/type";
+import type { Message } from "@/lib/chat/types";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 

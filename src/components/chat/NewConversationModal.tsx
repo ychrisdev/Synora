@@ -4,7 +4,7 @@ import { useState } from "react";
 import { X, Search, User, Hash, Check } from "lucide-react";
 import { clsx } from "clsx";
 import { allContacts } from "@/lib/chat/data";
-import type { NewConvTab } from "@/lib/chat/type";
+import type { NewConvTab } from "@/lib/chat/types";
 
 interface NewConversationModalProps {
   onClose: () => void;

@@ -16,7 +16,7 @@ import {
   removeById,
   clampPage,
   getTotalPages,
-} from "@/lib/community/type";
+} from "@/lib/community/types";
 
 import { CommunityHero } from "@/components/community/CommunityHero";
 import { CommunityStats } from "@/components/community/CommunityStats";

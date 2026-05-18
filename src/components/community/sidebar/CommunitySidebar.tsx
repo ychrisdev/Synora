@@ -1,7 +1,7 @@
 import { MyGroupsCard } from "./MyGroupsCard";
 import { InvitationsCard } from "./InvitationsCard";
 import { SuggestionsCard } from "./SuggestionsCard";
-import type { MyGroup, Invitation, Suggestion } from "../../_data/community.data";
+import type { MyGroup, Invitation, Suggestion } from "@/lib/community/data";
 
 type CommunitySidebarProps = {
   myGroups: MyGroup[];

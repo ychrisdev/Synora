@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
-import { paginateMembers, getTotalPages, paginationLabel } from "@/lib/community/type";
+import { paginateMembers, getTotalPages, paginationLabel } from "@/lib/community/types";
 import type { Member } from "@/lib/community/data";
 
 type ActiveMembersCarouselProps = {

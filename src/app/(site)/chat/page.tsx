@@ -6,7 +6,7 @@ import { Home, Edit, Phone, Video, Info, Send, Paperclip, ImageIcon, Smile, X } 
 import { clsx } from "clsx";
 
 import { conversations, initialMessages, groupMembers } from "@/lib/chat/data";
-import type { Message, FilterChip } from "@/lib/chat/type";
+import type { Message, FilterChip } from "@/lib/chat/types";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Badge } from "@/components/chat/Badge";
@@ -47,7 +47,7 @@ export default function ChatPage() {
     <div className="flex h-screen overflow-hidden">
       <div className="w-[52px] shrink-0 bg-white border-r border-surface-200 flex flex-col items-center py-3 gap-2 z-20">
         <Link
-          href="/main/feed"
+          href="/feed"
           className="w-9 h-9 rounded-xl bg-surface-100 hover:bg-primary/10 flex items-center justify-center text-text-muted hover:text-primary transition-colors"
           title="Về trang chủ"
         >

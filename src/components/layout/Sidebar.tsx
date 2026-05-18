@@ -13,12 +13,12 @@ import {
 import { clsx } from "clsx";
 
 const navItems = [
-  { href: "/main/feed", icon: Home, label: "Trang chủ" },
-  { href: "/main/explore", icon: Compass, label: "Khám phá" },
-  { href: "/main/library", icon: BookOpen, label: "Tài liệu" },
-  { href: "/main/chat", icon: MessageCircle, label: "Chat", badge: 3 },
-  { href: "/main/notifications", icon: Bell, label: "Thông báo", badge: 18 },
-  { href: "/main/community", icon: Users, label: "Cộng đồng" },
+  { href: "/feed", icon: Home, label: "Trang chủ" },
+  { href: "/explore", icon: Compass, label: "Khám phá" },
+  { href: "/library", icon: BookOpen, label: "Tài liệu" },
+  { href: "/chat", icon: MessageCircle, label: "Chat", badge: 3 },
+  { href: "/notifications", icon: Bell, label: "Thông báo", badge: 18 },
+  { href: "/community", icon: Users, label: "Cộng đồng" },
 ];
 
 const groups = [
@@ -98,7 +98,7 @@ export default function Sidebar() {
           {groups.map((group) => (
             <Link
               key={group.id}
-              href={`/main/community`}
+              href={`/community`}
               className="flex items-center gap-2.5 px-1 py-1.5 rounded-lg hover:bg-surface-100 transition-colors"
             >
               <div

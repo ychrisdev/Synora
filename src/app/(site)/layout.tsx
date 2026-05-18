@@ -12,10 +12,14 @@ export default function MainLayout({
   const pathname = usePathname();
 
   const hideAll =
-    pathname.startsWith("/main/chat") ||
-    pathname.startsWith("/main/profile");
+    pathname.startsWith("/chat") ||
+    pathname.startsWith("/profile");
 
-  const hideSidebar = hideAll;
+  const hideSidebar =
+    hideAll ||
+    pathname.startsWith("/search");
+
+  const isFullWidth = pathname.startsWith("/search");
 
   if (hideAll) {
     return <>{children}</>;
@@ -25,8 +29,14 @@ export default function MainLayout({
     <div className="min-h-screen bg-surface-50">
       <Navbar />
       {!hideSidebar && <Sidebar />}
-      <main className="ml-[300px] pt-14 min-h-screen">
-        <div className="w-full px-6">{children}</div>
+      <main
+        className={`pt-14 min-h-screen ${
+          hideSidebar ? "" : "ml-[300px]"
+        }`}
+      >
+        <div className={isFullWidth ? "w-full" : "w-full px-6"}>
+          {children}
+        </div>
       </main>
     </div>
   );

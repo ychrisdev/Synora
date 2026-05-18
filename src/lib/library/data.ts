@@ -93,8 +93,26 @@ export const FEATURED_DOCS: FeaturedDoc[] = [
   { id: 3, title: "Slide thuyết trình Kỹ năng mềm", type: "PPTX", downloads: "956",  color: "bg-orange-500" },
 ];
 
-export const STATS: (Stat & { icon: React.ElementType })[] = [
-  { value: "12,540", label: "tài liệu",       icon: FileText },
-  { value: "8,200",  label: "người đóng góp", icon: Users    },
-  { value: "2.4M",   label: "lượt tải",       icon: Download },
+export const STATS: (Stat & {
+  icon: React.ElementType;
+  iconClass: string;
+})[] = [
+  {
+    value: "12,540",
+    label: "tài liệu",
+    icon: FileText,
+    iconClass: "text-red-600 bg-red-50",
+  },
+  {
+    value: "8,200",
+    label: "người đóng góp",
+    icon: Users,
+    iconClass: "text-primary bg-primary-50",
+  },
+  {
+    value: "2.4M",
+    label: "lượt tải",
+    icon: Download,
+    iconClass: "text-green-600 bg-green-50",
+  },
 ];

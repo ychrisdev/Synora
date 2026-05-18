@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import type { Stat } from "../_data/community.data";
+import type { Stat } from "@/lib/community/data";
 
 type CommunityStatsProps = {
   stats: Stat[];
