@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Search,
@@ -13,7 +14,14 @@ import {
   Users,
   Trophy,
   Share2,
+  BookOpen,
+  Hash,
+  Clock,
+  TrendingUp,
+  ArrowUpRight,
 } from "lucide-react";
+
+// ─── Notification types (unchanged) ──────────────────────────────────────────
 
 export type NotifType =
   | "like"
@@ -81,17 +89,6 @@ export const initialNotifications: NotifItem[] = [
     type: "share",
     action: null,
   },
-  {
-    id: 10,
-    avatars: ["TH"],
-    avatarColors: ["bg-orange-500"],
-    text: "Thông báo này quá hạn 35 ngày",
-    sub: "Sẽ tự động bị ẩn đi khỏi danh sách",
-    createdAt: new Date(Date.now() - 35 * 24 * 3600 * 1000).toISOString(),
-    unread: false,
-    type: "comment",
-    action: null,
-  },
 ];
 
 const typeConfig: Record<
@@ -110,7 +107,7 @@ const typeConfig: Record<
 export function formatVietnameseTime(isoString: string) {
   const diffMs = Date.now() - new Date(isoString).getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60000);
+  const diffHours = Math.floor(diffMins / 60);
   if (diffMins < 60) return `${diffMins || 1} phút trước`;
   if (diffHours < 24) return `${diffHours} giờ trước`;
   return new Date(isoString).toLocaleDateString("vi-VN");
@@ -181,19 +178,13 @@ export function NotifRow({
             ) : (
               <>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStatus("accepted");
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setStatus("accepted"); }}
                   className="text-xs font-semibold text-white bg-blue-500 px-3 py-1.5 rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   {notif.action.accept}
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStatus("declined");
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setStatus("declined"); }}
                   className="text-xs font-medium text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                 >
                   {notif.action.decline}
@@ -213,36 +204,227 @@ export function NotifRow({
   );
 }
 
+// ─── Search Suggestions ───────────────────────────────────────────────────────
+
+interface Suggestion {
+  type: "document" | "post" | "person" | "group" | "topic" | "history";
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  sub?: string;
+  href: string;
+}
+
+const TRENDING_SEARCHES = [
+  "Hóa hữu cơ lớp 12",
+  "Giải tích 1 bách khoa",
+  "Đề thi THPT 2024",
+  "IELTS writing task 2",
+];
+
+function buildSuggestions(query: string): Suggestion[] {
+  if (!query.trim()) return [];
+
+  const all: Suggestion[] = [
+    {
+      type: "document",
+      icon: FileText,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+      label: `Tài liệu "${query}"`,
+      sub: "Tìm trong Thư viện",
+      href: `/search?q=${encodeURIComponent(query)}&tab=documents`,
+    },
+    {
+      type: "post",
+      icon: MessageSquare,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-500",
+      label: `Bài viết về "${query}"`,
+      sub: "Tìm trong Bảng tin",
+      href: `/search?q=${encodeURIComponent(query)}&tab=posts`,
+    },
+    {
+      type: "person",
+      icon: Users,
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-500",
+      label: `Người dùng "${query}"`,
+      sub: "Tìm trong Cộng đồng",
+      href: `/search?q=${encodeURIComponent(query)}&tab=people`,
+    },
+    {
+      type: "group",
+      icon: BookOpen,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-500",
+      label: `Nhóm liên quan đến "${query}"`,
+      sub: "Tìm trong Nhóm học tập",
+      href: `/search?q=${encodeURIComponent(query)}&tab=groups`,
+    },
+    {
+      type: "topic",
+      icon: Hash,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-500",
+      label: `#${query.replace(/\s+/g, "")}`,
+      sub: "Xem chủ đề",
+      href: `/explore?topic=${encodeURIComponent(query)}`,
+    },
+  ];
+  return all;
+}
+
+function SearchDropdown({
+  query,
+  onSelect,
+}: {
+  query: string;
+  onSelect: () => void;
+}) {
+  const suggestions = buildSuggestions(query);
+  const showTrending = !query.trim();
+
+  return (
+    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+      {showTrending ? (
+        <>
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Clock size={10} /> Tìm kiếm gần đây
+            </p>
+          </div>
+          <div className="px-2 pb-1">
+            {["Hóa hữu cơ lớp 12", "Giải tích 1"].map((s) => (
+              <Link
+                key={s}
+                href={`/search?q=${encodeURIComponent(s)}`}
+                onClick={onSelect}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                  <Clock size={12} className="text-slate-400" />
+                </div>
+                <span className="text-sm text-slate-700 flex-1">{s}</span>
+                <X
+                  size={12}
+                  className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </Link>
+            ))}
+          </div>
+
+          <div className="px-4 pt-2 pb-1 border-t border-slate-100 mt-1">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <TrendingUp size={10} /> Xu hướng tìm kiếm
+            </p>
+          </div>
+          <div className="px-2 pb-3">
+            {TRENDING_SEARCHES.map((s) => (
+              <Link
+                key={s}
+                href={`/search?q=${encodeURIComponent(s)}`}
+                onClick={onSelect}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <TrendingUp size={12} className="text-primary" />
+                </div>
+                <span className="text-sm text-slate-700 flex-1">{s}</span>
+                <ArrowUpRight size={12} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Link>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <Link
+            href={`/search?q=${encodeURIComponent(query)}`}
+            onClick={onSelect}
+            className="flex items-center gap-3 px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors border-b border-slate-100"
+          >
+            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+              <Search size={12} className="text-white" />
+            </div>
+            <span className="text-sm font-semibold text-primary flex-1">
+              Tìm kiếm "{query}"
+            </span>
+            <ArrowUpRight size={13} className="text-primary" />
+          </Link>
+
+          <div className="px-2 py-2">
+            {suggestions.map((s, i) => (
+              <Link
+                key={i}
+                href={s.href}
+                onClick={onSelect}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group transition-colors"
+              >
+                <div className={`w-7 h-7 rounded-lg ${s.iconBg} flex items-center justify-center shrink-0`}>
+                  <s.icon size={12} className={s.iconColor} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-700 truncate">{s.label}</p>
+                  {s.sub && <p className="text-[10px] text-slate-400">{s.sub}</p>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Navbar() {
+  const router = useRouter();
   const [notifs, setNotifs] = useState<NotifItem[]>([]);
   const [bellOpen, setBellOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 3600 * 1000;
-    const activeNotifs = initialNotifications.filter(
-      (n) => new Date(n.createdAt).getTime() >= thirtyDaysAgo,
+    setNotifs(
+      initialNotifications.filter(
+        (n) => new Date(n.createdAt).getTime() >= thirtyDaysAgo,
+      ),
     );
-    setNotifs(activeNotifs);
   }, []);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+    function handler(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node))
         setBellOpen(false);
-      }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node))
+        setSearchFocused(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && searchQuery.trim()) {
+        setSearchFocused(false);
+        router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      }
+      if (e.key === "Escape") setSearchFocused(false);
+    },
+    [searchQuery, router],
+  );
+
   const unreadCount = notifs.filter((n) => n.unread).length;
+  const showDropdown = searchFocused;
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 z-30">
+    <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center z-30">
       <Link
-        href="/main/feed"
-        className="flex items-center gap-2 w-[220px] shrink-0"
+        href="/feed"
+        className="flex items-center gap-2 w-[330px] shrink-0 px-4"
       >
         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -260,23 +442,51 @@ export default function Navbar() {
         </span>
       </Link>
 
-      <div className="flex-1 max-w-[480px]">
-        <div className="relative">
-          <Search
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="text"
-            placeholder="Tìm kiếm tài liệu, bài viết, nhóm học tập..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-full text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
-          />
+      <div className="flex-1 flex items-center px-18">
+        <div ref={searchRef} className="w-full max-w-[520px] relative">
+          <div className="relative">
+            <Search
+              size={15}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Tìm kiếm tài liệu, bài viết, nhóm học tập..."
+              className={`w-full pl-9 pr-8 py-2 bg-slate-100 border rounded-full text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors ${
+                searchFocused
+                  ? "border-blue-400 bg-white shadow-sm shadow-blue-100"
+                  : "border-slate-200 hover:border-slate-300"
+              }`}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {showDropdown && (
+            <SearchDropdown
+              query={searchQuery}
+              onSelect={() => {
+                setSearchFocused(false);
+                setSearchQuery("");
+              }}
+            />
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-5 ml-auto">
+      <div className="flex items-center gap-5 px-4 shrink-0">
         <Link
-          href="/main/chat"
+          href="/chat"
           className="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-blue-500 transition-colors block"
           title="Tin nhắn"
         >
@@ -307,19 +517,13 @@ export default function Navbar() {
           {bellOpen && (
             <div className="absolute top-full right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-900">
-                    Thông báo mới
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setBellOpen(false)}
-                    className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
-                    <X size={14} className="text-slate-400" />
-                  </button>
-                </div>
+                <span className="text-sm font-bold text-slate-900">Thông báo mới</span>
+                <button
+                  onClick={() => setBellOpen(false)}
+                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X size={14} className="text-slate-400" />
+                </button>
               </div>
 
               <div className="max-h-[360px] overflow-y-auto py-1">
@@ -337,7 +541,7 @@ export default function Navbar() {
               </div>
 
               <Link
-                href="/main/notifications"
+                href="/notifications"
                 onClick={() => setBellOpen(false)}
                 className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-200 text-xs font-semibold text-blue-500 hover:bg-blue-50/5 transition-colors"
               >
@@ -347,8 +551,9 @@ export default function Navbar() {
           )}
         </div>
 
+        {/* Avatar */}
         <Link
-          href="/main/profile"
+          href="/profile"
           className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
         >
           <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center text-white text-sm font-bold">

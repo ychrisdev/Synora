@@ -4,7 +4,7 @@ import { Search, MessageSquare } from "lucide-react";
 import { clsx } from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/chat/Badge";
-import type { Conversation, FilterChip } from "@/lib/chat/type";
+import type { Conversation, FilterChip } from "@/lib/chat/types";
 
 interface ConversationListProps {
   conversations: Conversation[];

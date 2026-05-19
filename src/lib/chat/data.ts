@@ -7,7 +7,7 @@ import type {
   SharedFile,
   SharedImage,
   Contact,
-} from "@/lib/chat/type";
+} from "@/lib/chat/types";
 
 export const ME = { initials: "NA", name: "Nguyễn An", color: "bg-primary" };
 

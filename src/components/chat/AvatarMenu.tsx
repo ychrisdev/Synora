@@ -13,7 +13,7 @@ import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { Avatar } from "@/components/ui/Avatar";
 import { PillBadge } from "./Badge";
 import { pendingMessages, blockedUsers, ME } from "@/lib/chat/data";
-import type { AvatarMenuPanel } from "@/lib/chat/type";
+import type { AvatarMenuPanel } from "@/lib/chat/types";
 
 export function AvatarMenu() {
   const [open,  setOpen]  = useState(false);

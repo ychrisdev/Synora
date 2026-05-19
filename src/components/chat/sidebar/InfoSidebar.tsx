@@ -13,7 +13,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { RoleBadge } from "@/components/chat/RoleBadge";
 import { useOutsideClick } from "@/lib/chat/hooks";
 import { groupMembers, sharedImages, sharedFiles } from "@/lib/chat/data";
-import type { Conversation, Member, ConfirmAction } from "@/lib/chat/type";
+import type { Conversation, Member, ConfirmAction } from "@/lib/chat/types";
 
 function MediaModal({ tab: init, onClose }: { tab: "images" | "files"; onClose: () => void }) {
   const [tab, setTab] = useState<"images" | "files">(init);

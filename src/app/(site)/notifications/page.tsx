@@ -6,7 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { NotifRow } from "@/components/notifications/NotifRow";
 import { SettingItem } from "@/components/notifications/SettingItem";
 import { initialNotifications } from "@/lib/notifications/data";
-import { NotifItem, NotifSettings } from "@/lib/notifications/type";
+import { NotifItem, NotifSettings } from "@/lib/notifications/types";
 
 const tabs = [
   { id: "all", label: "Tất cả" },
