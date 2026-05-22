@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum DocumentType {
+  PDF
+  IMAGE
+  VIDEO
+  AUDIO
+  LINK
+  OTHER
+}
+
+enum NotificationType {
+  LIKE
+  COMMENT
+  FOLLOW
+  MENTION
+  MESSAGE
+  SYSTEM
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS_ONLY
+  PRIVATE
+}
+
+enum ReportReason {
+  SPAM
+  INAPPROPRIATE
+  COPYRIGHT
+  MISINFORMATION
+  OTHER
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  emailVerified DateTime?
+  username      String   @unique
+  passwordHash  String?  // null nếu dùng OAuth
+  role          Role     @default(USER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile       Profile?
+
+  // Auth
+  accounts      Account[]
+  sessions      Session[]
+
+  // Content
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  saves         Save[]
+  documents     Document[]
+
+  // Social
+  followers     Follow[]  @relation("following")
+  following     Follow[]  @relation("follower")
+
+  // Messaging
+  sentMessages      Message[]        @relation("sender")
+  conversations     ConversationMember[]
+
+  // Notifications
+  notifications     Notification[]   @relation("recipient")
+  triggeredNotifs   Notification[]   @relation("actor")
+
+  // Community
+  memberships       CommunityMember[]
+  ownedCommunities  Community[]      @relation("owner")
+
+  // Reports
+  reports           Report[]         @relation("reporter")
+  reportedPosts     Report[]         @relation("reportedUser")
+
+  @@map("users")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName String?
+  bio         String?
+  avatarUrl   String?
+  coverUrl    String?
+  school      String?
+  major       String?  // Ngành học
+  grade       String?  // Năm học / Lớp
+  website     String?
+  location    String?
+
+  updatedAt   DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Post {
+  id          String         @id @default(cuid())
+  authorId    String
+  author      User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  title       String?
+  content     String
+  visibility  PostVisibility @default(PUBLIC)
+
+  // Tài liệu đính kèm
+  documents   Document[]
+
+  // Phân loại
+  tags        TagsOnPosts[]
+  categoryId  String?
+  category    Category?      @relation(fields: [categoryId], references: [id])
+
+  // Community post
+  communityId String?
+  community   Community?     @relation(fields: [communityId], references: [id])
+
+  // Tương tác
+  comments    Comment[]
+  likes       Like[]
+  saves       Save[]
+  reports     Report[]
+
+  // Stats (denormalized để query nhanh)
+  likeCount   Int            @default(0)
+  commentCount Int           @default(0)
+  saveCount   Int            @default(0)
+  viewCount   Int            @default(0)
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("posts")
+}
+
+model Document {
+  id          String       @id @default(cuid())
+  uploaderId  String
+  uploader    User         @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  postId      String?
+  post        Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  fileUrl     String       // UploadThing URL
+  fileKey     String       // UploadThing key (để xóa file)
+  fileSize    Int          // bytes
+  mimeType    String
+  type        DocumentType
+
+  // Cho PDF viewer
+  pageCount   Int?
+
+  // Tìm kiếm full-text (Gemini extract text)
+  extractedText String?
+
+  downloadCount Int        @default(0)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("documents")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content   String
+
+  // Nested comments (reply)
+  parentId  String?
+  parent    Comment?  @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies   Comment[] @relation("replies")
+
+  likes     Like[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@map("likes")
+}
+
+model Save {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("saves")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Conversation {
+  id        String               @id @default(cuid())
+  isGroup   Boolean              @default(false)
+  name      String?              // Tên nhóm nếu isGroup
+  avatarUrl String?
+
+  members   ConversationMember[]
+  messages  Message[]
+
+  lastMessageAt DateTime?        // Index để sort conversations
+
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Tin nhắn cuối đã đọc
+  lastReadAt     DateTime?
+
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@map("conversation_members")
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User          @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  content        String?
+  fileUrl        String?       // Chia sẻ file trong chat
+  fileType       String?
+  status         MessageStatus @default(SENT)
+
+  // Reply to message
+  replyToId      String?
+  replyTo        Message?      @relation("replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]     @relation("replies")
+
+  deletedAt      DateTime?     // Soft delete
+
+  createdAt      DateTime      @default(now())
+
+  @@map("messages")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  recipient   User             @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       User?            @relation("actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  type        NotificationType
+  message     String?          // Override message nếu cần
+
+  // Liên kết đến resource
+  postId      String?
+  commentId   String?
+
+  isRead      Boolean          @default(false)
+
+  createdAt   DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  iconUrl     String?
+  color       String? // hex color
+
+  posts       Post[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id    String        @id @default(cuid())
+  name  String        @unique
+  slug  String        @unique
+  posts TagsOnPosts[]
+
+  @@map("tags")
+}
+
+model TagsOnPosts {
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("tags_on_posts")
+}
+
+model Community {
+  id          String            @id @default(cuid())
+  ownerId     String
+  owner       User              @relation("owner", fields: [ownerId], references: [id])
+
+  name        String            @unique
+  slug        String            @unique
+  description String?
+  avatarUrl   String?
+  coverUrl    String?
+  isPrivate   Boolean           @default(false)
+
+  members     CommunityMember[]
+  posts       Post[]
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  isAdmin     Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([communityId, userId])
+  @@map("community_members")
+}
+
+model Report {
+  id           String       @id @default(cuid())
+  reporterId   String
+  reporter     User         @relation("reporter", fields: [reporterId], references: [id])
+  reportedUserId String?
+  reportedUser User?        @relation("reportedUser", fields: [reportedUserId], references: [id])
+
+  postId       String?
+  post         Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  reason       ReportReason
+  description  String?
+  isResolved   Boolean      @default(false)
+
+  createdAt    DateTime     @default(now())
+
+  @@map("reports")
+}
