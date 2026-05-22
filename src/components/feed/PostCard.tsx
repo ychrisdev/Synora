@@ -349,12 +349,12 @@ function ImageGrid({
 
   if (images.length === 1)
     return (
-      <div className="mb-3 rounded-xl overflow-hidden">
+      <div className="mb-3 rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[480px]">
         <MediaThumb
           src={images[0]}
           mediaType={mediaTypes?.[0]}
           onClick={() => onImageClick(0)}
-          className="w-full h-72 object-cover"
+          className="w-full max-h-[500px] object-contain"
         />
       </div>
     );

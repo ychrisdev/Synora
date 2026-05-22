@@ -31,11 +31,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { content, visibility = "PUBLIC", tags = [] } = await req.json();
+    const {
+      content,
+      visibility = "PUBLIC",
+      tags = [],
+      uploadedMedia = [],
+      uploadedDocs = [],
+    } = await req.json();
 
     if (!content?.trim()) {
-      return NextResponse.json({ error: "Nội dung không được trống" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Nội dung không được trống" },
+        { status: 400 },
+      );
     }
+
+    const getDocType = (type: string) => {
+      if (["JPG", "JPEG", "PNG", "GIF", "WEBP"].includes(type.toUpperCase()))
+        return "IMAGE";
+      if (["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(type.toUpperCase()))
+        return "VIDEO";
+      if (type.toUpperCase() === "PDF") return "PDF";
+      return "OTHER";
+    };
+
+    const allFiles = [
+      ...uploadedMedia.map((f: any) => ({ ...f, docType: getDocType(f.type) })),
+      ...uploadedDocs.map((f: any) => ({ ...f, docType: getDocType(f.type) })),
+    ];
 
     const post = await prisma.post.create({
       data: {
@@ -52,13 +75,28 @@ export async function POST(req: NextRequest) {
                 create: { name: slug, slug },
               });
               return { tagId: tag.id };
-            })
+            }),
           ),
         },
+        documents:
+          allFiles.length > 0
+            ? {
+                create: allFiles.map((f: any) => ({
+                  title: f.name,
+                  fileUrl: f.url,
+                  fileKey: f.key,
+                  fileSize: 0,
+                  mimeType: f.type,
+                  type: getDocType(f.type),
+                  uploaderId: session.user.id,
+                })),
+              }
+            : undefined,
       },
       include: {
         author: { include: { profile: true } },
         tags: { include: { tag: true } },
+        documents: true,
       },
     });
 

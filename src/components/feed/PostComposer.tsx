@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ZoomIn,
 } from "lucide-react";
+import { useUploadThing } from "@/lib/uploadthing";
 
 export interface AttachedFile {
   id: string;
@@ -31,6 +32,8 @@ interface PostComposerProps {
     content: string;
     tags: string[];
     files: AttachedFile[];
+    uploadedMedia: { url: string; key: string; name: string; type: string }[];
+    uploadedDocs: { url: string; key: string; name: string; type: string }[];
   }) => void;
   currentUser?: { name: string; initials: string; image?: string | null };
 }
@@ -335,7 +338,10 @@ function MediaPreview({
   );
 }
 
-export default function PostComposer({ onPost, currentUser }: PostComposerProps) {
+export default function PostComposer({
+  onPost,
+  currentUser,
+}: PostComposerProps) {
   const name = currentUser?.name ?? "Người dùng";
   const initials = currentUser?.initials ?? "U";
   const [content, setContent] = useState("");
@@ -343,6 +349,8 @@ export default function PostComposer({ onPost, currentUser }: PostComposerProps)
   const [visibility, setVisibility] = useState<Visibility>("private");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { startUpload: startMediaUpload } = useUploadThing("postMedia");
+  const { startUpload: startDocUpload } = useUploadThing("postDocument");
 
   const tags = Array.from(
     new Set((content.match(/#[\wÀ-ỹ]+/gu) ?? []).map((t) => t.toLowerCase())),
@@ -409,14 +417,52 @@ export default function PostComposer({ onPost, currentUser }: PostComposerProps)
   const handleSubmit = async () => {
     if (!canPost) return;
     setIsSubmitting(true);
-    onPost?.({ content, tags, files: attachedFiles });
-    await new Promise((r) => setTimeout(r, 1200));
+
+    let uploadedMedia: {
+      url: string;
+      key: string;
+      name: string;
+      type: string;
+    }[] = [];
+    let uploadedDocs: {
+      url: string;
+      key: string;
+      name: string;
+      type: string;
+    }[] = [];
+
+    if (mediaFiles.length > 0) {
+      const results = await startMediaUpload(mediaFiles.map((f) => f.file));
+      uploadedMedia = (results ?? []).map((r, i) => ({
+        url: r.url,
+        key: r.key,
+        name: mediaFiles[i].name,
+        type: mediaFiles[i].type,
+      }));
+    }
+
+    if (otherFiles.length > 0) {
+      const results = await startDocUpload(otherFiles.map((f) => f.file));
+      uploadedDocs = (results ?? []).map((r, i) => ({
+        url: r.url,
+        key: r.key,
+        name: otherFiles[i].name,
+        type: otherFiles[i].type,
+      }));
+    }
+
+    onPost?.({
+      content,
+      tags,
+      files: attachedFiles,
+      uploadedMedia,
+      uploadedDocs,
+    });
+
     setContent("");
     setAttachedFiles([]);
     setIsSubmitting(false);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
 
   return (
@@ -427,7 +473,9 @@ export default function PostComposer({ onPost, currentUser }: PostComposerProps)
             {initials}
           </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-semibold text-text-primary">{name}</span>
+            <span className="text-sm font-semibold text-text-primary">
+              {name}
+            </span>
             <VisibilityPicker value={visibility} onChange={setVisibility} />
           </div>
         </div>
