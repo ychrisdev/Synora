@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
@@ -54,6 +54,9 @@ const INITIAL_POSTS = [
 
 export default function FeedPage() {
   const { data: session } = useSession();
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const currentUser = {
     name: session?.user?.name ?? "Người dùng",
     username: session?.user?.username ?? "",
@@ -61,26 +64,39 @@ export default function FeedPage() {
       .split(" ").map((w: string) => w[0]).slice(-2).join("").toUpperCase(),
     image: session?.user?.image ?? null,
   };
-  const [posts, setPosts] = useState(INITIAL_POSTS);
 
-  const handlePost = ({
-    content,
-    tags,
-    files,
-  }: {
-    content: string;
-    tags: string[];
-    files: AttachedFile[];
+  useEffect(() => {
+    fetch("/api/posts")
+      .then((r) => r.json())
+      .then((data) => {
+        setPosts(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const handlePost = async ({ content, tags, files }: {
+    content: string; tags: string[]; files: AttachedFile[];
   }) => {
     const { images, mediaTypes, attachment } = mapFilesToPostFields(files);
+
+    const res = await fetch("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, tags }),
+    });
+
+    if (!res.ok) return;
+    const saved = await res.json();
+
     const newPost = {
-      id: Date.now(),
+      id: saved.id,
       author: {
-      name: currentUser.name,
-      initials: currentUser.initials,
-      color: "bg-primary",
-      role: "",
-    },
+        name: currentUser.name,
+        initials: currentUser.initials,
+        color: "bg-primary",
+        role: session?.user?.role ?? "",
+      },
       time: "Vừa xong",
       content,
       tags,
@@ -93,15 +109,34 @@ export default function FeedPage() {
     setPosts((prev) => [newPost, ...prev]);
   };
 
+  const mappedPosts = posts.map((p) => ({
+    id: p.id,
+    author: {
+      name: p.author.profile?.displayName ?? p.author.username,
+      initials: (p.author.profile?.displayName ?? p.author.username)
+        .split(" ").map((w: string) => w[0]).slice(-2).join("").toUpperCase(),
+      color: "bg-primary",
+      role: p.author.profile?.major ?? "",
+    },
+    time: new Date(p.createdAt).toLocaleDateString("vi-VN"),
+    content: p.content,
+    tags: p.tags.map((t: any) => `#${t.tag.name}`),
+    likes: p._count.likes,
+    comments: p._count.comments,
+  }));
+
   return (
     <div className="flex w-full py-5 items-start">
       <div className="flex-1 flex flex-col gap-4 mx-auto max-w-[820px]">
         <PostComposer onPost={handlePost} currentUser={currentUser} />
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
-        ))}
+        {loading ? (
+          <div className="text-center text-sm text-slate-400 py-10">Đang tải...</div>
+        ) : mappedPosts.length === 0 ? (
+          <div className="text-center text-sm text-slate-400 py-10">Chưa có bài viết nào</div>
+        ) : (
+          mappedPosts.map((post) => <PostCard key={post.id} post={post} />)
+        )}
       </div>
-
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         <TrendingTopics />
         <WhoToFollow />
