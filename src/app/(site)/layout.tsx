@@ -11,7 +11,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const hideAll =
     pathname.startsWith("/chat") || pathname.startsWith("/profile");
@@ -22,7 +22,7 @@ export default function MainLayout({
 
   return (
     <div className="min-h-screen bg-surface-50">
-      <Navbar isLoggedIn={!!session} session={session} />
+      <Navbar isLoggedIn={status === "authenticated"} session={session} status={status} />
       {!hideSidebar && <Sidebar />}
       <main className={`pt-14 min-h-screen ${hideSidebar ? "" : "ml-[300px]"}`}>
         <div className={isFullWidth ? "w-full" : "w-full px-6"}>{children}</div>

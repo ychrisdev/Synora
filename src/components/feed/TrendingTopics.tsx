@@ -1,11 +1,11 @@
 import Link from "next/link";
 
 const topics = [
-  { rank: 1, tag: "#GiaiTich1",  count: "1.2k bài viết", color: "bg-red-500" },
-  { rank: 2, tag: "#ThiCuoiKy", count: "856 bài viết",  color: "bg-orange-500" },
-  { rank: 3, tag: "#IELTS",      count: "643 bài viết",  color: "bg-blue-500" },
-  { rank: 4, tag: "#VanHoc12",   count: "432 bài viết",  color: "bg-purple-500" },
-  { rank: 5, tag: "#LapTrinhC",  count: "315 bài viết",  color: "bg-green-500" },
+  { rank: 1, tag: "#GiaiTich1",  count: "1.2k bài viết"},
+  { rank: 2, tag: "#ThiCuoiKy", count: "856 bài viết"},
+  { rank: 3, tag: "#IELTS",      count: "643 bài viết"},
+  { rank: 4, tag: "#VanHoc12",   count: "432 bài viết"},
+  { rank: 5, tag: "#LapTrinhC",  count: "315 bài viết"},
 ];
 
 export default function TrendingTopics() {
@@ -31,7 +31,7 @@ export default function TrendingTopics() {
       </div>
 
       <Link
-        href="/main/explore"
+        href="/explore"
         className="block mt-3 text-center text-xs text-primary font-medium py-2 border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
       >
         Khám phá thêm

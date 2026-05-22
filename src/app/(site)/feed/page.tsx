@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
@@ -52,6 +53,14 @@ const INITIAL_POSTS = [
 ];
 
 export default function FeedPage() {
+  const { data: session } = useSession();
+  const currentUser = {
+    name: session?.user?.name ?? "Người dùng",
+    username: session?.user?.username ?? "",
+    initials: (session?.user?.name ?? "U")
+      .split(" ").map((w: string) => w[0]).slice(-2).join("").toUpperCase(),
+    image: session?.user?.image ?? null,
+  };
   const [posts, setPosts] = useState(INITIAL_POSTS);
 
   const handlePost = ({
@@ -67,11 +76,11 @@ export default function FeedPage() {
     const newPost = {
       id: Date.now(),
       author: {
-        name: "Trần Lê Quỳnh Anh",
-        initials: "QA",
-        color: "bg-purple-500",
-        role: "Sinh viên năm 2",
-      },
+      name: currentUser.name,
+      initials: currentUser.initials,
+      color: "bg-primary",
+      role: "",
+    },
       time: "Vừa xong",
       content,
       tags,
@@ -87,7 +96,7 @@ export default function FeedPage() {
   return (
     <div className="flex w-full py-5 items-start">
       <div className="flex-1 flex flex-col gap-4 mx-auto max-w-[820px]">
-        <PostComposer onPost={handlePost} />
+        <PostComposer onPost={handlePost} currentUser={currentUser} />
         {posts.map((post) => (
           <PostCard key={post.id} post={post} />
         ))}

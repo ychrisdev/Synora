@@ -392,9 +392,11 @@ function SearchDropdown({
 export default function Navbar({
   isLoggedIn = false,
   session,
+  status,
 }: {
   isLoggedIn?: boolean;
   session?: Session | null;
+  status?: string;
 }) {
   const router = useRouter();
   const [notifs, setNotifs] = useState<NotifItem[]>([]);
@@ -586,7 +588,9 @@ export default function Navbar({
           )}
         </div>
 
-        {isLoggedIn ? (
+        {status === "loading" ? (
+          <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
+        ) : isLoggedIn ? (
           <div ref={avatarRef} className="relative">
             <button
               onClick={() => setAvatarOpen(!avatarOpen)}

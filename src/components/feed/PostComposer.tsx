@@ -32,6 +32,7 @@ interface PostComposerProps {
     tags: string[];
     files: AttachedFile[];
   }) => void;
+  currentUser?: { name: string; initials: string; image?: string | null };
 }
 
 type Visibility = "public" | "friends" | "private";
@@ -334,7 +335,9 @@ function MediaPreview({
   );
 }
 
-export default function PostComposer({ onPost }: PostComposerProps) {
+export default function PostComposer({ onPost, currentUser }: PostComposerProps) {
+  const name = currentUser?.name ?? "Người dùng";
+  const initials = currentUser?.initials ?? "U";
   const [content, setContent] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [visibility, setVisibility] = useState<Visibility>("private");
@@ -420,11 +423,11 @@ export default function PostComposer({ onPost }: PostComposerProps) {
     <>
       <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-visible">
         <div className="flex items-center gap-3 px-5 pt-4 pb-3">
-          <Avatar />
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
+            {initials}
+          </div>
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-semibold text-text-primary">
-              Trần Lê Quỳnh Anh
-            </span>
+            <span className="text-sm font-semibold text-text-primary">{name}</span>
             <VisibilityPicker value={visibility} onChange={setVisibility} />
           </div>
         </div>
