@@ -4,10 +4,9 @@ import {
   ThumbsUp,
   MessageCircle,
   Share2,
-  Download,
+  Eye,
   MoreHorizontal,
   X,
-  ImageIcon,
   Send,
   Smile,
   Bookmark,
@@ -18,34 +17,20 @@ import {
   ChevronRight,
   Paperclip,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState, useRef, useCallback, useEffect } from "react";
-
-const CURRENT_USER = {
-  name: "Trần Lê Quỳnh Anh",
-  initials: "QA",
-  color: "bg-primary",
-};
+import { useSession } from "next-auth/react";
+import { useUploadThing } from "@/lib/uploadthing";
 
 const fileTypeColors: Record<string, string> = {
   PDF: "bg-red-500",
   DOCX: "bg-blue-600",
   PPTX: "bg-orange-500",
+  XLSX: "bg-green-600",
+  ZIP: "bg-gray-500",
 };
-
-interface Post {
-  id: number;
-  author: { name: string; initials: string; color: string; role: string };
-  time: string;
-  content: string;
-  images?: string[];
-  mediaTypes?: string[];
-  tags: string[];
-  attachment?: { name: string; size: string; type: string; url?: string };
-  likes: number;
-  comments: number;
-}
 
 const MEDIA_IMAGE_TYPES = new Set([
   "JPG",
@@ -57,6 +42,67 @@ const MEDIA_IMAGE_TYPES = new Set([
   "SVG",
 ]);
 const MEDIA_VIDEO_TYPES = new Set(["MP4", "MOV", "AVI", "WEBM", "MKV"]);
+
+interface Post {
+  id: number;
+  author: { name: string; initials: string; color: string; role: string };
+  time: string;
+  content: string;
+  images?: string[];
+  mediaTypes?: string[];
+  tags: string[];
+  attachment?: { name: string; size: string; type: string; url?: string };
+  likes: number;
+  isLikedByMe?: boolean;
+  comments: number;
+}
+
+interface AttachedFile {
+  name: string;
+  size: string;
+  type: string;
+  dataUrl?: string;
+  isImage: boolean;
+  isVideo?: boolean;
+  previewUrl?: string;
+}
+
+interface UploadedAttachment {
+  url: string;
+  key: string;
+  name: string;
+  size: string;
+  type: string;
+  isImage: boolean;
+  isVideo: boolean;
+}
+
+interface Comment {
+  id: string;
+  author: { name: string; initials: string; color: string };
+  time: string;
+  content: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
+  likes: number;
+  liked: boolean;
+  replies: Reply[];
+  showReplyInput: boolean;
+}
+
+interface Reply {
+  id: string;
+  author: { name: string; initials: string; color: string };
+  time: string;
+  content: string;
+  replyTo?: string;
+  likes: number;
+  liked: boolean;
+}
 
 export function mapFilesToPostFields(
   files: Array<{
@@ -91,60 +137,6 @@ export function mapFilesToPostFields(
   };
 }
 
-interface AttachedFile {
-  name: string;
-  size: string;
-  type: string;
-  dataUrl?: string;
-  isImage: boolean;
-}
-
-interface Comment {
-  id: string;
-  author: { name: string; initials: string; color: string };
-  time: string;
-  content: string;
-  image?: string;
-  file?: AttachedFile;
-  likes: number;
-  liked: boolean;
-  replies: Reply[];
-  showReplyInput: boolean;
-}
-
-interface Reply {
-  id: string;
-  author: { name: string; initials: string; color: string };
-  time: string;
-  content: string;
-  replyTo?: string;
-  likes: number;
-  liked: boolean;
-}
-
-const MOCK_COMMENTS: Comment[] = [
-  {
-    id: "c1",
-    author: { name: "Minh Khoa", initials: "MK", color: "bg-emerald-500" },
-    time: "1 giờ trước",
-    content: "Cảm ơn bạn nhiều lắm! Mình đang cần tài liệu này.",
-    likes: 4,
-    liked: false,
-    replies: [],
-    showReplyInput: false,
-  },
-  {
-    id: "c2",
-    author: { name: "Bảo Ngọc", initials: "BN", color: "bg-pink-500" },
-    time: "45 phút trước",
-    content: "Chiều nay mình cũng rảnh, mình đến thư viện cùng nhé! 📚",
-    likes: 2,
-    liked: false,
-    replies: [],
-    showReplyInput: false,
-  },
-];
-
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -156,6 +148,10 @@ function getFileExt(name: string): string {
 
 function isImageFile(name: string): boolean {
   return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name);
+}
+
+function isVideoFile(name: string): boolean {
+  return /\.(mp4|mov|avi|webm|mkv)$/i.test(name);
 }
 
 function isVideoItem(src: string, mediaType?: string): boolean {
@@ -211,24 +207,148 @@ function Avatar({
   );
 }
 
-function AttachmentBadge({ file }: { file: AttachedFile }) {
+function CommentFileBadge({
+  name,
+  size,
+  type,
+  url,
+}: {
+  name: string;
+  size?: string;
+  type?: string;
+  url?: string;
+}) {
+  const ext = type ?? getFileExt(name);
   return (
-    <div className="flex items-center gap-2 mt-2 p-2 bg-surface-50 rounded-lg border border-surface-200 max-w-[240px]">
+    <div className="flex items-center gap-2 mt-2 p-2 bg-surface-50 rounded-lg border border-surface-200 max-w-[260px]">
       <div
         className={clsx(
           "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
-          fileTypeColors[file.type] ?? "bg-gray-500",
+          fileTypeColors[ext] ?? "bg-gray-500",
         )}
       >
-        {file.isImage ? <ImageIcon size={14} /> : file.type}
+        {ext.slice(0, 4)}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate">
-          {file.name}
-        </p>
-        <p className="text-[11px] text-text-muted">{file.size}</p>
+        <p className="text-xs font-medium text-text-primary truncate">{name}</p>
+        {size && <p className="text-[11px] text-text-muted">{size}</p>}
       </div>
+      {url ? (
+        <a
+          href={url}
+          download={name}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-1.5 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors shrink-0"
+          title="Xem trước"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Eye size={14} />
+        </a>
+      ) : (
+        <div
+          className="p-1.5 text-text-muted shrink-0"
+          title="Không có URL tải"
+        >
+          <FileText size={14} />
+        </div>
+      )}
     </div>
+  );
+}
+
+function CommentMediaThumb({
+  url,
+  type = "video",
+  fileName,
+}: {
+  url: string;
+  type?: "image" | "video";
+  fileName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const isVideo = type === "video";
+
+  return (
+    <>
+      <div
+        className="mt-2 rounded-xl overflow-hidden bg-black relative cursor-pointer group max-h-52"
+        onClick={() => setOpen(true)}
+      >
+        {isVideo ? (
+          <video
+            src={url}
+            muted
+            preload="metadata"
+            className="w-full max-h-52 object-cover group-hover:brightness-75 transition"
+          />
+        ) : (
+          <img
+            src={url}
+            alt={fileName ?? "ảnh"}
+            className="w-full max-h-52 object-cover group-hover:brightness-90 transition"
+          />
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center shadow-lg">
+            {isVideo ? (
+              <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 ml-0.5">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                className="w-5 h-5"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
+              </svg>
+            )}
+          </div>
+        </div>
+        {fileName && (
+          <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
+            <p className="text-white text-[11px] truncate bg-black/50 px-2 py-0.5 rounded">
+              {fileName}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
+          onClick={() => setOpen(false)}
+        >
+          <button
+            onClick={() => setOpen(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
+          >
+            <X size={16} />
+          </button>
+          {isVideo ? (
+            <video
+              src={url}
+              controls
+              autoPlay
+              className="max-w-[90vw] max-h-[85vh] rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={url}
+              alt={fileName ?? "ảnh"}
+              className="max-w-[90vw] max-h-[85vh] rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -405,47 +525,131 @@ function ImageGrid({
   );
 }
 
+const MAX_VIDEO_MB = 64;
+const MAX_IMAGE_MB = 8;
+const MAX_DOC_MB = 16;
+
 function CommentInput({
   onSubmit,
 }: {
-  onSubmit: (content: string, image?: string, file?: AttachedFile) => void;
+  onSubmit: (payload: CommentPayload) => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<AttachedFile | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pendingFileRef = useRef<File | undefined>(undefined);
+  const { data: session } = useSession();
+  const { startUpload: uploadMedia } = useUploadThing("commentMedia");
+  const { startUpload: uploadDoc } = useUploadThing("commentDocument");
+
+  const initials = (session?.user?.name ?? "U")
+    .split(" ")
+    .map((w: string) => w[0])
+    .slice(-2)
+    .join("")
+    .toUpperCase();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = getFileExt(file.name);
     const isImg = isImageFile(file.name);
+    const isVid = isVideoFile(file.name);
+    const sizeMB = file.size / (1024 * 1024);
+
+    setUploadError(null);
+    if (isImg && sizeMB > MAX_IMAGE_MB) {
+      setUploadError(
+        `Ảnh tối đa ${MAX_IMAGE_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (isVid && sizeMB > MAX_VIDEO_MB) {
+      setUploadError(
+        `Video tối đa ${MAX_VIDEO_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (!isImg && !isVid && sizeMB > MAX_DOC_MB) {
+      setUploadError(
+        `Tài liệu tối đa ${MAX_DOC_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
+      );
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
     const size = formatFileSize(file.size);
-    if (isImg) {
-      const reader = new FileReader();
-      reader.onload = () =>
-        setAttachment({
-          name: file.name,
-          size,
-          type: ext,
-          dataUrl: reader.result as string,
-          isImage: true,
-        });
-      reader.readAsDataURL(file);
+    pendingFileRef.current = file;
+
+    if (isImg || isVid) {
+      const previewUrl = URL.createObjectURL(file);
+      setAttachment({
+        name: file.name,
+        size,
+        type: ext,
+        previewUrl,
+        isImage: isImg,
+        isVideo: isVid,
+      });
     } else {
-      setAttachment({ name: file.name, size, type: ext, isImage: false });
+      setAttachment({
+        name: file.name,
+        size,
+        type: ext,
+        isImage: false,
+        isVideo: false,
+      });
     }
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!text.trim() && !attachment) return;
-    onSubmit(
-      text.trim(),
-      attachment?.isImage ? attachment.dataUrl : undefined,
-      !attachment?.isImage ? (attachment ?? undefined) : undefined,
-    );
-    setText("");
-    setAttachment(null);
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const rawFile = pendingFileRef.current;
+      let imageUrl: string | undefined;
+      let videoUrl: string | undefined;
+      let fileUrl: string | undefined;
+
+      if (rawFile && attachment) {
+        if (attachment.isImage) {
+          const results = await uploadMedia([rawFile]);
+          imageUrl = results?.[0]?.url;
+        } else if (attachment.isVideo) {
+          const results = await uploadMedia([rawFile]);
+          videoUrl = results?.[0]?.url;
+        } else {
+          const results = await uploadDoc([rawFile]);
+          fileUrl = results?.[0]?.url;
+        }
+        pendingFileRef.current = undefined;
+      }
+
+      await onSubmit({
+        content: text.trim(),
+        imageUrl,
+        videoUrl,
+        fileUrl,
+        fileName: attachment?.name,
+        fileSize: attachment?.size,
+        fileType: attachment?.type,
+      });
+
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      setText("");
+      setAttachment(null);
+    } catch (err: any) {
+      setUploadError(err.message ?? "Tải lên thất bại, thử lại nhé");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -455,24 +659,47 @@ function CommentInput({
     }
   };
 
-  const canSubmit = !!text.trim() || !!attachment;
+  const removeAttachment = () => {
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+    pendingFileRef.current = undefined;
+    setUploadError(null);
+  };
+
+  const canSubmit = (!!text.trim() || !!attachment) && !uploading;
 
   return (
     <div className="flex gap-2.5">
-      <Avatar
-        initials={CURRENT_USER.initials}
-        color={CURRENT_USER.color}
-        size="sm"
-      />
+      <Avatar initials={initials} color="bg-primary" size="sm" />
       <div className="flex-1 min-w-0">
         {attachment && (
-          <div className="relative mb-2 inline-block">
-            {attachment.isImage && attachment.dataUrl ? (
+          <div className="relative mb-2 inline-block max-w-full">
+            {attachment.isImage && attachment.previewUrl ? (
               <img
-                src={attachment.dataUrl}
+                src={attachment.previewUrl}
                 alt="preview"
                 className="h-20 rounded-xl object-cover border border-surface-200"
               />
+            ) : attachment.isVideo && attachment.previewUrl ? (
+              <div className="relative rounded-xl overflow-hidden border border-surface-200 bg-black h-20 w-32">
+                <video
+                  src={attachment.previewUrl}
+                  muted
+                  preload="metadata"
+                  className="h-full w-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full bg-black/60 flex items-center justify-center">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="white"
+                      className="w-3.5 h-3.5 ml-0.5"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center gap-2 px-3 py-2 bg-surface-100 rounded-xl border border-surface-200">
                 <FileText size={16} className="text-text-secondary shrink-0" />
@@ -485,13 +712,14 @@ function CommentInput({
               </div>
             )}
             <button
-              onClick={() => setAttachment(null)}
+              onClick={removeAttachment}
               className="absolute -top-1.5 -right-1.5 bg-text-primary text-white rounded-full p-0.5"
             >
               <X size={11} />
             </button>
           </div>
         )}
+
         <div className="flex items-end gap-2 bg-surface-50 border border-surface-200 rounded-2xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-all">
           <textarea
             value={text}
@@ -511,13 +739,14 @@ function CommentInput({
             <input
               ref={fileRef}
               type="file"
-              accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
+              accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
               className="hidden"
               onChange={handleFile}
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="p-1 text-text-muted hover:text-primary transition-colors"
+              disabled={uploading}
+              className="p-1 text-text-muted hover:text-primary transition-colors disabled:opacity-40"
               title="Đính kèm tệp"
             >
               <Paperclip size={16} />
@@ -538,10 +767,23 @@ function CommentInput({
                   : "text-text-muted cursor-not-allowed",
               )}
             >
-              <Send size={13} />
+              {uploading ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Send size={13} />
+              )}
             </button>
           </div>
         </div>
+
+        {uploading && (
+          <p className="text-[11px] text-text-muted mt-1 ml-1">
+            Đang tải lên...
+          </p>
+        )}
+        {uploadError && (
+          <p className="text-[11px] text-red-500 mt-1 ml-1">{uploadError}</p>
+        )}
       </div>
     </div>
   );
@@ -557,13 +799,17 @@ function ReplyInput({
   onCancel: () => void;
 }) {
   const [text, setText] = useState("");
+  const { data: session } = useSession();
+  const initials = (session?.user?.name ?? "U")
+    .split(" ")
+    .map((w: string) => w[0])
+    .slice(-2)
+    .join("")
+    .toUpperCase();
+
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
-      <Avatar
-        initials={CURRENT_USER.initials}
-        color={CURRENT_USER.color}
-        size="sm"
-      />
+      <Avatar initials={initials} color="bg-primary" size="sm" />
       <div className="flex-1 flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-full px-3 py-1.5 focus-within:border-primary transition-colors">
         <input
           autoFocus
@@ -633,15 +879,70 @@ function CommentList({
                 <p className="text-sm text-text-primary leading-relaxed mt-0.5">
                   {c.content}
                 </p>
-                {c.image && (
-                  <img
-                    src={c.image}
-                    alt="đính kèm"
-                    className="mt-2 rounded-lg max-h-48 object-cover border border-surface-200"
+
+                {c.imageUrl && (
+                  <CommentMediaThumb
+                    url={c.imageUrl}
+                    type="image"
+                    fileName={c.fileName}
                   />
                 )}
-                {c.file && <AttachmentBadge file={c.file} />}
+
+                {c.videoUrl && (
+                  <CommentMediaThumb
+                    url={c.videoUrl}
+                    type="video"
+                    fileName={c.fileName}
+                  />
+                )}
+
+                {c.fileName &&
+                  !c.imageUrl &&
+                  !c.videoUrl &&
+                  (() => {
+                    const ext = (c.fileType ?? "").toUpperCase();
+                    const isVid = ["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(
+                      ext,
+                    );
+                    const isImg = [
+                      "JPG",
+                      "JPEG",
+                      "PNG",
+                      "GIF",
+                      "WEBP",
+                      "BMP",
+                      "SVG",
+                    ].includes(ext);
+
+                    if (isVid && c.fileUrl) {
+                      return (
+                        <CommentMediaThumb
+                          url={c.fileUrl}
+                          type="video"
+                          fileName={c.fileName}
+                        />
+                      );
+                    }
+                    if (isImg && c.fileUrl) {
+                      return (
+                        <CommentMediaThumb
+                          url={c.fileUrl}
+                          type="image"
+                          fileName={c.fileName}
+                        />
+                      );
+                    }
+                    return (
+                      <CommentFileBadge
+                        name={c.fileName}
+                        size={c.fileSize}
+                        type={c.fileType}
+                        url={c.fileUrl}
+                      />
+                    );
+                  })()}
               </div>
+
               <div className="flex items-center gap-1 mt-1 ml-1">
                 <button
                   onClick={() => onLike(c.id)}
@@ -665,6 +966,7 @@ function CommentList({
               </div>
             </div>
           </div>
+
           {c.replies.length > 0 && (
             <div className="ml-10 mt-2 flex flex-col gap-2">
               {c.replies.map((r) => (
@@ -692,6 +994,7 @@ function CommentList({
               ))}
             </div>
           )}
+
           {replyingToId === c.id && (
             <ReplyInput
               replyTo={c.author.name}
@@ -705,47 +1008,154 @@ function CommentList({
   );
 }
 
-function useComments(initialLikes: number) {
-  const [comments, setComments] = useState<Comment[]>(() =>
-    MOCK_COMMENTS.map((c) => ({ ...c })),
-  );
-  const [postLiked, setPostLiked] = useState(false);
-  const [postLikes, setPostLikes] = useState(initialLikes);
+type CommentPayload = {
+  content: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
+};
+
+function useComments(postId: number | string) {
+  const { data: session } = useSession();
+  const [comments, setComments] = useState<Comment[]>([]);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
 
-  const handlePostLike = useCallback(() => {
-    setPostLiked((p) => !p);
-    setPostLikes((c) => (postLiked ? c - 1 : c + 1));
-  }, [postLiked]);
+  const mapComment = useCallback((c: any): Comment => {
+    const mentionParse = (content: string) => {
+      const m = content.match(/^@\[(.+?)\] ([\s\S]+)$/);
+      return m ? { replyTo: m[1], text: m[2] } : { text: content };
+    };
 
-  const handleCommentLike = useCallback((id: string) => {
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              liked: !c.liked,
-              likes: c.liked ? c.likes - 1 : c.likes + 1,
-            }
-          : c,
-      ),
-    );
+    return {
+      id: c.id,
+      author: {
+        name: c.author.profile?.displayName ?? c.author.username ?? "User",
+        initials: (c.author.profile?.displayName ?? c.author.username ?? "U")
+          .split(" ")
+          .map((w: string) => w[0])
+          .slice(-2)
+          .join("")
+          .toUpperCase(),
+        color: "bg-primary",
+      },
+      time: new Date(c.createdAt).toLocaleDateString("vi-VN"),
+      content: c.content,
+      imageUrl: c.imageUrl ?? undefined,
+      videoUrl: c.videoUrl ?? undefined,
+      fileUrl: c.fileUrl ?? undefined,
+      fileName: c.fileName ?? undefined,
+      fileSize: c.fileSize ?? undefined,
+      fileType: c.fileType ?? undefined,
+      likes: c._count?.likes ?? 0,
+      liked: Array.isArray(c.likes) && c.likes.length > 0,
+      replies: (c.replies ?? []).map((r: any) => {
+        const { replyTo, text } = mentionParse(r.content);
+        return {
+          id: r.id,
+          author: {
+            name: r.author.profile?.displayName ?? r.author.username ?? "User",
+            initials: (
+              r.author.profile?.displayName ??
+              r.author.username ??
+              "U"
+            )
+              .split(" ")
+              .map((w: string) => w[0])
+              .slice(-2)
+              .join("")
+              .toUpperCase(),
+            color: "bg-primary",
+          },
+          time: new Date(r.createdAt).toLocaleDateString("vi-VN"),
+          content: text,
+          replyTo,
+          likes: r._count?.likes ?? 0,
+          liked: Array.isArray(r.likes) && r.likes.length > 0,
+        };
+      }),
+      showReplyInput: false,
+    };
   }, []);
+
+  useEffect(() => {
+    fetch(`/api/posts/${postId}/comments`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) return;
+        setComments(data.map(mapComment));
+      });
+  }, [postId, mapComment]);
+
+  const handleCommentLike = useCallback(
+    async (id: string) => {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                liked: !c.liked,
+                likes: c.liked ? c.likes - 1 : c.likes + 1,
+              }
+            : c,
+        ),
+      );
+
+      const res = await fetch(`/api/posts/${postId}/comments/${id}/like`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  liked: !c.liked,
+                  likes: c.liked ? c.likes - 1 : c.likes + 1,
+                }
+              : c,
+          ),
+        );
+      }
+    },
+    [postId],
+  );
 
   const toggleReplyInput = useCallback((id: string) => {
     setReplyingToId((prev) => (prev === id ? null : id));
   }, []);
 
   const submitReply = useCallback(
-    (commentId: string, text: string, replyToName: string) => {
-      const replyTo =
-        replyToName === CURRENT_USER.name ? undefined : replyToName;
+    async (commentId: string, text: string, replyToName: string) => {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: `@[${replyToName}] ${text}`,
+          parentId: commentId,
+        }),
+      });
+      if (!res.ok) return;
+      const saved = await res.json();
+      const currentName = session?.user?.name ?? "User";
       const reply: Reply = {
-        id: `r-${Date.now()}`,
-        author: CURRENT_USER,
+        id: saved.id,
+        author: {
+          name: currentName,
+          initials: currentName
+            .split(" ")
+            .map((w: string) => w[0])
+            .slice(-2)
+            .join("")
+            .toUpperCase(),
+          color: "bg-primary",
+        },
         time: "Vừa xong",
         content: text,
-        replyTo,
+        replyTo: replyToName,
         likes: 0,
         liked: false,
       };
@@ -756,20 +1166,53 @@ function useComments(initialLikes: number) {
       );
       setReplyingToId(null);
     },
-    [],
+    [postId, session],
   );
 
   const submitComment = useCallback(
-    (content: string, image?: string, file?: AttachedFile) => {
+    async (payload: CommentPayload) => {
+      const res = await fetch(`/api/posts/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: payload.content,
+          imageUrl: payload.imageUrl ?? null,
+          videoUrl: payload.videoUrl ?? null,
+          fileUrl: payload.fileUrl ?? null,
+          fileName: payload.fileName ?? null,
+          fileSize: payload.fileSize ?? null,
+          fileType: payload.fileType ?? null,
+        }),
+      });
+      if (!res.ok) return;
+      const saved = await res.json();
+      const currentName = session?.user?.name ?? "User";
+
       setComments((prev) => [
         ...prev,
         {
-          id: `c-${Date.now()}`,
-          author: CURRENT_USER,
+          id: saved.id,
+          author: {
+            name:
+              saved.author.profile?.displayName ??
+              saved.author.username ??
+              currentName,
+            initials: currentName
+              .split(" ")
+              .map((w: string) => w[0])
+              .slice(-2)
+              .join("")
+              .toUpperCase(),
+            color: "bg-primary",
+          },
           time: "Vừa xong",
-          content,
-          image,
-          file,
+          content: payload.content,
+          imageUrl: payload.imageUrl,
+          videoUrl: payload.videoUrl,
+          fileUrl: payload.fileUrl,
+          fileName: payload.fileName,
+          fileSize: payload.fileSize,
+          fileType: payload.fileType,
           likes: 0,
           liked: false,
           replies: [],
@@ -777,15 +1220,12 @@ function useComments(initialLikes: number) {
         },
       ]);
     },
-    [],
+    [postId, session],
   );
 
   return {
     comments,
-    postLiked,
-    postLikes,
     replyingToId,
-    handlePostLike,
     handleCommentLike,
     toggleReplyInput,
     submitReply,
@@ -836,13 +1276,14 @@ function AttachmentRow({
       <a
         href={attachment.url ?? "#"}
         download={attachment.name}
+        target="_blank"
         onClick={(e) => {
           if (!attachment.url) e.preventDefault();
         }}
         className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors"
-        title="Tải xuống"
+        title="Xem trước"
       >
-        <Download size={16} />
+        <Eye size={16} />
       </a>
     </div>
   );
@@ -853,27 +1294,30 @@ function MediaLightbox({
   mediaTypes,
   initialIndex,
   post,
+  liked,
+  likeCount,
   onClose,
+  onLike,
 }: {
   images: string[];
   mediaTypes?: string[];
   initialIndex: number;
   post: Post;
+  liked: boolean;
+  likeCount: number;
   onClose: () => void;
+  onLike: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const {
     comments,
-    postLiked,
-    postLikes,
     replyingToId,
-    handlePostLike,
     handleCommentLike,
     toggleReplyInput,
     submitReply,
     submitComment,
     cancelReply,
-  } = useComments(post.likes);
+  } = useComments(post.id);
 
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
@@ -988,10 +1432,10 @@ function MediaLightbox({
         </div>
         <div className="flex items-center gap-1 px-3 py-1.5 border-y border-surface-100 shrink-0">
           <button
-            onClick={handlePostLike}
+            onClick={onLike}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
-              postLiked
+              liked
                 ? "text-primary font-semibold"
                 : "text-text-secondary hover:bg-surface-100",
             )}
@@ -1000,14 +1444,16 @@ function MediaLightbox({
               size={15}
               className={clsx(
                 "transition-transform duration-150",
-                postLiked ? "fill-primary scale-110" : "",
+                liked ? "fill-primary scale-110" : "",
               )}
             />
-            <span>{postLikes}</span>
+            <span>{likeCount}</span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
             <MessageCircle size={15} />
-            <span>{comments.length}</span>
+            <span>
+              {comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+            </span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
             <Share2 size={15} />
@@ -1032,21 +1478,47 @@ function MediaLightbox({
   );
 }
 
-function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
+function CommentModal({
+  post,
+  liked,
+  likeCount,
+  onLike,
+  onClose,
+  onCommentAdded,
+}: {
+  post: Post;
+  liked: boolean;
+  likeCount: number;
+  onLike: () => void;
+  onClose: () => void;
+  onCommentAdded?: () => void;
+}) {
   const {
     comments,
-    postLiked,
-    postLikes,
     replyingToId,
-    handlePostLike,
     handleCommentLike,
     toggleReplyInput,
     submitReply,
     submitComment,
     cancelReply,
-  } = useComments(post.likes);
-
+  } = useComments(post.id);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const handleSubmitComment = useCallback(
+    async (payload: CommentPayload) => {
+      await submitComment(payload);
+      onCommentAdded?.();
+    },
+    [submitComment, onCommentAdded],
+  );
+
+  const handleSubmitReply = useCallback(
+    async (commentId: string, text: string, replyTo: string) => {
+      await submitReply(commentId, text, replyTo);
+      onCommentAdded?.();
+    },
+    [submitReply, onCommentAdded],
+  );
 
   if (lightboxIndex !== null && post.images) {
     return (
@@ -1055,6 +1527,9 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
         mediaTypes={post.mediaTypes}
         initialIndex={lightboxIndex}
         post={post}
+        liked={liked}
+        likeCount={likeCount}
+        onLike={onLike}
         onClose={() => setLightboxIndex(null)}
       />
     );
@@ -1080,10 +1555,6 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
               {post.author.name}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs text-primary font-medium">
-                {post.author.role}
-              </span>
-              <span className="text-text-muted text-xs">·</span>
               <span className="text-xs text-text-muted">{post.time}</span>
             </div>
           </div>
@@ -1112,10 +1583,10 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
         </div>
         <div className="flex items-center gap-1 px-3 py-1 border-y border-surface-100 shrink-0">
           <button
-            onClick={handlePostLike}
+            onClick={onLike}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
-              postLiked
+              liked
                 ? "text-primary font-medium"
                 : "text-text-secondary hover:bg-surface-100",
             )}
@@ -1124,14 +1595,16 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
               size={15}
               className={clsx(
                 "transition-transform duration-150",
-                postLiked ? "scale-110 fill-primary" : "",
+                liked ? "scale-110 fill-primary" : "",
               )}
             />
-            <span>{postLikes}</span>
+            <span>{likeCount}</span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
             <MessageCircle size={15} />
-            <span>{comments.length}</span>
+            <span>
+              {comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+            </span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
             <Share2 size={15} />
@@ -1144,12 +1617,12 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
             replyingToId={replyingToId}
             onLike={handleCommentLike}
             onToggleReply={toggleReplyInput}
-            onSubmitReply={submitReply}
+            onSubmitReply={handleSubmitReply}
             onCancelReply={cancelReply}
           />
         </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
-          <CommentInput onSubmit={submitComment} />
+          <CommentInput onSubmit={handleSubmitComment} />
         </div>
       </div>
     </div>
@@ -1157,18 +1630,16 @@ function CommentModal({ post, onClose }: { post: Post; onClose: () => void }) {
 }
 
 export default function PostCard({ post }: { post: Post }) {
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(post.isLikedByMe ?? false);
   const [likeCount, setLikeCount] = useState(post.likes);
-
+  const [commentCount, setCommentCount] = useState(post.comments);
   const [modal, setModal] = useState<ModalState>({ type: "none" });
 
-  const handleLike = () => {
-    setLiked((prev) => !prev);
-    setLikeCount((c) => (liked ? c - 1 : c + 1));
-  };
-
-  const handleImageClick = (index: number) => {
-    setModal({ type: "lightbox", index });
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
+    await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
   };
 
   return (
@@ -1208,7 +1679,7 @@ export default function PostCard({ post }: { post: Post }) {
           <ImageGrid
             images={post.images}
             mediaTypes={post.mediaTypes}
-            onImageClick={handleImageClick}
+            onImageClick={(index) => setModal({ type: "lightbox", index })}
           />
         )}
 
@@ -1241,7 +1712,7 @@ export default function PostCard({ post }: { post: Post }) {
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors"
             >
               <MessageCircle size={15} />
-              <span>{post.comments}</span>
+              <span>{commentCount}</span>
             </button>
           </div>
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors">
@@ -1257,10 +1728,20 @@ export default function PostCard({ post }: { post: Post }) {
           mediaTypes={post.mediaTypes}
           initialIndex={modal.index}
           post={post}
+          liked={liked}
+          likeCount={likeCount}
           onClose={() => setModal({ type: "none" })}
+          onLike={handleLike}
         />
       ) : modal.type === "comment" ? (
-        <CommentModal post={post} onClose={() => setModal({ type: "none" })} />
+        <CommentModal
+          post={post}
+          liked={liked}
+          likeCount={likeCount}
+          onClose={() => setModal({ type: "none" })}
+          onLike={handleLike}
+          onCommentAdded={() => setCommentCount((c) => c + 1)}
+        />
       ) : null}
     </>
   );

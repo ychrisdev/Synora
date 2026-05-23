@@ -4,18 +4,20 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
   try {
     const posts = await prisma.post.findMany({
       where: { visibility: "PUBLIC" },
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
-        author: {
-          include: { profile: true },
-        },
+        author: { include: { profile: true } },
         tags: { include: { tag: true } },
         documents: true,
         _count: { select: { likes: true, comments: true } },
+        likes: session?.user?.id
+          ? { where: { userId: session.user.id }, select: { id: true } }
+          : false,
       },
     });
     return NextResponse.json(posts);
@@ -47,11 +49,11 @@ export async function POST(req: NextRequest) {
     }
 
     const getDocType = (type: string) => {
-      if (["JPG", "JPEG", "PNG", "GIF", "WEBP"].includes(type.toUpperCase()))
+      const t = type.toUpperCase();
+      if (["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"].includes(t))
         return "IMAGE";
-      if (["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(type.toUpperCase()))
-        return "VIDEO";
-      if (type.toUpperCase() === "PDF") return "PDF";
+      if (["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(t)) return "VIDEO";
+      if (t === "PDF") return "PDF";
       return "OTHER";
     };
 

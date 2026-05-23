@@ -6,8 +6,8 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   postMedia: f({
-    image: { maxFileSize: "16MB", maxFileCount: 10 },
-    video: { maxFileSize: "256MB", maxFileCount: 2 },
+    image: { maxFileSize: "8MB", maxFileCount: 10 },
+    video: { maxFileSize: "64MB", maxFileCount: 2 },
   })
     .middleware(async () => {
       const session = await getServerSession(authOptions);
@@ -19,11 +19,45 @@ export const ourFileRouter = {
     }),
 
   postDocument: f({
-    pdf: { maxFileSize: "32MB", maxFileCount: 5 },
+    pdf: { maxFileSize: "16MB", maxFileCount: 5 },
     "application/msword": { maxFileSize: "32MB", maxFileCount: 5 },
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
       maxFileSize: "32MB",
       maxFileCount: 5,
+    },
+  })
+    .middleware(async () => {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) throw new Error("Chưa đăng nhập");
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { url: file.url, key: file.key, name: file.name };
+    }),
+
+  commentMedia: f({
+    image: { maxFileSize: "8MB", maxFileCount: 1 },
+    video: { maxFileSize: "64MB", maxFileCount: 1 },
+    "video/mp4": { maxFileSize: "64MB", maxFileCount: 1 },
+    "video/quicktime": { maxFileSize: "64MB", maxFileCount: 1 },
+    "video/webm": { maxFileSize: "64MB", maxFileCount: 1 },
+    "video/x-msvideo": { maxFileSize: "64MB", maxFileCount: 1 },
+  })
+    .middleware(async () => {
+      const session = await getServerSession(authOptions);
+      if (!session?.user?.id) throw new Error("Chưa đăng nhập");
+      return { userId: session.user.id };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { url: file.url, key: file.key, name: file.name };
+    }),
+
+  commentDocument: f({
+    pdf: { maxFileSize: "16MB", maxFileCount: 1 },
+    "application/msword": { maxFileSize: "16MB", maxFileCount: 1 },
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+      maxFileSize: "16MB",
+      maxFileCount: 1,
     },
   })
     .middleware(async () => {

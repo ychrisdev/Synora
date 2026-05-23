@@ -1,0 +1,41 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; commentId: string }> },
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+  }
+
+  const { commentId } = await params;
+
+  try {
+    const existing = await prisma.like.findUnique({
+      where: {
+        userId_commentId: { userId: session.user.id, commentId },
+      },
+    });
+
+    if (existing) {
+      await prisma.like.delete({
+        where: {
+          userId_commentId: { userId: session.user.id, commentId },
+        },
+      });
+      return NextResponse.json({ liked: false });
+    } else {
+      await prisma.like.create({
+        data: { userId: session.user.id, commentId },
+      });
+      return NextResponse.json({ liked: true });
+    }
+  } catch (error) {
+    console.error("Like comment error:", error);
+    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
+  }
+}

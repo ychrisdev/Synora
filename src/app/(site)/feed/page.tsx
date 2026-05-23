@@ -28,6 +28,7 @@ export default function FeedPage() {
   };
 
   useEffect(() => {
+    if (session === undefined) return;
     fetch("/api/posts")
       .then((r) => r.json())
       .then((data) => {
@@ -35,7 +36,7 @@ export default function FeedPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [session]);
 
   const handlePost = async ({
     content,
@@ -96,9 +97,11 @@ export default function FeedPage() {
   };
 
   const mappedPosts = posts.map((p) => {
+    console.log("documents:", p.documents);
     const imageDocs = p.documents.filter((d: any) =>
       ["IMAGE"].includes(d.type),
     );
+    console.log("imageDocs:", imageDocs);
     const videoDocs = p.documents.filter((d: any) =>
       ["VIDEO"].includes(d.type),
     );
@@ -125,6 +128,7 @@ export default function FeedPage() {
       content: p.content,
       tags: p.tags.map((t: any) => `#${t.tag.name}`),
       likes: p._count.likes,
+      isLikedByMe: Array.isArray(p.likes) && p.likes.length > 0,
       comments: p._count.comments,
       images:
         mediaDocs.length > 0 ? mediaDocs.map((d: any) => d.fileUrl) : undefined,
