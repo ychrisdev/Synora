@@ -67,16 +67,6 @@ interface AttachedFile {
   previewUrl?: string;
 }
 
-interface UploadedAttachment {
-  url: string;
-  key: string;
-  name: string;
-  size: string;
-  type: string;
-  isImage: boolean;
-  isVideo: boolean;
-}
-
 interface Comment {
   id: string;
   author: { name: string; initials: string; color: string };
@@ -140,6 +130,25 @@ export function mapFilesToPostFields(
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatCommentTime(date: Date): string {
+  const now = Date.now();
+  const diff = now - date.getTime();
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(diff / 86_400_000);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(days / 365);
+
+  if (minutes < 1) return "Vừa xong";
+  if (minutes < 60) return `${minutes} phút trước`;
+  if (hours < 24) return `${hours} giờ trước`;
+  if (days < 7) return `${days} ngày trước`;
+  if (weeks < 5) return `${weeks} tuần trước`;
+  if (months < 12) return `${months} tháng trước`;
+  return `${years} năm trước`;
 }
 
 function getFileExt(name: string): string {
@@ -236,7 +245,6 @@ function CommentFileBadge({
       {url ? (
         <a
           href={url}
-          download={name}
           target="_blank"
           rel="noopener noreferrer"
           className="p-1.5 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors shrink-0"
@@ -791,14 +799,18 @@ function CommentInput({
 
 function ReplyInput({
   replyTo,
+  isSelf,
   onSubmit,
   onCancel,
 }: {
   replyTo: string;
+  isSelf: boolean;
   onSubmit: (text: string) => void;
   onCancel: () => void;
 }) {
-  const [text, setText] = useState("");
+  const mention = useRef(isSelf ? "" : `@${replyTo} `).current;
+  const [text, setText] = useState(mention);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { data: session } = useSession();
   const initials = (session?.user?.name ?? "U")
     .split(" ")
@@ -807,18 +819,43 @@ function ReplyInput({
     .join("")
     .toUpperCase();
 
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.setSelectionRange(mention.length, mention.length);
+    }
+  }, [mention]);
+
+  const hasContent = text.startsWith(mention)
+    ? text.slice(mention.length).trim().length > 0
+    : text.trim().length > 0;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.value.startsWith(mention)) {
+      setText(mention);
+    } else {
+      setText(e.target.value);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!hasContent) return;
+    onSubmit(text.trim());
+  };
+
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
       <Avatar initials={initials} color="bg-primary" size="sm" />
       <div className="flex-1 flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-full px-3 py-1.5 focus-within:border-primary transition-colors">
         <input
-          autoFocus
+          ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && text.trim()) {
+            if (e.key === "Enter" && hasContent) {
               e.preventDefault();
-              onSubmit(text.trim());
+              handleSubmit();
             }
             if (e.key === "Escape") onCancel();
           }}
@@ -826,11 +863,11 @@ function ReplyInput({
           className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-muted"
         />
         <button
-          onClick={() => text.trim() && onSubmit(text.trim())}
-          disabled={!text.trim()}
+          onClick={handleSubmit}
+          disabled={!hasContent}
           className={clsx(
             "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
-            text.trim()
+            hasContent
               ? "bg-primary text-white"
               : "bg-surface-200 text-text-muted cursor-not-allowed",
           )}
@@ -845,17 +882,23 @@ function ReplyInput({
 function CommentList({
   comments,
   replyingToId,
+  replyingToName,
+  currentUserName,
   onLike,
   onToggleReply,
   onSubmitReply,
   onCancelReply,
+  onLikeReply,
 }: {
   comments: Comment[];
   replyingToId: string | null;
+  replyingToName: string | null;
+  currentUserName: string;
   onLike: (id: string) => void;
-  onToggleReply: (id: string) => void;
+  onToggleReply: (id: string, name: string) => void;
   onSubmitReply: (commentId: string, text: string, replyTo: string) => void;
   onCancelReply: () => void;
+  onLikeReply: (commentId: string, replyId: string) => void;
 }) {
   return (
     <>
@@ -958,7 +1001,7 @@ function CommentList({
                 </button>
                 <span className="text-text-muted text-[10px]">·</span>
                 <button
-                  onClick={() => onToggleReply(c.id)}
+                  onClick={() => onToggleReply(c.id, c.author.name)}
                   className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
                 >
                   Trả lời
@@ -989,6 +1032,28 @@ function CommentList({
                         {r.content}
                       </p>
                     </div>
+
+                    <div className="flex items-center gap-1 mt-1 ml-1">
+                      <button
+                        onClick={() => onLikeReply(c.id, r.id)}
+                        className={clsx(
+                          "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                          r.liked
+                            ? "text-primary"
+                            : "text-text-muted hover:text-text-secondary",
+                        )}
+                      >
+                        <ThumbsUp size={11} />
+                        <span>{r.likes > 0 ? r.likes : "Thích"}</span>
+                      </button>
+                      <span className="text-text-muted text-[10px]">·</span>
+                      <button
+                        onClick={() => onToggleReply(c.id, r.author.name)}
+                        className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                      >
+                        Trả lời
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -997,8 +1062,12 @@ function CommentList({
 
           {replyingToId === c.id && (
             <ReplyInput
-              replyTo={c.author.name}
-              onSubmit={(text) => onSubmitReply(c.id, text, c.author.name)}
+              key={replyingToName ?? c.author.name}
+              replyTo={replyingToName ?? c.author.name}
+              isSelf={currentUserName === (replyingToName ?? c.author.name)}
+              onSubmit={(text) =>
+                onSubmitReply(c.id, text, replyingToName ?? c.author.name)
+              }
               onCancel={onCancelReply}
             />
           )}
@@ -1018,13 +1087,18 @@ type CommentPayload = {
   fileType?: string;
 };
 
+
+
 function useComments(postId: number | string) {
   const { data: session } = useSession();
   const [comments, setComments] = useState<Comment[]>([]);
-  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const mapComment = useCallback((c: any): Comment => {
-    const mentionParse = (content: string) => {
+    const parseMention = (content: string) => {
       const m = content.match(/^@\[(.+?)\] ([\s\S]+)$/);
       return m ? { replyTo: m[1], text: m[2] } : { text: content };
     };
@@ -1041,7 +1115,7 @@ function useComments(postId: number | string) {
           .toUpperCase(),
         color: "bg-primary",
       },
-      time: new Date(c.createdAt).toLocaleDateString("vi-VN"),
+      time: formatCommentTime(new Date(c.createdAt)),
       content: c.content,
       imageUrl: c.imageUrl ?? undefined,
       videoUrl: c.videoUrl ?? undefined,
@@ -1052,7 +1126,7 @@ function useComments(postId: number | string) {
       likes: c._count?.likes ?? 0,
       liked: Array.isArray(c.likes) && c.likes.length > 0,
       replies: (c.replies ?? []).map((r: any) => {
-        const { replyTo, text } = mentionParse(r.content);
+        const { replyTo, text } = parseMention(r.content);
         return {
           id: r.id,
           author: {
@@ -1069,7 +1143,7 @@ function useComments(postId: number | string) {
               .toUpperCase(),
             color: "bg-primary",
           },
-          time: new Date(r.createdAt).toLocaleDateString("vi-VN"),
+          time: formatCommentTime(new Date(r.createdAt)),
           content: text,
           replyTo,
           likes: r._count?.likes ?? 0,
@@ -1102,11 +1176,9 @@ function useComments(postId: number | string) {
             : c,
         ),
       );
-
       const res = await fetch(`/api/posts/${postId}/comments/${id}/like`, {
         method: "POST",
       });
-
       if (!res.ok) {
         setComments((prev) =>
           prev.map((c) =>
@@ -1124,8 +1196,39 @@ function useComments(postId: number | string) {
     [postId],
   );
 
-  const toggleReplyInput = useCallback((id: string) => {
-    setReplyingToId((prev) => (prev === id ? null : id));
+  const handleReplyLike = useCallback(
+    async (commentId: string, replyId: string) => {
+      const toggleReply = (prev: Comment[]) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === replyId
+                    ? {
+                        ...r,
+                        liked: !r.liked,
+                        likes: r.liked ? r.likes - 1 : r.likes + 1,
+                      }
+                    : r,
+                ),
+              }
+            : c,
+        );
+
+      setComments(toggleReply);
+      const res = await fetch(`/api/posts/${postId}/comments/${replyId}/like`, {
+        method: "POST",
+      });
+      if (!res.ok) setComments(toggleReply);
+    },
+    [postId],
+  );
+
+  const toggleReplyInput = useCallback((id: string, name: string) => {
+    setReplyingTo((prev) =>
+      prev?.id === id && prev?.name === name ? null : { id, name },
+    );
   }, []);
 
   const submitReply = useCallback(
@@ -1133,14 +1236,17 @@ function useComments(postId: number | string) {
       const res = await fetch(`/api/posts/${postId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: `@[${replyToName}] ${text}`,
-          parentId: commentId,
-        }),
+        body: JSON.stringify({ content: text, parentId: commentId }),
       });
       if (!res.ok) return;
       const saved = await res.json();
       const currentName = session?.user?.name ?? "User";
+      const isSelf = currentName === replyToName;
+      const mentionPrefix = `@${replyToName} `;
+      const displayContent = text.startsWith(mentionPrefix)
+        ? text.slice(mentionPrefix.length)
+        : text;
+
       const reply: Reply = {
         id: saved.id,
         author: {
@@ -1154,17 +1260,18 @@ function useComments(postId: number | string) {
           color: "bg-primary",
         },
         time: "Vừa xong",
-        content: text,
-        replyTo: replyToName,
+        content: displayContent,
+        replyTo: isSelf ? undefined : replyToName,
         likes: 0,
         liked: false,
       };
+
       setComments((prev) =>
         prev.map((c) =>
           c.id === commentId ? { ...c, replies: [...c.replies, reply] } : c,
         ),
       );
-      setReplyingToId(null);
+      setReplyingTo(null);
     },
     [postId, session],
   );
@@ -1225,12 +1332,14 @@ function useComments(postId: number | string) {
 
   return {
     comments,
-    replyingToId,
+    replyingToId: replyingTo?.id ?? null,
+    replyingToName: replyingTo?.name ?? null,
     handleCommentLike,
+    handleReplyLike,
     toggleReplyInput,
     submitReply,
     submitComment,
-    cancelReply: () => setReplyingToId(null),
+    cancelReply: () => setReplyingTo(null),
   };
 }
 
@@ -1275,8 +1384,8 @@ function AttachmentRow({
       </div>
       <a
         href={attachment.url ?? "#"}
-        download={attachment.name}
         target="_blank"
+        rel="noopener noreferrer"
         onClick={(e) => {
           if (!attachment.url) e.preventDefault();
         }}
@@ -1309,10 +1418,13 @@ function MediaLightbox({
   onLike: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
+  const { data: session } = useSession();
   const {
     comments,
     replyingToId,
+    replyingToName,
     handleCommentLike,
+    handleReplyLike,
     toggleReplyInput,
     submitReply,
     submitComment,
@@ -1464,10 +1576,13 @@ function MediaLightbox({
           <CommentList
             comments={comments}
             replyingToId={replyingToId}
+            replyingToName={replyingToName}
+            currentUserName={session?.user?.name ?? ""}
             onLike={handleCommentLike}
             onToggleReply={toggleReplyInput}
             onSubmitReply={submitReply}
             onCancelReply={cancelReply}
+            onLikeReply={handleReplyLike}
           />
         </div>
         <div className="border-t border-surface-100 px-4 py-3 shrink-0">
@@ -1496,13 +1611,16 @@ function CommentModal({
   const {
     comments,
     replyingToId,
+    replyingToName,
     handleCommentLike,
+    handleReplyLike,
     toggleReplyInput,
     submitReply,
     submitComment,
     cancelReply,
   } = useComments(post.id);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { data: session } = useSession();
 
   const handleSubmitComment = useCallback(
     async (payload: CommentPayload) => {
@@ -1615,10 +1733,13 @@ function CommentModal({
           <CommentList
             comments={comments}
             replyingToId={replyingToId}
+            replyingToName={replyingToName}
+            currentUserName={session?.user?.name ?? ""}
             onLike={handleCommentLike}
             onToggleReply={toggleReplyInput}
             onSubmitReply={handleSubmitReply}
             onCancelReply={cancelReply}
+            onLikeReply={handleReplyLike}
           />
         </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">

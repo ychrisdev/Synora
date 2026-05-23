@@ -10,6 +10,10 @@ export async function GET(
   const { id } = await params;
   const session = await getServerSession(authOptions);
   try {
+    const likesInclude = session?.user?.id
+      ? { where: { userId: session.user.id }, select: { id: true } }
+      : undefined;
+
     const comments = await prisma.comment.findMany({
       where: { postId: id, parentId: null },
       orderBy: { createdAt: "asc" },
@@ -19,16 +23,12 @@ export async function GET(
           include: {
             author: { include: { profile: true } },
             _count: { select: { likes: true } },
-            likes: session?.user?.id
-              ? { where: { userId: session.user.id }, select: { id: true } }
-              : false,
+            ...(likesInclude && { likes: likesInclude }),
           },
           orderBy: { createdAt: "asc" },
         },
         _count: { select: { likes: true } },
-        likes: session?.user?.id
-          ? { where: { userId: session.user.id }, select: { id: true } }
-          : false,
+        ...(likesInclude && { likes: likesInclude }),
       },
     });
     return NextResponse.json(comments);
