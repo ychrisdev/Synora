@@ -23,7 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useUploadThing } from "@/lib/uploadthing";
 
@@ -890,6 +890,7 @@ function ReplyInput({
 }
 
 type CommentRole = "own" | "hidden-own" | "post-author" | "viewer";
+type CommentSort = "default" | "newest" | "oldest";
 
 function CommentBubbleMenu({
   role,
@@ -1662,7 +1663,7 @@ type CommentPayload = {
   fileType?: string;
 };
 
-function useComments(postId: number | string) {
+function useComments(postId: number | string, sort: CommentSort = "default") {
   const { data: session } = useSession();
   const [comments, setComments] = useState<Comment[]>([]);
   const [replyingTo, setReplyingTo] = useState<{
@@ -1931,8 +1932,8 @@ function useComments(postId: number | string) {
   const hideComment = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/posts/${postId}/comments/${id}/hide`, {
-      method: "POST",
-    });
+        method: "POST",
+      });
       if (!res.ok) return;
       const data = await res.json();
       const newHidden: boolean = data.hidden;
@@ -1984,6 +1985,11 @@ function useComments(postId: number | string) {
     [postId],
   );
 
+  const sortedComments = useMemo(() => {
+    if (sort === "newest") return [...comments].reverse();
+    return comments;
+  }, [comments, sort]);
+
   const getVisibleCount = useCallback(
     () =>
       comments
@@ -1997,6 +2003,7 @@ function useComments(postId: number | string) {
 
   return {
     comments,
+    sortedComments,
     getVisibleCount,
     replyingToId: replyingTo?.id ?? null,
     replyingToName: replyingTo?.name ?? null,
@@ -2093,6 +2100,7 @@ function MediaLightbox({
 }) {
   const [index, setIndex] = useState(initialIndex);
   const { data: session, status } = useSession();
+  const [sort, setSort] = useState<CommentSort>("default");
   const {
     comments,
     getVisibleCount,
@@ -2108,7 +2116,7 @@ function MediaLightbox({
     deleteReply,
     editComment,
     hideComment,
-  } = useComments(post.id);
+  } = useComments(post.id, sort);
 
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
@@ -2261,9 +2269,29 @@ function MediaLightbox({
             <span>Chia sẻ</span>
           </button>
         </div>
+        <div className="flex items-center gap-1 px-4 py-2 shrink-0">
+          {(["default", "newest", "oldest"] as CommentSort[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSort(s)}
+              className={clsx(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                sort === s
+                  ? "bg-primary text-white"
+                  : "bg-surface-100 text-text-secondary hover:bg-surface-200",
+              )}
+            >
+              {s === "default"
+                ? "Tất cả"
+                : s === "newest"
+                  ? "Mới nhất"
+                  : "Cũ nhất"}
+            </button>
+          ))}
+        </div>
         <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3">
           <CommentList
-            comments={comments}
+            comments={sortedComments}
             replyingToId={replyingToId}
             replyingToName={replyingToName}
             currentUserName={session?.user?.name ?? ""}
@@ -2312,8 +2340,13 @@ function CommentModal({
   onCountChange?: (delta: number) => void;
   onSyncCount?: (count: number) => void;
 }) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [sort, setSort] = useState<CommentSort>("default");
+  const { data: session, status } = useSession();
+
   const {
     comments,
+    sortedComments,
     getVisibleCount,
     replyingToId,
     replyingToName,
@@ -2327,10 +2360,8 @@ function CommentModal({
     deleteReply,
     editComment,
     hideComment,
-  } = useComments(post.id);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const { data: session, status } = useSession();
-
+  } = useComments(post.id, sort);
+  
   useEffect(() => {
     onSyncCount?.(getVisibleCount());
   }, [comments, getVisibleCount, onSyncCount]);
@@ -2447,9 +2478,29 @@ function CommentModal({
             <span>Chia sẻ</span>
           </button>
         </div>
+        <div className="flex items-center gap-1 px-4 py-2 shrink-0">
+          {(["default", "newest", "oldest"] as CommentSort[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSort(s)}
+              className={clsx(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                sort === s
+                  ? "bg-primary text-white"
+                  : "bg-surface-100 text-text-secondary hover:bg-surface-200",
+              )}
+            >
+              {s === "default"
+                ? "Tất cả"
+                : s === "newest"
+                  ? "Mới nhất"
+                  : "Cũ nhất"}
+            </button>
+          ))}
+        </div>
         <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3 min-h-0">
           <CommentList
-            comments={comments}
+            comments={sortedComments}
             replyingToId={replyingToId}
             replyingToName={replyingToName}
             currentUserName={session?.user?.name ?? ""}
