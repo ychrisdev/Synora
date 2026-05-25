@@ -15,11 +15,26 @@ export async function GET(
       : undefined;
 
     const comments = await prisma.comment.findMany({
-      where: { postId: id, parentId: null },
+      where: {
+        postId: id,
+        parentId: null,
+        OR: [
+          { hidden: false },
+          { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
+          { authorId: session?.user?.id ?? "" },
+        ],
+      },
       orderBy: { createdAt: "asc" },
       include: {
         author: { include: { profile: true } },
         replies: {
+          where: {
+        OR: [
+          { hidden: false },
+          { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
+          { authorId: session?.user?.id ?? "" },
+        ],
+      },
           include: {
             author: { include: { profile: true } },
             _count: { select: { likes: true } },
@@ -49,8 +64,16 @@ export async function POST(
   }
 
   try {
-    const { content, parentId, imageUrl, videoUrl, fileUrl, fileName, fileSize, fileType } =
-      await req.json();
+    const {
+      content,
+      parentId,
+      imageUrl,
+      videoUrl,
+      fileUrl,
+      fileName,
+      fileSize,
+      fileType,
+    } = await req.json();
 
     const comment = await prisma.comment.create({
       data: {

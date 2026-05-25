@@ -64,6 +64,7 @@ export default function FeedPage() {
 
     const newPost = {
       id: saved.id,
+      authorId: session?.user?.id ?? "",
       author: {
         name: currentUser.name,
         initials: currentUser.initials,
@@ -113,6 +114,7 @@ export default function FeedPage() {
 
     return {
       id: p.id,
+      authorId: p.authorId,
       author: {
         name: p.author.profile?.displayName ?? p.author.username ?? "User",
         initials: (p.author.profile?.displayName ?? p.author.username ?? "U")

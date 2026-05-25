@@ -219,6 +219,10 @@ model Comment {
   authorId  String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
+  hidden    Boolean   @default(false)
+  hiddenByAuthor String?
+  editedAt  DateTime?
+
   content   String
 
   imageUrl  String?
@@ -229,7 +233,7 @@ model Comment {
   fileType  String?
 
   parentId  String?
-  parent    Comment?  @relation("replies", fields: [parentId], references: [id], onDelete: SetNull)
+  parent    Comment?  @relation("replies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Comment[] @relation("replies")
 
   likes     Like[]

@@ -12,6 +12,9 @@ import {
   Bookmark,
   Link,
   EyeOff,
+  Pencil,
+  Trash2,
+  Ban,
   Flag,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +48,7 @@ const MEDIA_VIDEO_TYPES = new Set(["MP4", "MOV", "AVI", "WEBM", "MKV"]);
 
 interface Post {
   id: number;
+  authorId: string;
   author: { name: string; initials: string; color: string; role: string };
   time: string;
   content: string;
@@ -69,9 +73,11 @@ interface AttachedFile {
 
 interface Comment {
   id: string;
+  authorId: string;
   author: { name: string; initials: string; color: string };
   time: string;
   content: string;
+  editedAt?: string | null;
   imageUrl?: string;
   videoUrl?: string;
   fileUrl?: string;
@@ -82,16 +88,20 @@ interface Comment {
   liked: boolean;
   replies: Reply[];
   showReplyInput: boolean;
+  hidden?: boolean;
+  hiddenByAuthor?: string | null;
 }
 
 interface Reply {
   id: string;
+  authorId: string;
   author: { name: string; initials: string; color: string };
   time: string;
   content: string;
   replyTo?: string;
   likes: number;
   liked: boolean;
+  hidden?: boolean;
 }
 
 export function mapFilesToPostFields(
@@ -240,7 +250,7 @@ function CommentFileBadge({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-text-primary truncate">{name}</p>
-        {size && <p className="text-[11px] text-text-muted">{size}</p>}
+        {size && <p className="text-[11px] text-text-secondary">{size}</p>}
       </div>
       {url ? (
         <a
@@ -255,7 +265,7 @@ function CommentFileBadge({
         </a>
       ) : (
         <div
-          className="p-1.5 text-text-muted shrink-0"
+          className="p-1.5 text-text-secondary shrink-0"
           title="Không có URL tải"
         >
           <FileText size={14} />
@@ -385,7 +395,7 @@ function MoreMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((p) => !p)}
-        className="p-1.5 rounded-lg hover:bg-surface-100 text-text-muted transition-colors"
+        className="p-1.5 rounded-lg hover:bg-surface-100 text-text-secondary transition-colors"
       >
         <MoreHorizontal size={16} />
       </button>
@@ -714,7 +724,7 @@ function CommentInput({
                 <span className="text-xs text-text-primary max-w-[160px] truncate">
                   {attachment.name}
                 </span>
-                <span className="text-[11px] text-text-muted">
+                <span className="text-[11px] text-text-secondary">
                   {attachment.size}
                 </span>
               </div>
@@ -735,7 +745,7 @@ function CommentInput({
             onKeyDown={handleKey}
             placeholder="Viết bình luận..."
             rows={1}
-            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-muted outline-none bg-transparent leading-relaxed max-h-28"
+            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-secondary outline-none bg-transparent leading-relaxed max-h-28"
             style={{ height: "auto" }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -754,13 +764,13 @@ function CommentInput({
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="p-1 text-text-muted hover:text-primary transition-colors disabled:opacity-40"
+              className="p-1 text-text-secondary hover:text-primary transition-colors disabled:opacity-40"
               title="Đính kèm tệp"
             >
               <Paperclip size={16} />
             </button>
             <button
-              className="p-1 text-text-muted hover:text-amber-500 transition-colors"
+              className="p-1 text-text-secondary hover:text-amber-500 transition-colors"
               title="Emoji"
             >
               <Smile size={16} />
@@ -772,7 +782,7 @@ function CommentInput({
                 "p-1.5 rounded-full transition-all",
                 canSubmit
                   ? "text-white bg-primary hover:bg-primary-600 shadow-sm"
-                  : "text-text-muted cursor-not-allowed",
+                  : "text-text-secondary cursor-not-allowed",
               )}
             >
               {uploading ? (
@@ -785,7 +795,7 @@ function CommentInput({
         </div>
 
         {uploading && (
-          <p className="text-[11px] text-text-muted mt-1 ml-1">
+          <p className="text-[11px] text-text-secondary mt-1 ml-1">
             Đang tải lên...
           </p>
         )}
@@ -860,7 +870,7 @@ function ReplyInput({
             if (e.key === "Escape") onCancel();
           }}
           placeholder={`Trả lời ${replyTo}...`}
-          className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-muted"
+          className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-secondary"
         />
         <button
           onClick={handleSubmit}
@@ -869,10 +879,330 @@ function ReplyInput({
             "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
             hasContent
               ? "bg-primary text-white"
-              : "bg-surface-200 text-text-muted cursor-not-allowed",
+              : "bg-surface-200 text-text-secondary cursor-not-allowed",
           )}
         >
           <Send size={11} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type CommentRole = "own" | "hidden-own" | "post-author" | "viewer";
+
+function CommentBubbleMenu({
+  role,
+  authorName,
+  isHidden,
+  onEdit,
+  onDelete,
+  onHide,
+  onBlock,
+  onReport,
+}: {
+  role: CommentRole;
+  authorName: string;
+  isHidden?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onHide?: () => void;
+  onBlock?: () => void;
+  onReport?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  type MenuItem = {
+    icon: React.ReactNode;
+    label: string;
+    danger?: boolean;
+    onClick: () => void;
+  } | null;
+
+  const items: MenuItem[] =
+    role === "own"
+      ? [
+          {
+            icon: <Pencil size={14} />,
+            label: "Chỉnh sửa",
+            onClick: () => {
+              onEdit?.();
+              setOpen(false);
+            },
+          },
+          {
+            icon: <Trash2 size={14} />,
+            label: "Xóa bình luận",
+            danger: true,
+            onClick: () => {
+              onDelete?.();
+              setOpen(false);
+            },
+          },
+        ]
+      : role === "hidden-own"
+        ? [
+            {
+              icon: <Trash2 size={14} />,
+              label: "Xóa bình luận",
+              danger: true,
+              onClick: () => {
+                onDelete?.();
+                setOpen(false);
+              },
+            },
+          ]
+        : role === "post-author"
+          ? [
+              {
+                icon: <Trash2 size={14} />,
+                label: "Xóa bình luận",
+                danger: true,
+                onClick: () => {
+                  onDelete?.();
+                  setOpen(false);
+                },
+              },
+              {
+                icon: isHidden ? <Eye size={14} /> : <EyeOff size={14} />,
+                label: isHidden ? "Hiện bình luận" : "Ẩn bình luận",
+                onClick: () => {
+                  onHide?.();
+                  setOpen(false);
+                },
+              },
+              null,
+              {
+                icon: <Ban size={14} />,
+                label: `Chặn ${authorName}`,
+                onClick: () => {
+                  onBlock?.();
+                  setOpen(false);
+                },
+              },
+              {
+                icon: <Flag size={14} />,
+                label: "Báo cáo",
+                danger: true,
+                onClick: () => {
+                  onReport?.();
+                  setOpen(false);
+                },
+              },
+            ]
+          : [
+              {
+                icon: <Ban size={14} />,
+                label: `Chặn ${authorName}`,
+                onClick: () => {
+                  onBlock?.();
+                  setOpen(false);
+                },
+              },
+              {
+                icon: <Flag size={14} />,
+                label: "Báo cáo",
+                danger: true,
+                onClick: () => {
+                  onReport?.();
+                  setOpen(false);
+                },
+              },
+            ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="w-6 h-6 rounded-full flex items-center justify-center text-text-primary hover:bg-surface-200 hover:text-text-secondary transition-colors"
+      >
+        <MoreHorizontal size={13} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 bg-white border border-surface-200 rounded-xl shadow-lg z-30 min-w-[180px] overflow-hidden py-1">
+          {items.map((item, i) =>
+            item === null ? (
+              <div key={i} className="my-1 border-t border-surface-100" />
+            ) : (
+              <button
+                key={i}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  item.onClick();
+                }}
+                className={clsx(
+                  "w-full flex items-center gap-2.5 px-3.5 py-2 text-xs hover:bg-surface-50 transition-colors",
+                  item.danger ? "text-red-500" : "text-text-primary",
+                )}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BlockConfirmDialog({
+  name,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <Ban size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Chặn {name}?
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Bạn sẽ không thấy bài viết, bình luận hoặc tin nhắn từ người này
+              nữa.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
+          >
+            Chặn
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <Trash2 size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Xóa bình luận?
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Bình luận sẽ bị xóa vĩnh viễn và không thể khôi phục.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
+          >
+            Xóa
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditCommentInput({
+  initialText,
+  onSave,
+  onCancel,
+}: {
+  initialText: string;
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initialText);
+  const canSave = text.trim().length > 0 && text.trim() !== initialText.trim();
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-end gap-2 bg-white border border-primary rounded-2xl px-3 py-2 transition-all">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={1}
+          autoFocus
+          className="flex-1 resize-none text-sm text-text-primary outline-none bg-transparent leading-relaxed max-h-28"
+          style={{ height: "auto" }}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && canSave) {
+              e.preventDefault();
+              onSave(text.trim());
+            }
+            if (e.key === "Escape") onCancel();
+          }}
+        />
+      </div>
+      <div className="flex gap-1.5 mt-1.5 justify-end">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1 text-xs text-text-secondary rounded-lg hover:bg-surface-100 transition-colors"
+        >
+          Hủy
+        </button>
+        <button
+          onClick={() => canSave && onSave(text.trim())}
+          disabled={!canSave}
+          className={clsx(
+            "px-3 py-1 text-xs rounded-lg font-medium transition-colors",
+            canSave
+              ? "bg-primary text-white hover:bg-primary-600"
+              : "bg-surface-100 text-text-secondary cursor-not-allowed",
+          )}
+        >
+          Lưu
         </button>
       </div>
     </div>
@@ -884,195 +1214,440 @@ function CommentList({
   replyingToId,
   replyingToName,
   currentUserName,
+  currentUserId,
+  postAuthorId,
   onLike,
   onToggleReply,
   onSubmitReply,
   onCancelReply,
   onLikeReply,
+  onDeleteComment,
+  onDeleteReply,
+  onHideComment,
+  onCountChange,
+  onEditComment,
 }: {
+  postAuthorId: string;
   comments: Comment[];
   replyingToId: string | null;
   replyingToName: string | null;
   currentUserName: string;
+  currentUserId: string;
   onLike: (id: string) => void;
   onToggleReply: (id: string, name: string) => void;
   onSubmitReply: (commentId: string, text: string, replyTo: string) => void;
   onCancelReply: () => void;
   onLikeReply: (commentId: string, replyId: string) => void;
+  onDeleteComment: (id: string) => Promise<number>;
+  onDeleteReply: (commentId: string, replyId: string) => void;
+  onHideComment: (id: string) => void;
+  onCountChange?: (delta: number) => void;
+  onEditComment: (id: string, text: string) => void;
 }) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingType, setDeletingType] = useState<"comment" | "reply" | null>(
+    null,
+  );
+  const [deletingParentId, setDeletingParentId] = useState<string | null>(null);
+  const [blockingName, setBlockingName] = useState<string | null>(null);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
+    new Set(),
+  );
+  const REPLIES_PREVIEW = 2;
+
   return (
     <>
       {comments.length === 0 && (
-        <p className="text-center text-sm text-text-muted py-4">
+        <p className="text-center text-sm text-text-secondary py-4">
           Chưa có bình luận nào. Hãy là người đầu tiên!
         </p>
       )}
-      {comments.map((c) => (
-        <div key={c.id}>
-          <div className="flex gap-2.5">
-            <Avatar initials={c.author.initials} color={c.author.color} />
-            <div className="flex-1 min-w-0">
-              <div className="bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5">
-                <span className="text-xs font-semibold text-text-primary">
-                  {c.author.name}
+
+      {comments
+        .filter(
+          (c) =>
+            !c.hidden ||
+            currentUserId === postAuthorId ||
+            currentUserId === c.authorId,
+        )
+        .map((c) => (
+          <div key={c.id}>
+            {c.hidden && currentUserId === postAuthorId && (
+              <div className="flex items-center gap-1 mb-1 ml-1">
+                <EyeOff size={11} className="text-text-muted" />
+                <span className="text-[10px] text-text-muted italic">
+                  Bình luận đã bị ẩn
                 </span>
-                <span className="text-[10px] text-text-muted ml-1.5">
-                  {c.time}
-                </span>
-                <p className="text-sm text-text-primary leading-relaxed mt-0.5">
-                  {c.content}
-                </p>
+              </div>
+            )}
 
-                {c.imageUrl && (
-                  <CommentMediaThumb
-                    url={c.imageUrl}
-                    type="image"
-                    fileName={c.fileName}
-                  />
-                )}
+            {c.hidden &&
+              currentUserId === c.authorId &&
+              currentUserId !== postAuthorId && (
+                <div className="flex items-center gap-1 mb-1 ml-1">
+                  <EyeOff size={11} className="text-text-muted" />
+                  <span className="text-[10px] text-text-muted italic">
+                    Bình luận của bạn đã bị ẩn
+                  </span>
+                </div>
+              )}
 
-                {c.videoUrl && (
-                  <CommentMediaThumb
-                    url={c.videoUrl}
-                    type="video"
-                    fileName={c.fileName}
-                  />
-                )}
-
-                {c.fileName &&
-                  !c.imageUrl &&
-                  !c.videoUrl &&
-                  (() => {
-                    const ext = (c.fileType ?? "").toUpperCase();
-                    const isVid = ["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(
-                      ext,
-                    );
-                    const isImg = [
-                      "JPG",
-                      "JPEG",
-                      "PNG",
-                      "GIF",
-                      "WEBP",
-                      "BMP",
-                      "SVG",
-                    ].includes(ext);
-
-                    if (isVid && c.fileUrl) {
-                      return (
-                        <CommentMediaThumb
-                          url={c.fileUrl}
-                          type="video"
-                          fileName={c.fileName}
-                        />
-                      );
-                    }
-                    if (isImg && c.fileUrl) {
-                      return (
-                        <CommentMediaThumb
-                          url={c.fileUrl}
-                          type="image"
-                          fileName={c.fileName}
-                        />
-                      );
-                    }
-                    return (
-                      <CommentFileBadge
-                        name={c.fileName}
-                        size={c.fileSize}
-                        type={c.fileType}
-                        url={c.fileUrl}
+            <div className="flex gap-2.5 items-start group/comment">
+              <Avatar initials={c.author.initials} color={c.author.color} />
+              <div className="min-w-0 max-w-[85%]">
+                <div className="relative">
+                  <div
+                    className={clsx(
+                      "bg-surface-100 rounded-2xl rounded-tl-sm px-3 py-2.5",
+                      c.hidden && "opacity-50",
+                    )}
+                  >
+                    <span className="text-xs font-semibold text-text-primary">
+                      {c.author.name}
+                    </span>
+                    <span className="text-[10px] text-text-secondary ml-1.5">
+                      {c.time}
+                    </span>
+                    {c.editedAt && (
+                      <span className="text-[10px] text-text-secondary ml-1">
+                        · đã chỉnh sửa
+                      </span>
+                    )}
+                    <p className="text-sm text-text-primary leading-relaxed mt-0.5">
+                      {c.content}
+                    </p>
+                    {c.imageUrl && (
+                      <CommentMediaThumb
+                        url={c.imageUrl}
+                        type="image"
+                        fileName={c.fileName}
                       />
-                    );
-                  })()}
-              </div>
+                    )}
+                    {c.videoUrl && (
+                      <CommentMediaThumb
+                        url={c.videoUrl}
+                        type="video"
+                        fileName={c.fileName}
+                      />
+                    )}
+                    {c.fileName &&
+                      !c.imageUrl &&
+                      !c.videoUrl &&
+                      (() => {
+                        const ext = (c.fileType ?? "").toUpperCase();
+                        const isVid = [
+                          "MP4",
+                          "MOV",
+                          "AVI",
+                          "WEBM",
+                          "MKV",
+                        ].includes(ext);
+                        const isImg = [
+                          "JPG",
+                          "JPEG",
+                          "PNG",
+                          "GIF",
+                          "WEBP",
+                          "BMP",
+                          "SVG",
+                        ].includes(ext);
+                        if (isVid && c.fileUrl)
+                          return (
+                            <CommentMediaThumb
+                              url={c.fileUrl}
+                              type="video"
+                              fileName={c.fileName}
+                            />
+                          );
+                        if (isImg && c.fileUrl)
+                          return (
+                            <CommentMediaThumb
+                              url={c.fileUrl}
+                              type="image"
+                              fileName={c.fileName}
+                            />
+                          );
+                        return (
+                          <CommentFileBadge
+                            name={c.fileName}
+                            size={c.fileSize}
+                            type={c.fileType}
+                            url={c.fileUrl}
+                          />
+                        );
+                      })()}
+                  </div>
 
-              <div className="flex items-center gap-1 mt-1 ml-1">
-                <button
-                  onClick={() => onLike(c.id)}
-                  className={clsx(
-                    "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                    c.liked
-                      ? "text-primary"
-                      : "text-text-muted hover:text-text-secondary",
-                  )}
-                >
-                  <ThumbsUp size={11} />
-                  <span>{c.likes > 0 ? c.likes : "Thích"}</span>
-                </button>
-                <span className="text-text-muted text-[10px]">·</span>
-                <button
-                  onClick={() => onToggleReply(c.id, c.author.name)}
-                  className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
-                >
-                  Trả lời
-                </button>
-              </div>
-            </div>
-          </div>
+                  <div className="absolute -right-8 top-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                    <CommentBubbleMenu
+                      role={
+                        currentUserId === c.authorId
+                          ? c.hidden
+                            ? "hidden-own"
+                            : "own"
+                          : currentUserId === postAuthorId
+                            ? "post-author"
+                            : "viewer"
+                      }
+                      authorName={c.author.name}
+                      onEdit={() => setEditingId(c.id)}
+                      onDelete={() => {
+                        setDeletingId(c.id);
+                        setDeletingType("comment");
+                        setDeletingParentId(null);
+                      }}
+                      isHidden={c.hidden}
+                      onHide={() => onHideComment(c.id)}
+                      onBlock={() => setBlockingName(c.author.name)}
+                      onReport={() => {}}
+                    />
+                  </div>
+                </div>
 
-          {c.replies.length > 0 && (
-            <div className="ml-10 mt-2 flex flex-col gap-2">
-              {c.replies.map((r) => (
-                <div key={r.id} className="flex gap-2">
-                  <Avatar initials={r.author.initials} color={r.author.color} />
-                  <div className="flex-1 min-w-0">
-                    <div className="bg-surface-50 rounded-2xl rounded-tl-sm px-3 py-2">
-                      <span className="text-xs font-semibold text-text-primary">
-                        {r.author.name}
-                      </span>
-                      <span className="text-[10px] text-text-muted ml-1.5">
-                        {r.time}
-                      </span>
-                      <p className="text-sm text-text-primary leading-relaxed mt-0.5">
-                        {r.replyTo && (
-                          <span className="text-primary font-medium">
-                            @{r.replyTo}{" "}
-                          </span>
+                {editingId === c.id && (
+                  <div>
+                    {(c.imageUrl || c.videoUrl || c.fileName) && (
+                      <div className="mt-1 mb-1 opacity-60 pointer-events-none">
+                        {c.imageUrl && (
+                          <CommentMediaThumb
+                            url={c.imageUrl}
+                            type="image"
+                            fileName={c.fileName}
+                          />
                         )}
-                        {r.content}
-                      </p>
-                    </div>
+                        {c.videoUrl && (
+                          <CommentMediaThumb
+                            url={c.videoUrl}
+                            type="video"
+                            fileName={c.fileName}
+                          />
+                        )}
+                        {c.fileName && !c.imageUrl && !c.videoUrl && (
+                          <CommentFileBadge
+                            name={c.fileName}
+                            size={c.fileSize}
+                            type={c.fileType}
+                            url={c.fileUrl}
+                          />
+                        )}
+                      </div>
+                    )}
+                    <EditCommentInput
+                      initialText={c.content}
+                      onSave={(text) => {
+                        onEditComment(c.id, text);
+                        setEditingId(null);
+                      }}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  </div>
+                )}
 
-                    <div className="flex items-center gap-1 mt-1 ml-1">
+                {editingId !== c.id &&
+                  !(
+                    c.hidden &&
+                    currentUserId === c.authorId &&
+                    currentUserId !== postAuthorId
+                  ) && (
+                    <div
+                      className={clsx(
+                        "flex items-center gap-1 mt-1 ml-1",
+                        c.hidden && "opacity-50",
+                      )}
+                    >
                       <button
-                        onClick={() => onLikeReply(c.id, r.id)}
+                        onClick={() => onLike(c.id)}
                         className={clsx(
                           "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                          r.liked
+                          c.liked
                             ? "text-primary"
-                            : "text-text-muted hover:text-text-secondary",
+                            : "text-text-secondary hover:text-text-secondary",
                         )}
                       >
                         <ThumbsUp size={11} />
-                        <span>{r.likes > 0 ? r.likes : "Thích"}</span>
+                        <span>{c.likes > 0 ? c.likes : "Thích"}</span>
                       </button>
-                      <span className="text-text-muted text-[10px]">·</span>
                       <button
-                        onClick={() => onToggleReply(c.id, r.author.name)}
-                        className="text-[11px] font-medium text-text-muted hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                        onClick={() => onToggleReply(c.id, c.author.name)}
+                        className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
                       >
                         Trả lời
                       </button>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  )}
+              </div>
             </div>
-          )}
 
-          {replyingToId === c.id && (
-            <ReplyInput
-              key={replyingToName ?? c.author.name}
-              replyTo={replyingToName ?? c.author.name}
-              isSelf={currentUserName === (replyingToName ?? c.author.name)}
-              onSubmit={(text) =>
-                onSubmitReply(c.id, text, replyingToName ?? c.author.name)
-              }
-              onCancel={onCancelReply}
-            />
-          )}
-        </div>
-      ))}
+            {c.replies.length > 0 &&
+              (!c.hidden || currentUserId === postAuthorId) && (
+                <div className="ml-10 mt-2 flex flex-col gap-2">
+                  {(expandedReplies.has(c.id)
+                    ? c.replies
+                    : c.replies.slice(0, REPLIES_PREVIEW)
+                  ).map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex gap-2 items-start group/reply"
+                    >
+                      <Avatar
+                        initials={r.author.initials}
+                        color={r.author.color}
+                      />
+                      <div className="min-w-0 max-w-[85%]">
+                        <div className="relative">
+                          <div
+                            className={clsx(
+                              "bg-surface-50 rounded-2xl rounded-tl-sm px-3 py-2",
+                              r.hidden && "opacity-50",
+                            )}
+                          >
+                            <span className="text-xs font-semibold text-text-primary">
+                              {r.author.name}
+                            </span>
+                            <span className="text-[10px] text-text-secondary ml-1.5">
+                              {r.time}
+                            </span>
+                            <p className="text-sm text-text-primary leading-relaxed mt-0.5">
+                              {r.replyTo && (
+                                <span className="text-primary font-medium">
+                                  @{r.replyTo}{" "}
+                                </span>
+                              )}
+                              {r.content}
+                            </p>
+                          </div>
+                          <div className="absolute -right-8 top-1 opacity-0 group-hover/reply:opacity-100 transition-opacity">
+                            <CommentBubbleMenu
+                              role={
+                                currentUserId === r.authorId
+                                  ? "own"
+                                  : currentUserId === postAuthorId
+                                    ? "post-author"
+                                    : "viewer"
+                              }
+                              authorName={r.author.name}
+                              onEdit={() => {}}
+                              onDelete={() => {
+                                setDeletingId(r.id);
+                                setDeletingType("reply");
+                                setDeletingParentId(c.id);
+                              }}
+                              isHidden={c.hidden}
+                              onHide={() => {}}
+                              onBlock={() => setBlockingName(r.author.name)}
+                              onReport={() => {}}
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          className={clsx(
+                            "flex items-center gap-1 mt-1 ml-1",
+                            r.hidden && "opacity-50",
+                          )}
+                        >
+                          <button
+                            onClick={() => onLikeReply(c.id, r.id)}
+                            className={clsx(
+                              "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                              r.liked
+                                ? "text-primary"
+                                : "text-text-secondary hover:text-text-secondary",
+                            )}
+                          >
+                            <ThumbsUp size={11} />
+                            <span>{r.likes > 0 ? r.likes : "Thích"}</span>
+                          </button>
+                          <button
+                            onClick={() => onToggleReply(c.id, r.author.name)}
+                            className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                          >
+                            Trả lời
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {!expandedReplies.has(c.id) &&
+                    c.replies.length > REPLIES_PREVIEW && (
+                      <button
+                        onClick={() =>
+                          setExpandedReplies((prev) => {
+                            const next = new Set(prev);
+                            next.add(c.id);
+                            return next;
+                          })
+                        }
+                        className="text-[11px] font-medium text-primary hover:underline text-left mt-0.5"
+                      >
+                        Xem thêm {c.replies.length - REPLIES_PREVIEW} câu trả
+                        lời
+                      </button>
+                    )}
+
+                  {expandedReplies.has(c.id) &&
+                    c.replies.length > REPLIES_PREVIEW && (
+                      <button
+                        onClick={() =>
+                          setExpandedReplies((prev) => {
+                            const next = new Set(prev);
+                            next.delete(c.id);
+                            return next;
+                          })
+                        }
+                        className="text-[11px] font-medium text-text-secondary hover:underline text-left mt-0.5"
+                      >
+                        Thu gọn
+                      </button>
+                    )}
+                </div>
+              )}
+
+            {replyingToId === c.id && (
+              <ReplyInput
+                key={replyingToName ?? c.author.name}
+                replyTo={replyingToName ?? c.author.name}
+                isSelf={currentUserName === (replyingToName ?? c.author.name)}
+                onSubmit={(text) =>
+                  onSubmitReply(c.id, text, replyingToName ?? c.author.name)
+                }
+                onCancel={onCancelReply}
+              />
+            )}
+          </div>
+        ))}
+
+      {deletingId && (
+        <DeleteConfirmDialog
+          onConfirm={async () => {
+            if (deletingType === "reply" && deletingParentId) {
+              onDeleteReply(deletingParentId, deletingId);
+              onCountChange?.(-1);
+            } else {
+              const totalDeleted = await onDeleteComment(deletingId);
+              onCountChange?.(-(totalDeleted ?? 1));
+            }
+            setDeletingId(null);
+            setDeletingType(null);
+            setDeletingParentId(null);
+          }}
+          onCancel={() => {
+            setDeletingId(null);
+            setDeletingType(null);
+            setDeletingParentId(null);
+          }}
+        />
+      )}
+
+      {blockingName && (
+        <BlockConfirmDialog
+          name={blockingName}
+          onConfirm={() => setBlockingName(null)}
+          onCancel={() => setBlockingName(null)}
+        />
+      )}
     </>
   );
 }
@@ -1086,8 +1661,6 @@ type CommentPayload = {
   fileSize?: string;
   fileType?: string;
 };
-
-
 
 function useComments(postId: number | string) {
   const { data: session } = useSession();
@@ -1105,6 +1678,7 @@ function useComments(postId: number | string) {
 
     return {
       id: c.id,
+      authorId: c.authorId,
       author: {
         name: c.author.profile?.displayName ?? c.author.username ?? "User",
         initials: (c.author.profile?.displayName ?? c.author.username ?? "U")
@@ -1129,6 +1703,7 @@ function useComments(postId: number | string) {
         const { replyTo, text } = parseMention(r.content);
         return {
           id: r.id,
+          authorId: r.authorId,
           author: {
             name: r.author.profile?.displayName ?? r.author.username ?? "User",
             initials: (
@@ -1148,8 +1723,12 @@ function useComments(postId: number | string) {
           replyTo,
           likes: r._count?.likes ?? 0,
           liked: Array.isArray(r.likes) && r.likes.length > 0,
+          hidden: r.hidden ?? false,
         };
       }),
+      editedAt: c.editedAt ?? null,
+      hidden: c.hidden ?? false,
+      hiddenByAuthor: c.hiddenByAuthor ?? null,
       showReplyInput: false,
     };
   }, []);
@@ -1249,6 +1828,7 @@ function useComments(postId: number | string) {
 
       const reply: Reply = {
         id: saved.id,
+        authorId: session?.user?.id ?? "",
         author: {
           name: currentName,
           initials: currentName
@@ -1299,6 +1879,7 @@ function useComments(postId: number | string) {
         ...prev,
         {
           id: saved.id,
+          authorId: session?.user?.id ?? "",
           author: {
             name:
               saved.author.profile?.displayName ??
@@ -1330,8 +1911,93 @@ function useComments(postId: number | string) {
     [postId, session],
   );
 
+  const deleteComment = useCallback(
+    async (id: string) => {
+      setComments((prev) => prev.filter((c) => c.id !== id));
+
+      const res = await fetch(`/api/posts/${postId}/comments/${id}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return (data.replyCount ?? 0) + 1;
+      }
+      return 1;
+    },
+    [postId],
+  );
+
+  const hideComment = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/posts/${postId}/comments/${id}/hide`, {
+      method: "POST",
+    });
+      if (!res.ok) return;
+      const data = await res.json();
+      const newHidden: boolean = data.hidden;
+
+      setComments((prev) => {
+        const updated = prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                hidden: newHidden,
+                replies: c.replies.map((r) => ({ ...r, hidden: newHidden })),
+              }
+            : c,
+        );
+        return updated;
+      });
+    },
+    [postId],
+  );
+
+  const editComment = useCallback(
+    async (id: string, content: string) => {
+      const now = new Date().toISOString();
+      setComments((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, content, editedAt: now } : c)),
+      );
+      await fetch(`/api/posts/${postId}/comments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+    },
+    [postId],
+  );
+
+  const deleteReply = useCallback(
+    async (commentId: string, replyId: string) => {
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? { ...c, replies: c.replies.filter((r) => r.id !== replyId) }
+            : c,
+        ),
+      );
+      await fetch(`/api/posts/${postId}/comments/${replyId}`, {
+        method: "DELETE",
+      });
+    },
+    [postId],
+  );
+
+  const getVisibleCount = useCallback(
+    () =>
+      comments
+        .filter((c) => !c.hidden)
+        .reduce(
+          (acc, c) => acc + 1 + c.replies.filter((r) => !r.hidden).length,
+          0,
+        ),
+    [comments],
+  );
+
   return {
     comments,
+    getVisibleCount,
     replyingToId: replyingTo?.id ?? null,
     replyingToName: replyingTo?.name ?? null,
     handleCommentLike,
@@ -1339,6 +2005,10 @@ function useComments(postId: number | string) {
     toggleReplyInput,
     submitReply,
     submitComment,
+    deleteComment,
+    deleteReply,
+    editComment,
+    hideComment,
     cancelReply: () => setReplyingTo(null),
   };
 }
@@ -1359,6 +2029,7 @@ function AttachmentRow({
     MEDIA_IMAGE_TYPES.has(attachment.type) ||
     MEDIA_VIDEO_TYPES.has(attachment.type);
   if (isMedia) return null;
+
   return (
     <div
       className={clsx(
@@ -1379,7 +2050,7 @@ function AttachmentRow({
           <p className="text-sm font-medium text-text-primary">
             {attachment.name}
           </p>
-          <p className="text-xs text-text-muted">{attachment.size}</p>
+          <p className="text-xs text-text-secondary">{attachment.size}</p>
         </div>
       </div>
       <a
@@ -1407,6 +2078,8 @@ function MediaLightbox({
   likeCount,
   onClose,
   onLike,
+  onCountChange,
+  onSyncCount,
 }: {
   images: string[];
   mediaTypes?: string[];
@@ -1416,11 +2089,13 @@ function MediaLightbox({
   likeCount: number;
   onClose: () => void;
   onLike: () => void;
+  onCountChange?: (delta: number) => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const {
     comments,
+    getVisibleCount,
     replyingToId,
     replyingToName,
     handleCommentLike,
@@ -1429,6 +2104,10 @@ function MediaLightbox({
     submitReply,
     submitComment,
     cancelReply,
+    deleteComment,
+    deleteReply,
+    editComment,
+    hideComment,
   } = useComments(post.id);
 
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
@@ -1443,6 +2122,10 @@ function MediaLightbox({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  useEffect(() => {
+    onSyncCount?.(getVisibleCount());
+  }, [comments, getVisibleCount, onSyncCount]);
 
   const currentSrc = images[index];
   const isVideo = isVideoItem(currentSrc, mediaTypes?.[index]);
@@ -1528,8 +2211,8 @@ function MediaLightbox({
               <span className="text-xs text-primary font-medium">
                 {post.author.role}
               </span>
-              <span className="text-text-muted text-xs">·</span>
-              <span className="text-xs text-text-muted">{post.time}</span>
+              <span className="text-text-secondary text-xs">·</span>
+              <span className="text-xs text-text-secondary">{post.time}</span>
             </div>
           </div>
         </div>
@@ -1564,7 +2247,13 @@ function MediaLightbox({
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
             <MessageCircle size={15} />
             <span>
-              {comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+              {comments
+                .filter((c) => !c.hidden)
+                .reduce(
+                  (acc, c) =>
+                    acc + 1 + c.replies.filter((r) => !r.hidden).length,
+                  0,
+                )}
             </span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
@@ -1572,7 +2261,7 @@ function MediaLightbox({
             <span>Chia sẻ</span>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3">
           <CommentList
             comments={comments}
             replyingToId={replyingToId}
@@ -1583,10 +2272,23 @@ function MediaLightbox({
             onSubmitReply={submitReply}
             onCancelReply={cancelReply}
             onLikeReply={handleReplyLike}
+            postAuthorId={post.authorId}
+            currentUserId={
+              status === "authenticated" ? (session?.user?.id ?? "") : ""
+            }
+            onDeleteComment={deleteComment}
+            onDeleteReply={deleteReply}
+            onEditComment={editComment}
+            onHideComment={hideComment}
+            onCountChange={onCountChange}
           />
         </div>
         <div className="border-t border-surface-100 px-4 py-3 shrink-0">
-          <CommentInput onSubmit={submitComment} />
+          <CommentInput
+            onSubmit={async (payload) => {
+              await submitComment(payload);
+            }}
+          />
         </div>
       </div>
     </div>
@@ -1599,17 +2301,20 @@ function CommentModal({
   likeCount,
   onLike,
   onClose,
-  onCommentAdded,
+  onCountChange,
+  onSyncCount,
 }: {
   post: Post;
   liked: boolean;
   likeCount: number;
   onLike: () => void;
   onClose: () => void;
-  onCommentAdded?: () => void;
+  onCountChange?: (delta: number) => void;
+  onSyncCount?: (count: number) => void;
 }) {
   const {
     comments,
+    getVisibleCount,
     replyingToId,
     replyingToName,
     handleCommentLike,
@@ -1618,24 +2323,30 @@ function CommentModal({
     submitReply,
     submitComment,
     cancelReply,
+    deleteComment,
+    deleteReply,
+    editComment,
+    hideComment,
   } = useComments(post.id);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    onSyncCount?.(getVisibleCount());
+  }, [comments, getVisibleCount, onSyncCount]);
 
   const handleSubmitComment = useCallback(
     async (payload: CommentPayload) => {
       await submitComment(payload);
-      onCommentAdded?.();
     },
-    [submitComment, onCommentAdded],
+    [submitComment],
   );
 
   const handleSubmitReply = useCallback(
     async (commentId: string, text: string, replyTo: string) => {
       await submitReply(commentId, text, replyTo);
-      onCommentAdded?.();
     },
-    [submitReply, onCommentAdded],
+    [submitReply],
   );
 
   if (lightboxIndex !== null && post.images) {
@@ -1649,6 +2360,7 @@ function CommentModal({
         likeCount={likeCount}
         onLike={onLike}
         onClose={() => setLightboxIndex(null)}
+        onCountChange={onCountChange}
       />
     );
   }
@@ -1673,7 +2385,7 @@ function CommentModal({
               {post.author.name}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs text-text-muted">{post.time}</span>
+              <span className="text-xs text-text-secondary">{post.time}</span>
             </div>
           </div>
           <button
@@ -1721,7 +2433,13 @@ function CommentModal({
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors">
             <MessageCircle size={15} />
             <span>
-              {comments.reduce((acc, c) => acc + 1 + c.replies.length, 0)}
+              {comments
+                .filter((c) => !c.hidden)
+                .reduce(
+                  (acc, c) =>
+                    acc + 1 + c.replies.filter((r) => !r.hidden).length,
+                  0,
+                )}
             </span>
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
@@ -1729,7 +2447,7 @@ function CommentModal({
             <span>Chia sẻ</span>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3 min-h-0">
           <CommentList
             comments={comments}
             replyingToId={replyingToId}
@@ -1740,6 +2458,15 @@ function CommentModal({
             onSubmitReply={handleSubmitReply}
             onCancelReply={cancelReply}
             onLikeReply={handleReplyLike}
+            postAuthorId={post.authorId}
+            currentUserId={
+              status === "authenticated" ? (session?.user?.id ?? "") : ""
+            }
+            onDeleteComment={deleteComment}
+            onDeleteReply={deleteReply}
+            onEditComment={editComment}
+            onHideComment={hideComment}
+            onCountChange={onCountChange}
           />
         </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
@@ -1785,7 +2512,7 @@ export default function PostCard({ post }: { post: Post }) {
                   {post.author.role}
                 </span>
               </div>
-              <p className="text-xs text-text-muted">{post.time}</p>
+              <p className="text-xs text-text-secondary">{post.time}</p>
             </div>
           </div>
           <MoreMenu />
@@ -1853,6 +2580,10 @@ export default function PostCard({ post }: { post: Post }) {
           likeCount={likeCount}
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
+          onSyncCount={setCommentCount}
+          onCountChange={(delta) =>
+            setCommentCount((c) => Math.max(0, c + delta))
+          }
         />
       ) : modal.type === "comment" ? (
         <CommentModal
@@ -1861,7 +2592,10 @@ export default function PostCard({ post }: { post: Post }) {
           likeCount={likeCount}
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
-          onCommentAdded={() => setCommentCount((c) => c + 1)}
+          onSyncCount={setCommentCount}
+          onCountChange={(delta) =>
+            setCommentCount((c) => Math.max(0, c + delta))
+          }
         />
       ) : null}
     </>
