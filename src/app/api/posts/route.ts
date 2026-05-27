@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
                   title: f.name,
                   fileUrl: f.url,
                   fileKey: f.key,
-                  fileSize: 0,
+                  fileSize: f.size ?? 0,
                   mimeType: f.type,
                   type: getDocType(f.type),
                   uploaderId: session.user.id,
