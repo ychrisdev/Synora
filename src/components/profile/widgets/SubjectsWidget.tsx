@@ -1,11 +1,15 @@
-import { profileData } from "@/lib/profile/data";
+interface SubjectsWidgetProps {
+  subjects?: string[];
+}
 
-export function SubjectsWidget() {
+export function SubjectsWidget({ subjects }: SubjectsWidgetProps) {
+  if (!subjects || subjects.length === 0) return null;
+
   return (
     <div className="bg-white border border-surface-200 rounded-2xl p-4">
       <h3 className="text-xs font-semibold text-text-primary mb-2.5">Môn học</h3>
       <div className="flex flex-wrap gap-1.5">
-        {profileData.subjects.map((s) => (
+        {subjects.map((s) => (
           <span
             key={s}
             className="text-[11px] font-medium bg-surface-50 text-text-secondary px-2.5 py-1 rounded-full border border-surface-200 hover:border-primary/30 hover:text-primary hover:bg-primary/5 cursor-pointer transition-colors"
