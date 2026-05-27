@@ -3,11 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Camera, Share2, MessageCircle, UserPlus,
-  UserCheck, Pencil, Check, X, Users,
+  Camera,
+  Share2,
+  MessageCircle,
+  UserPlus,
+  UserCheck,
+  Pencil,
+  Check,
+  X,
+  Users,
 } from "lucide-react";
-import { clsx } from "clsx";
 import { useUploadThing } from "@/lib/uploadthing";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 
 interface ProfileHeaderProps {
   coverUrl?: string | null;
@@ -16,6 +23,8 @@ interface ProfileHeaderProps {
   username: string;
   isOwner: boolean;
   isFollowing?: boolean;
+  profileData?: any;
+  onProfileSaved?: () => void;
   onSuggestOpen?: () => void;
 }
 
@@ -26,6 +35,8 @@ export function ProfileHeader({
   username,
   isOwner,
   isFollowing: initialFollowing = false,
+  profileData,
+  onProfileSaved,
   onSuggestOpen,
 }: ProfileHeaderProps) {
   const router = useRouter();
@@ -36,6 +47,7 @@ export function ProfileHeader({
   const [newCoverPreview, setNewCoverPreview] = useState<string | null>(null);
   const [newAvatarPreview, setNewAvatarPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   const { startUpload } = useUploadThing("postMedia");
@@ -43,7 +55,9 @@ export function ProfileHeader({
   const handleFollowToggle = async () => {
     setFollowLoading(true);
     try {
-      const res = await fetch(`/api/profile/${username}/follow`, { method: "POST" });
+      const res = await fetch(`/api/profile/${username}/follow`, {
+        method: "POST",
+      });
       const data = await res.json();
       setFollowing(data.following);
     } finally {
@@ -127,7 +141,11 @@ export function ProfileHeader({
     <div className="relative mb-16">
       <div className="h-40 rounded-2xl overflow-hidden relative bg-slate-200">
         {displayCover ? (
-          <img src={displayCover} alt="cover" className="w-full h-full object-cover" />
+          <img
+            src={displayCover}
+            alt="cover"
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="w-full h-full bg-[repeating-linear-gradient(45deg,#e2e5ec,#e2e5ec_10px,#eaecf2_10px,#eaecf2_20px)]" />
         )}
@@ -135,12 +153,17 @@ export function ProfileHeader({
           <label className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/20 hover:bg-black/30 text-white text-xs font-medium px-3 py-1.5 rounded-full backdrop-blur-sm transition-colors cursor-pointer">
             <Camera size={11} />
             Đổi ảnh bìa
-            <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCoverChange}
+            />
           </label>
         )}
       </div>
 
-      <div className="absolute -bottom-12 left-5">
+      <div className="absolute -bottom-12">
         <div className="relative">
           {displayAvatar ? (
             <img
@@ -149,14 +172,19 @@ export function ProfileHeader({
               className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md"
             />
           ) : (
-            <div className="w-24 h-24 rounded-full bg-slate-700 border-4 border-white flex items-center justify-center text-white text-2xl font-bold shadow-md">
+            <div className="w-24 h-24 rounded-full bg-primary border-4 border-white flex items-center justify-center text-white text-2xl font-bold shadow-md">
               {ini}
             </div>
           )}
           {isOwner && (
             <label className="absolute bottom-1 right-1 w-6 h-6 bg-white border border-surface-200 rounded-full flex items-center justify-center hover:bg-surface-100 transition-colors shadow-sm cursor-pointer">
               <Camera size={11} className="text-text-secondary" />
-              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </label>
           )}
         </div>
@@ -187,12 +215,12 @@ export function ProfileHeader({
             </button>
             {isOwner ? (
               <>
-                <a
-                  href={`/profile/${username}/edit`}
+                <button
+                  onClick={() => setShowEditModal(true)}
                   className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors"
                 >
                   <Pencil size={13} /> Chỉnh sửa
-                </a>
+                </button>
                 <button
                   onClick={onSuggestOpen}
                   className="flex items-center gap-1.5 border border-primary/25 bg-primary/5 text-primary text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
@@ -212,13 +240,17 @@ export function ProfileHeader({
                     "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-60",
                     following
                       ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-surface-200"
-                      : "bg-primary text-white hover:bg-primary-700"
+                      : "bg-primary text-white hover:bg-primary-700",
                   )}
                 >
                   {following ? (
-                    <><UserCheck size={13} /> Đang theo dõi</>
+                    <>
+                      <UserCheck size={13} /> Đang theo dõi
+                    </>
                   ) : (
-                    <><UserPlus size={13} /> Kết bạn</>
+                    <>
+                      <UserPlus size={13} /> Kết bạn
+                    </>
                   )}
                 </button>
               </>
@@ -226,6 +258,27 @@ export function ProfileHeader({
           </>
         )}
       </div>
+      {showEditModal && (
+        <EditProfileModal
+          username={username}
+          initial={{
+            displayName: profileData?.profile?.displayName,
+            bio: profileData?.profile?.bio,
+            school: profileData?.profile?.school,
+            location: profileData?.profile?.location,
+            website: profileData?.profile?.website,
+            grade: profileData?.profile?.grade,
+            avatarUrl: profileData?.profile?.avatarUrl,
+            coverUrl: profileData?.profile?.coverUrl,
+          }}
+          onClose={() => setShowEditModal(false)}
+          onSaved={() => {
+            setShowEditModal(false);
+            onProfileSaved?.();
+            router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }

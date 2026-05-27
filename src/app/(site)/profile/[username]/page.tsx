@@ -228,7 +228,15 @@ function FriendSuggestPanel({
 }
 
 function ImagesTab({ username }: { username: string }) {
-  const [images, setImages] = useState<{ id: string; fileUrl: string; title: string; postId: string; type: string }[]>([]);
+  const [images, setImages] = useState<
+    {
+      id: string;
+      fileUrl: string;
+      title: string;
+      postId: string;
+      type: string;
+    }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
@@ -672,6 +680,12 @@ export default function ProfilePage() {
         isOwner={isOwner}
         isFollowing={profileData.isFollowing}
         onSuggestOpen={() => setShowSuggest((p) => !p)}
+        profileData={profileData}
+        onProfileSaved={() => {
+          fetch(`/api/profile/${username}`)
+            .then((r) => r.json())
+            .then(setProfileData);
+        }}
       />
 
       {showSuggest && isOwner && (
