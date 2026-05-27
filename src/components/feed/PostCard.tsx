@@ -10,7 +10,7 @@ import {
   Send,
   Smile,
   Bookmark,
-  Link,
+  Link as LinkIcon,
   EyeOff,
   Pencil,
   Trash2,
@@ -22,6 +22,7 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
+import NextLink from "next/link";
 import { clsx } from "clsx";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
@@ -46,10 +47,19 @@ const MEDIA_IMAGE_TYPES = new Set([
 ]);
 const MEDIA_VIDEO_TYPES = new Set(["MP4", "MOV", "AVI", "WEBM", "MKV"]);
 
+interface PostAuthor {
+  name: string;
+  initials: string;
+  color: string;
+  role: string;
+  username?: string;
+  avatarUrl?: string | null;
+}
+
 interface Post {
-  id: number;
+  id: number | string;
   authorId: string;
-  author: { name: string; initials: string; color: string; role: string };
+  author: PostAuthor;
   time: string;
   content: string;
   images?: string[];
@@ -151,7 +161,6 @@ function formatCommentTime(date: Date): string {
   const weeks = Math.floor(days / 7);
   const months = Math.floor(days / 30);
   const years = Math.floor(days / 365);
-
   if (minutes < 1) return "Vừa xong";
   if (minutes < 60) return `${minutes} phút trước`;
   if (hours < 24) return `${hours} giờ trước`;
@@ -203,7 +212,37 @@ function RichContent({
   );
 }
 
-function Avatar({
+function AuthorAvatar({
+  author,
+  size = "sm",
+}: {
+  author: PostAuthor;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "md" ? "w-9 h-9 text-sm" : "w-9 h-9 text-sm";
+  if (author.avatarUrl) {
+    return (
+      <img
+        src={author.avatarUrl}
+        alt={author.name}
+        className={clsx("rounded-full object-cover shrink-0", dim)}
+      />
+    );
+  }
+  return (
+    <div
+      className={clsx(
+        "rounded-full flex items-center justify-center text-white font-bold shrink-0",
+        dim,
+        author.color,
+      )}
+    >
+      {author.initials}
+    </div>
+  );
+}
+
+function CommentAvatar({
   initials,
   color,
   size = "sm",
@@ -225,6 +264,9 @@ function Avatar({
     </div>
   );
 }
+
+
+const Avatar = CommentAvatar;
 
 function CommentFileBadge({
   name,
@@ -286,7 +328,6 @@ function CommentMediaThumb({
 }) {
   const [open, setOpen] = useState(false);
   const isVideo = type === "video";
-
   return (
     <>
       <div
@@ -336,7 +377,6 @@ function CommentMediaThumb({
           </div>
         )}
       </div>
-
       {open && (
         <div
           className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
@@ -373,7 +413,6 @@ function CommentMediaThumb({
 function MoreMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
@@ -382,15 +421,13 @@ function MoreMenu() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
   const items = [
     { icon: <Bookmark size={15} />, label: "Lưu bài viết" },
-    { icon: <Link size={15} />, label: "Sao chép liên kết" },
+    { icon: <LinkIcon size={15} />, label: "Sao chép liên kết" },
     null,
     { icon: <EyeOff size={15} />, label: "Ẩn bài viết" },
     { icon: <Flag size={15} />, label: "Báo cáo", danger: true },
   ];
-
   return (
     <div className="relative" ref={ref}>
       <button
@@ -484,7 +521,6 @@ function ImageGrid({
   onImageClick: (index: number) => void;
 }) {
   const extraCount = images.length - 3;
-
   if (images.length === 1)
     return (
       <div className="mb-3 rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[480px]">
@@ -496,7 +532,6 @@ function ImageGrid({
         />
       </div>
     );
-
   if (images.length === 2)
     return (
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
@@ -511,7 +546,6 @@ function ImageGrid({
         ))}
       </div>
     );
-
   return (
     <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
       <MediaThumb
@@ -576,33 +610,24 @@ function CommentInput({
     const isImg = isImageFile(file.name);
     const isVid = isVideoFile(file.name);
     const sizeMB = file.size / (1024 * 1024);
-
     setUploadError(null);
     if (isImg && sizeMB > MAX_IMAGE_MB) {
-      setUploadError(
-        `Ảnh tối đa ${MAX_IMAGE_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
-      );
+      setUploadError(`Ảnh tối đa ${MAX_IMAGE_MB}MB`);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
     if (isVid && sizeMB > MAX_VIDEO_MB) {
-      setUploadError(
-        `Video tối đa ${MAX_VIDEO_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
-      );
+      setUploadError(`Video tối đa ${MAX_VIDEO_MB}MB`);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
     if (!isImg && !isVid && sizeMB > MAX_DOC_MB) {
-      setUploadError(
-        `Tài liệu tối đa ${MAX_DOC_MB}MB (file này ${sizeMB.toFixed(1)}MB)`,
-      );
+      setUploadError(`Tài liệu tối đa ${MAX_DOC_MB}MB`);
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
-
     const size = formatFileSize(file.size);
     pendingFileRef.current = file;
-
     if (isImg || isVid) {
       const previewUrl = URL.createObjectURL(file);
       setAttachment({
@@ -629,27 +654,24 @@ function CommentInput({
     if (!text.trim() && !attachment) return;
     setUploading(true);
     setUploadError(null);
-
     try {
       const rawFile = pendingFileRef.current;
-      let imageUrl: string | undefined;
-      let videoUrl: string | undefined;
-      let fileUrl: string | undefined;
-
+      let imageUrl: string | undefined,
+        videoUrl: string | undefined,
+        fileUrl: string | undefined;
       if (rawFile && attachment) {
         if (attachment.isImage) {
-          const results = await uploadMedia([rawFile]);
-          imageUrl = results?.[0]?.url;
+          const r = await uploadMedia([rawFile]);
+          imageUrl = r?.[0]?.url;
         } else if (attachment.isVideo) {
-          const results = await uploadMedia([rawFile]);
-          videoUrl = results?.[0]?.url;
+          const r = await uploadMedia([rawFile]);
+          videoUrl = r?.[0]?.url;
         } else {
-          const results = await uploadDoc([rawFile]);
-          fileUrl = results?.[0]?.url;
+          const r = await uploadDoc([rawFile]);
+          fileUrl = r?.[0]?.url;
         }
         pendingFileRef.current = undefined;
       }
-
       await onSubmit({
         content: text.trim(),
         imageUrl,
@@ -659,7 +681,6 @@ function CommentInput({
         fileSize: attachment?.size,
         fileType: attachment?.type,
       });
-
       if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
       setText("");
       setAttachment(null);
@@ -670,20 +691,12 @@ function CommentInput({
     }
   };
 
-  const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
   const removeAttachment = () => {
     if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
     setAttachment(null);
     pendingFileRef.current = undefined;
     setUploadError(null);
   };
-
   const canSubmit = (!!text.trim() || !!attachment) && !uploading;
 
   return (
@@ -737,12 +750,16 @@ function CommentInput({
             </button>
           </div>
         )}
-
         <div className="flex items-end gap-2 bg-surface-50 border border-surface-200 rounded-2xl px-3 py-2 focus-within:border-primary focus-within:bg-white transition-all">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKey}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             placeholder="Viết bình luận..."
             rows={1}
             className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-secondary outline-none bg-transparent leading-relaxed max-h-28"
@@ -793,7 +810,6 @@ function CommentInput({
             </button>
           </div>
         </div>
-
         {uploading && (
           <p className="text-[11px] text-text-secondary mt-1 ml-1">
             Đang tải lên...
@@ -828,7 +844,6 @@ function ReplyInput({
     .slice(-2)
     .join("")
     .toUpperCase();
-
   useEffect(() => {
     const el = inputRef.current;
     if (el) {
@@ -836,24 +851,13 @@ function ReplyInput({
       el.setSelectionRange(mention.length, mention.length);
     }
   }, [mention]);
-
   const hasContent = text.startsWith(mention)
     ? text.slice(mention.length).trim().length > 0
     : text.trim().length > 0;
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.value.startsWith(mention)) {
-      setText(mention);
-    } else {
-      setText(e.target.value);
-    }
+    if (!e.target.value.startsWith(mention)) setText(mention);
+    else setText(e.target.value);
   };
-
-  const handleSubmit = () => {
-    if (!hasContent) return;
-    onSubmit(text.trim());
-  };
-
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
       <Avatar initials={initials} color="bg-primary" size="sm" />
@@ -865,7 +869,7 @@ function ReplyInput({
           onKeyDown={(e) => {
             if (e.key === "Enter" && hasContent) {
               e.preventDefault();
-              handleSubmit();
+              onSubmit(text.trim());
             }
             if (e.key === "Escape") onCancel();
           }}
@@ -873,7 +877,7 @@ function ReplyInput({
           className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-secondary"
         />
         <button
-          onClick={handleSubmit}
+          onClick={() => hasContent && onSubmit(text.trim())}
           disabled={!hasContent}
           className={clsx(
             "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
@@ -913,7 +917,6 @@ function CommentBubbleMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
@@ -929,7 +932,6 @@ function CommentBubbleMenu({
     danger?: boolean;
     onClick: () => void;
   } | null;
-
   const items: MenuItem[] =
     role === "own"
       ? [
@@ -1161,7 +1163,6 @@ function EditCommentInput({
 }) {
   const [text, setText] = useState(initialText);
   const canSave = text.trim().length > 0 && text.trim() !== initialText.trim();
-
   return (
     <div className="mt-1">
       <div className="flex items-end gap-2 bg-white border border-primary rounded-2xl px-3 py-2 transition-all">
@@ -1264,7 +1265,6 @@ function CommentList({
           Chưa có bình luận nào. Hãy là người đầu tiên!
         </p>
       )}
-
       {comments
         .filter(
           (c) =>
@@ -1282,7 +1282,6 @@ function CommentList({
                 </span>
               </div>
             )}
-
             {c.hidden &&
               currentUserId === c.authorId &&
               currentUserId !== postAuthorId && (
@@ -1293,7 +1292,6 @@ function CommentList({
                   </span>
                 </div>
               )}
-
             <div className="flex gap-2.5 items-start group/comment">
               <Avatar initials={c.author.initials} color={c.author.color} />
               <div className="min-w-0 max-w-[85%]">
@@ -1379,7 +1377,6 @@ function CommentList({
                         );
                       })()}
                   </div>
-
                   <div className="absolute -right-8 top-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
                     <CommentBubbleMenu
                       role={
@@ -1405,7 +1402,6 @@ function CommentList({
                     />
                   </div>
                 </div>
-
                 {editingId === c.id && (
                   <div>
                     {(c.imageUrl || c.videoUrl || c.fileName) && (
@@ -1444,7 +1440,6 @@ function CommentList({
                     />
                   </div>
                 )}
-
                 {editingId !== c.id &&
                   !(
                     c.hidden &&
@@ -1479,7 +1474,6 @@ function CommentList({
                   )}
               </div>
             </div>
-
             {c.replies.length > 0 &&
               (!c.hidden || currentUserId === postAuthorId) && (
                 <div className="ml-10 mt-2 flex flex-col gap-2">
@@ -1541,7 +1535,6 @@ function CommentList({
                             />
                           </div>
                         </div>
-
                         <div
                           className={clsx(
                             "flex items-center gap-1 mt-1 ml-1",
@@ -1570,7 +1563,6 @@ function CommentList({
                       </div>
                     </div>
                   ))}
-
                   {!expandedReplies.has(c.id) &&
                     c.replies.length > REPLIES_PREVIEW && (
                       <button
@@ -1587,7 +1579,6 @@ function CommentList({
                         lời
                       </button>
                     )}
-
                   {expandedReplies.has(c.id) &&
                     c.replies.length > REPLIES_PREVIEW && (
                       <button
@@ -1605,7 +1596,6 @@ function CommentList({
                     )}
                 </div>
               )}
-
             {replyingToId === c.id && (
               <ReplyInput
                 key={replyingToName ?? c.author.name}
@@ -1619,7 +1609,6 @@ function CommentList({
             )}
           </div>
         ))}
-
       {deletingId && (
         <DeleteConfirmDialog
           onConfirm={async () => {
@@ -1641,7 +1630,6 @@ function CommentList({
           }}
         />
       )}
-
       {blockingName && (
         <BlockConfirmDialog
           name={blockingName}
@@ -1676,7 +1664,6 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
       const m = content.match(/^@\[(.+?)\] ([\s\S]+)$/);
       return m ? { replyTo: m[1], text: m[2] } : { text: content };
     };
-
     return {
       id: c.id,
       authorId: c.authorId,
@@ -1738,8 +1725,7 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
     fetch(`/api/posts/${postId}/comments`)
       .then((r) => r.json())
       .then((data) => {
-        if (!Array.isArray(data)) return;
-        setComments(data.map(mapComment));
+        if (Array.isArray(data)) setComments(data.map(mapComment));
       });
   }, [postId, mapComment]);
 
@@ -1759,7 +1745,7 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
       const res = await fetch(`/api/posts/${postId}/comments/${id}/like`, {
         method: "POST",
       });
-      if (!res.ok) {
+      if (!res.ok)
         setComments((prev) =>
           prev.map((c) =>
             c.id === id
@@ -1771,14 +1757,13 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
               : c,
           ),
         );
-      }
     },
     [postId],
   );
 
   const handleReplyLike = useCallback(
     async (commentId: string, replyId: string) => {
-      const toggleReply = (prev: Comment[]) =>
+      const toggle = (prev: Comment[]) =>
         prev.map((c) =>
           c.id === commentId
             ? {
@@ -1795,12 +1780,11 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
               }
             : c,
         );
-
-      setComments(toggleReply);
+      setComments(toggle);
       const res = await fetch(`/api/posts/${postId}/comments/${replyId}/like`, {
         method: "POST",
       });
-      if (!res.ok) setComments(toggleReply);
+      if (!res.ok) setComments(toggle);
     },
     [postId],
   );
@@ -1826,7 +1810,6 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
       const displayContent = text.startsWith(mentionPrefix)
         ? text.slice(mentionPrefix.length)
         : text;
-
       const reply: Reply = {
         id: saved.id,
         authorId: session?.user?.id ?? "",
@@ -1846,7 +1829,6 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
         likes: 0,
         liked: false,
       };
-
       setComments((prev) =>
         prev.map((c) =>
           c.id === commentId ? { ...c, replies: [...c.replies, reply] } : c,
@@ -1875,7 +1857,6 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
       if (!res.ok) return;
       const saved = await res.json();
       const currentName = session?.user?.name ?? "User";
-
       setComments((prev) => [
         ...prev,
         {
@@ -1915,11 +1896,9 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
   const deleteComment = useCallback(
     async (id: string) => {
       setComments((prev) => prev.filter((c) => c.id !== id));
-
       const res = await fetch(`/api/posts/${postId}/comments/${id}`, {
         method: "DELETE",
       });
-
       if (res.ok) {
         const data = await res.json();
         return (data.replyCount ?? 0) + 1;
@@ -1936,20 +1915,17 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
       });
       if (!res.ok) return;
       const data = await res.json();
-      const newHidden: boolean = data.hidden;
-
-      setComments((prev) => {
-        const updated = prev.map((c) =>
+      setComments((prev) =>
+        prev.map((c) =>
           c.id === id
             ? {
                 ...c,
-                hidden: newHidden,
-                replies: c.replies.map((r) => ({ ...r, hidden: newHidden })),
+                hidden: data.hidden,
+                replies: c.replies.map((r) => ({ ...r, hidden: data.hidden })),
               }
             : c,
-        );
-        return updated;
-      });
+        ),
+      );
     },
     [postId],
   );
@@ -1989,7 +1965,6 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
     if (sort === "newest") return [...comments].reverse();
     return comments;
   }, [comments, sort]);
-
   const getVisibleCount = useCallback(
     () =>
       comments
@@ -2036,7 +2011,6 @@ function AttachmentRow({
     MEDIA_IMAGE_TYPES.has(attachment.type) ||
     MEDIA_VIDEO_TYPES.has(attachment.type);
   if (isMedia) return null;
-
   return (
     <div
       className={clsx(
@@ -2097,12 +2071,14 @@ function MediaLightbox({
   onClose: () => void;
   onLike: () => void;
   onCountChange?: (delta: number) => void;
+  onSyncCount?: (count: number) => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const { data: session, status } = useSession();
   const [sort, setSort] = useState<CommentSort>("default");
   const {
     comments,
+    sortedComments,
     getVisibleCount,
     replyingToId,
     replyingToName,
@@ -2117,10 +2093,8 @@ function MediaLightbox({
     editComment,
     hideComment,
   } = useComments(post.id, sort);
-
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -2130,11 +2104,9 @@ function MediaLightbox({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-
   useEffect(() => {
     onSyncCount?.(getVisibleCount());
   }, [comments, getVisibleCount, onSyncCount]);
-
   const currentSrc = images[index];
   const isVideo = isVideoItem(currentSrc, mediaTypes?.[index]);
 
@@ -2196,30 +2168,31 @@ function MediaLightbox({
           </>
         )}
       </div>
-
       <div
         className="w-[380px] shrink-0 bg-white flex flex-col"
         style={{ height: "100vh" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-surface-100 shrink-0">
-          <div
-            className={clsx(
-              "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
-              post.author.color,
-            )}
+          <NextLink
+            href={
+              post.author.username ? `/profile/${post.author.username}` : "#"
+            }
+            className="shrink-0"
           >
-            {post.author.initials}
-          </div>
+            <AuthorAvatar author={post.author} size="md" />
+          </NextLink>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-text-primary">
-              {post.author.name}
-            </p>
+            <NextLink
+              href={
+                post.author.username ? `/profile/${post.author.username}` : "#"
+              }
+            >
+              <p className="text-sm font-semibold text-text-primary hover:underline">
+                {post.author.name}
+              </p>
+            </NextLink>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-primary font-medium">
-                {post.author.role}
-              </span>
-              <span className="text-text-secondary text-xs">·</span>
               <span className="text-xs text-text-secondary">{post.time}</span>
             </div>
           </div>
@@ -2343,7 +2316,6 @@ function CommentModal({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
   const { data: session, status } = useSession();
-
   const {
     comments,
     sortedComments,
@@ -2361,25 +2333,21 @@ function CommentModal({
     editComment,
     hideComment,
   } = useComments(post.id, sort);
-  
   useEffect(() => {
     onSyncCount?.(getVisibleCount());
   }, [comments, getVisibleCount, onSyncCount]);
-
   const handleSubmitComment = useCallback(
     async (payload: CommentPayload) => {
       await submitComment(payload);
     },
     [submitComment],
   );
-
   const handleSubmitReply = useCallback(
     async (commentId: string, text: string, replyTo: string) => {
       await submitReply(commentId, text, replyTo);
     },
     [submitReply],
   );
-
   if (lightboxIndex !== null && post.images) {
     return (
       <MediaLightbox
@@ -2395,7 +2363,6 @@ function CommentModal({
       />
     );
   }
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
@@ -2406,18 +2373,25 @@ function CommentModal({
         style={{ maxHeight: "90vh" }}
       >
         <div className="flex items-start gap-3 px-4 pt-4 pb-3 shrink-0">
-          <Avatar
-            initials={post.author.initials}
-            color={post.author.color}
-            size="md"
-          />
+          <NextLink
+            href={
+              post.author.username ? `/profile/${post.author.username}` : "#"
+            }
+            className="shrink-0"
+          >
+            <AuthorAvatar author={post.author} size="md" />
+          </NextLink>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-text-primary">
-              {post.author.name}
-            </p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="text-xs text-text-secondary">{post.time}</span>
-            </div>
+            <NextLink
+              href={
+                post.author.username ? `/profile/${post.author.username}` : "#"
+              }
+            >
+              <p className="text-sm font-semibold text-text-primary hover:underline">
+                {post.author.name}
+              </p>
+            </NextLink>
+            <span className="text-xs text-text-secondary">{post.time}</span>
           </div>
           <button
             onClick={onClose}
@@ -2545,27 +2519,22 @@ export default function PostCard({ post }: { post: Post }) {
     <>
       <div className="bg-white rounded-xl border border-surface-200 shadow-card card-hover p-4">
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={clsx(
-                "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0",
-                post.author.color,
-              )}
-            >
-              {post.author.initials}
-            </div>
+          <NextLink
+            href={
+              post.author.username ? `/profile/${post.author.username}` : "#"
+            }
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+          >
+            <AuthorAvatar author={post.author} />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-text-primary">
                   {post.author.name}
                 </span>
-                <span className="text-xs text-primary font-medium">
-                  {post.author.role}
-                </span>
               </div>
               <p className="text-xs text-text-secondary">{post.time}</p>
             </div>
-          </div>
+          </NextLink>
           <MoreMenu />
         </div>
 

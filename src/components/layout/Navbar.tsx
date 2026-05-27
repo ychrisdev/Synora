@@ -634,7 +634,7 @@ export default function Navbar({
                 </div>
                 <div className="p-1.5">
                   <Link
-                    href="/profile"
+                    href={`/profile/${session?.user?.username}`}
                     onClick={() => setAvatarOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
                   >
