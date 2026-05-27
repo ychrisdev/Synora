@@ -15,7 +15,7 @@ export const ourFileRouter = {
       return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      return { url: file.url, key: file.key, name: file.name };
+      return { url: file.ufsUrl, key: file.key, name: file.name };
     }),
 
   postDocument: f({
@@ -32,7 +32,7 @@ export const ourFileRouter = {
       return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      return { url: file.url, key: file.key, name: file.name };
+      return { url: file.ufsUrl, key: file.key, name: file.name };
     }),
 
   commentMedia: f({
@@ -49,7 +49,7 @@ export const ourFileRouter = {
       return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      return { url: file.url, key: file.key, name: file.name };
+      return { url: file.ufsUrl, key: file.key, name: file.name };
     }),
 
   commentDocument: f({
@@ -66,7 +66,7 @@ export const ourFileRouter = {
       return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      return { url: file.url, key: file.key, name: file.name };
+      return { url: file.ufsUrl, key: file.key, name: file.name };
     }),
 } satisfies FileRouter;
 

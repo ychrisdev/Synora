@@ -62,6 +62,9 @@ export default function FeedPage() {
     if (!res.ok) return;
     const saved = await res.json();
 
+    const IMAGE_EXTS = ["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"];
+    const VIDEO_EXTS = ["MP4", "MOV", "AVI", "WEBM", "MKV"];
+
     const newPost = {
       id: saved.id,
       authorId: session?.user?.id ?? "",
@@ -70,6 +73,8 @@ export default function FeedPage() {
         initials: currentUser.initials,
         color: "bg-primary",
         role: "",
+        username: currentUser.username,
+        avatarUrl: currentUser.image,
       },
       time: "Vừa xong",
       content,
@@ -79,7 +84,7 @@ export default function FeedPage() {
       mediaTypes:
         uploadedMedia.length > 0
           ? uploadedMedia.map((f) =>
-              f.type.includes("video") ? "video" : "image",
+              VIDEO_EXTS.includes(f.type.toUpperCase()) ? "video" : "image",
             )
           : mediaTypes,
       attachment:
@@ -92,17 +97,16 @@ export default function FeedPage() {
             }
           : attachment,
       likes: 0,
+      isLikedByMe: false,
       comments: 0,
     };
     setLocalPosts((prev) => [newPost, ...prev]);
   };
 
   const mappedPosts = posts.map((p) => {
-    console.log("documents:", p.documents);
     const imageDocs = p.documents.filter((d: any) =>
       ["IMAGE"].includes(d.type),
     );
-    console.log("imageDocs:", imageDocs);
     const videoDocs = p.documents.filter((d: any) =>
       ["VIDEO"].includes(d.type),
     );
@@ -125,6 +129,8 @@ export default function FeedPage() {
           .toUpperCase(),
         color: "bg-primary",
         role: p.author.profile?.major ?? "",
+        username: p.author.username ?? "",
+        avatarUrl: p.author.profile?.avatarUrl ?? null,
       },
       time: new Date(p.createdAt).toLocaleDateString("vi-VN"),
       content: p.content,
@@ -142,9 +148,12 @@ export default function FeedPage() {
         fileDocs.length > 0
           ? {
               name: fileDocs[0].title,
-              size: "",
+              size: fileDocs[0].fileSize
+                ? `${(fileDocs[0].fileSize / 1024).toFixed(1)} KB`
+                : "",
               type:
-                fileDocs[0].mimeType.split("/").pop()?.toUpperCase() ?? "FILE",
+                fileDocs[0].title.split(".").pop()?.toUpperCase() ??
+                fileDocs[0].type,
               url: fileDocs[0].fileUrl,
             }
           : undefined,

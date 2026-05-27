@@ -87,9 +87,9 @@ export async function POST(req: NextRequest) {
                   title: f.name,
                   fileUrl: f.url,
                   fileKey: f.key,
-                  fileSize: f.size ?? 0,
+                  fileSize: typeof f.size === "number" ? f.size : 0,
                   mimeType: f.type,
-                  type: getDocType(f.type),
+                  type: f.docType,
                   uploaderId: session.user.id,
                 })),
               }

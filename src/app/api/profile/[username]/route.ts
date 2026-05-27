@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ username: string }> }
+  { params }: { params: Promise<{ username: string }> },
 ) {
   const { username } = await params;
   const session = await getServerSession(authOptions);
@@ -19,19 +19,28 @@ export async function GET(
           select: {
             followers: true,
             following: true,
-            documents: true,
           },
         },
       },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Không tìm thấy người dùng" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Không tìm thấy người dùng" },
+        { status: 404 },
+      );
     }
 
     const docsWithDownloads = await prisma.document.aggregate({
       where: { uploaderId: user.id },
       _sum: { downloadCount: true },
+    });
+
+    const docCount = await prisma.document.count({
+      where: {
+        uploaderId: user.id,
+        type: { notIn: ["IMAGE", "VIDEO"] },
+      },
     });
 
     const recentDocs = await prisma.document.findMany({
@@ -83,7 +92,7 @@ export async function GET(
       stats: {
         followers: user._count.followers,
         following: user._count.following,
-        documents: user._count.documents,
+        documents: docCount,
         downloads: docsWithDownloads._sum.downloadCount ?? 0,
       },
       recentDocs,
@@ -95,7 +104,7 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ username: string }> }
+  { params }: { params: Promise<{ username: string }> },
 ) {
   const { username } = await params;
   const session = await getServerSession(authOptions);
@@ -109,7 +118,16 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const { displayName, bio, school, location, website, avatarUrl, coverUrl, grade } = body;
+    const {
+      displayName,
+      bio,
+      school,
+      location,
+      website,
+      avatarUrl,
+      coverUrl,
+      grade,
+    } = body;
 
     const profile = await prisma.profile.upsert({
       where: { userId: session.user.id },

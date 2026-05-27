@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
- { params }: { params: Promise<{ username: string }> }
+  { params }: { params: Promise<{ username: string }> },
 ) {
   const { username } = await params;
   const session = await getServerSession(authOptions);
@@ -19,7 +19,7 @@ export async function GET(
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Không tìm thấy người dùng" }, { status: 404 });
+      return NextResponse.json({ posts: [], nextCursor: null });
     }
 
     const isOwner = session?.user?.id === user.id;
@@ -43,10 +43,11 @@ export async function GET(
       },
     });
 
-    const nextCursor = posts.length === take ? posts[posts.length - 1].id : null;
+    const nextCursor =
+      posts.length === take ? posts[posts.length - 1].id : null;
 
     return NextResponse.json({ posts, nextCursor });
-  } catch(err) {
+  } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }

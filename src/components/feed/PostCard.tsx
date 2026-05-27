@@ -265,7 +265,6 @@ function CommentAvatar({
   );
 }
 
-
 const Avatar = CommentAvatar;
 
 function CommentFileBadge({
@@ -662,13 +661,13 @@ function CommentInput({
       if (rawFile && attachment) {
         if (attachment.isImage) {
           const r = await uploadMedia([rawFile]);
-          imageUrl = r?.[0]?.url;
+          imageUrl = r?.[0]?.ufsUrl ?? r?.[0]?.url;
         } else if (attachment.isVideo) {
           const r = await uploadMedia([rawFile]);
-          videoUrl = r?.[0]?.url;
+          videoUrl = r?.[0]?.ufsUrl ?? r?.[0]?.url;
         } else {
           const r = await uploadDoc([rawFile]);
-          fileUrl = r?.[0]?.url;
+          fileUrl = r?.[0]?.ufsUrl ?? r?.[0]?.url;
         }
         pendingFileRef.current = undefined;
       }
@@ -2000,6 +1999,23 @@ type ModalState =
   | { type: "comment" }
   | { type: "lightbox"; index: number };
 
+function getViewUrl(url: string, type: string): string {
+  const docTypes = [
+    "PDF",
+    "DOC",
+    "DOCX",
+    "PPT",
+    "PPTX",
+    "XLS",
+    "XLSX",
+    "OTHER",
+  ];
+  if (docTypes.includes(type.toUpperCase())) {
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=false`;
+  }
+  return url;
+}
+
 function AttachmentRow({
   attachment,
   className,
@@ -2035,7 +2051,9 @@ function AttachmentRow({
         </div>
       </div>
       <a
-        href={attachment.url ?? "#"}
+        href={
+          attachment.url ? getViewUrl(attachment.url, attachment.type) : "#"
+        }
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {

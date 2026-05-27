@@ -13,16 +13,23 @@ export default function MainLayout({
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
-  const hideAll =
-    pathname.startsWith("/chat") || pathname.startsWith("/profile");
-  const hideSidebar = hideAll || pathname.startsWith("/search");
-  const isFullWidth = pathname.startsWith("/search");
+  const hideAll = pathname.startsWith("/chat");
+  const hideSidebar =
+    hideAll ||
+    pathname.startsWith("/search") ||
+    pathname.startsWith("/profile");
+  const isFullWidth =
+    pathname.startsWith("/search") || pathname.startsWith("/profile");
 
   if (hideAll) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-surface-50">
-      <Navbar isLoggedIn={status === "authenticated"} session={session} status={status} />
+      <Navbar
+        isLoggedIn={status === "authenticated"}
+        session={session}
+        status={status}
+      />
       {!hideSidebar && <Sidebar />}
       <main className={`pt-14 min-h-screen ${hideSidebar ? "" : "ml-[300px]"}`}>
         <div className={isFullWidth ? "w-full" : "w-full px-6"}>{children}</div>

@@ -32,8 +32,20 @@ interface PostComposerProps {
     content: string;
     tags: string[];
     files: AttachedFile[];
-    uploadedMedia: { url: string; key: string; name: string; type: string }[];
-    uploadedDocs: { url: string; key: string; name: string; type: string }[];
+    uploadedMedia: {
+      url: string;
+      key: string;
+      name: string;
+      type: string;
+      size: number;
+    }[];
+    uploadedDocs: {
+      url: string;
+      key: string;
+      name: string;
+      type: string;
+      size: number;
+    }[];
   }) => void;
   currentUser?: { name: string; initials: string; image?: string | null };
 }
@@ -394,13 +406,19 @@ export default function PostComposer({
     });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from(e.target.files ?? []).filter((f) => {
+      const type = getFileType(f);
+      return !isImageType(type) && !isVideoType(type);
+    });
     setAttachedFiles((prev) => [...prev, ...processFiles(files)]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleImageVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from(e.target.files ?? []).filter((f) => {
+      const type = getFileType(f);
+      return isImageType(type) || isVideoType(type);
+    });
     setAttachedFiles((prev) => [...prev, ...processFiles(files)]);
     if (imageVideoInputRef.current) imageVideoInputRef.current.value = "";
   };
@@ -423,31 +441,35 @@ export default function PostComposer({
       key: string;
       name: string;
       type: string;
+      size: number;
     }[] = [];
     let uploadedDocs: {
       url: string;
       key: string;
       name: string;
       type: string;
+      size: number;
     }[] = [];
 
     if (mediaFiles.length > 0) {
       const results = await startMediaUpload(mediaFiles.map((f) => f.file));
       uploadedMedia = (results ?? []).map((r, i) => ({
-        url: r.url,
+        url: r.ufsUrl ?? r.url,
         key: r.key,
         name: mediaFiles[i].name,
         type: mediaFiles[i].type,
+        size: mediaFiles[i].file.size,
       }));
     }
 
     if (otherFiles.length > 0) {
       const results = await startDocUpload(otherFiles.map((f) => f.file));
       uploadedDocs = (results ?? []).map((r, i) => ({
-        url: r.url,
+        url: r.ufsUrl ?? r.url,
         key: r.key,
         name: otherFiles[i].name,
         type: otherFiles[i].type,
+        size: otherFiles[i].file.size,
       }));
     }
 
