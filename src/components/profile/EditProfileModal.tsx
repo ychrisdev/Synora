@@ -1,8 +1,19 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Camera, User, BookOpen, MapPin, Globe, GraduationCap, AlignLeft, Check, Loader2 } from "lucide-react";
+import {
+  X,
+  Camera,
+  User,
+  BookOpen,
+  MapPin,
+  Globe,
+  GraduationCap,
+  AlignLeft,
+  Loader2,
+} from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing";
+import { useSession } from "next-auth/react";
 
 interface EditProfileModalProps {
   username: string;
@@ -20,7 +31,14 @@ interface EditProfileModalProps {
   onSaved: () => void;
 }
 
-export function EditProfileModal({ username, initial, onClose, onSaved }: EditProfileModalProps) {
+export function EditProfileModal({
+  username,
+  initial,
+  onClose,
+  onSaved,
+}: EditProfileModalProps) {
+  const { update } = useSession();
+
   const [displayName, setDisplayName] = useState(initial.displayName ?? "");
   const [bio, setBio] = useState(initial.bio ?? "");
   const [school, setSchool] = useState(initial.school ?? "");
@@ -80,8 +98,10 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
         const results = await startUpload(filesToUpload);
         if (results) {
           let idx = 0;
-          if (avatarFile) uploadedAvatarUrl = results[idx++]?.ufsUrl ?? results[idx - 1]?.url;
-          if (coverFile) uploadedCoverUrl = results[idx++]?.ufsUrl ?? results[idx - 1]?.url;
+          if (avatarFile)
+            uploadedAvatarUrl = results[idx++]?.ufsUrl ?? results[idx - 1]?.url;
+          if (coverFile)
+            uploadedCoverUrl = results[idx++]?.ufsUrl ?? results[idx - 1]?.url;
         }
       }
 
@@ -101,6 +121,12 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
       });
 
       if (!res.ok) throw new Error("Lưu thất bại");
+
+      await update({
+        name: displayName.trim() || initial.displayName,
+        image: uploadedAvatarUrl ?? initial.avatarUrl,
+      });
+
       onSaved();
     } catch {
       setError("Có lỗi xảy ra, thử lại nhé.");
@@ -116,7 +142,9 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 shrink-0">
-          <h2 className="text-sm font-bold text-text-primary">Chỉnh sửa trang cá nhân</h2>
+          <h2 className="text-sm font-bold text-text-primary">
+            Chỉnh sửa trang cá nhân
+          </h2>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
@@ -128,7 +156,11 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
         <div className="overflow-y-auto flex-1">
           <div className="relative h-28 bg-surface-100 shrink-0">
             {displayCover ? (
-              <img src={displayCover} alt="cover" className="w-full h-full object-cover" />
+              <img
+                src={displayCover}
+                alt="cover"
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full bg-[repeating-linear-gradient(45deg,#e2e5ec,#e2e5ec_10px,#eaecf2_10px,#eaecf2_20px)]" />
             )}
@@ -136,7 +168,13 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
               <div className="flex items-center gap-1.5 bg-black/40 text-white text-xs font-medium px-3 py-1.5 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera size={12} /> Đổi ảnh bìa
               </div>
-              <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleCoverChange}
+              />
             </label>
 
             <div className="absolute -bottom-10 left-5">
@@ -154,7 +192,13 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
                 )}
                 <label className="absolute inset-0 rounded-full flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors cursor-pointer opacity-0 hover:opacity-100">
                   <Camera size={16} className="text-white" />
-                  <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
                 </label>
               </div>
             </div>
@@ -223,7 +267,9 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
             className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-60"
           >
             {saving ? (
-              <><Loader2 size={14} className="animate-spin" /> Đang lưu...</>
+              <>
+                <Loader2 size={14} className="animate-spin" /> Đang lưu...
+              </>
             ) : (
               <>Lưu</>
             )}
@@ -235,7 +281,12 @@ export function EditProfileModal({ username, initial, onClose, onSaved }: EditPr
 }
 
 function Field({
-  icon, label, value, onChange, placeholder, maxLength,
+  icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -258,7 +309,9 @@ function Field({
         className="w-full px-3 py-2 text-sm text-text-primary bg-surface-50 border border-surface-200 rounded-xl focus:outline-none focus:border-primary focus:bg-white transition-colors placeholder:text-text-muted"
       />
       {maxLength && value.length > maxLength * 0.8 && (
-        <p className={`text-[11px] text-right ${value.length >= maxLength ? "text-red-500" : "text-text-muted"}`}>
+        <p
+          className={`text-[11px] text-right ${value.length >= maxLength ? "text-red-500" : "text-text-muted"}`}
+        >
           {value.length}/{maxLength}
         </p>
       )}
@@ -267,7 +320,12 @@ function Field({
 }
 
 function TextareaField({
-  icon, label, value, onChange, placeholder, maxLength,
+  icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  maxLength,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -290,7 +348,9 @@ function TextareaField({
         className="w-full px-3 py-2 text-sm text-text-primary bg-surface-50 border border-surface-200 rounded-xl focus:outline-none focus:border-primary focus:bg-white transition-colors resize-none placeholder:text-text-muted"
       />
       {maxLength && value.length > maxLength * 0.8 && (
-        <p className={`text-[11px] text-right ${value.length >= maxLength ? "text-red-500" : "text-text-muted"}`}>
+        <p
+          className={`text-[11px] text-right ${value.length >= maxLength ? "text-red-500" : "text-text-muted"}`}
+        >
           {value.length}/{maxLength}
         </p>
       )}
