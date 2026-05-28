@@ -17,6 +17,8 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useUploadThing } from "@/lib/uploadthing";
+import NextLink from "next/link";
+import Avatar from "@/components/ui/Avatar";
 
 export interface AttachedFile {
   id: string;
@@ -91,14 +93,6 @@ function getFileIcon(type: string) {
   if (["PDF"].includes(type))
     return <FileText size={16} className="text-red-400" />;
   return <Paperclip size={16} className="text-text-muted" />;
-}
-
-function Avatar() {
-  return (
-    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
-      QA
-    </div>
-  );
 }
 
 function VisibilityPicker({
@@ -491,9 +485,18 @@ export default function PostComposer({
     <>
       <div className="bg-white rounded-2xl border border-surface-200 shadow-sm overflow-visible">
         <div className="flex items-center gap-3 px-5 pt-4 pb-3">
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
-            {initials}
-          </div>
+          <NextLink
+            href={
+              currentUser?.username ? `/profile/${currentUser.username}` : "#"
+            }
+          >
+            <Avatar
+              src={currentUser?.image}
+              name={name}
+              initials={initials}
+              size="md"
+            />
+          </NextLink>
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-semibold text-text-primary">
               {name}

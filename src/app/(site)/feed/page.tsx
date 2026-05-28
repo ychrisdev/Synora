@@ -171,7 +171,9 @@ export default function FeedPage() {
   return (
     <div className="flex w-full py-5 items-start">
       <div className="flex-1 flex flex-col gap-4 mx-auto max-w-[820px]">
-        <PostComposer onPost={handlePost} currentUser={currentUser} />
+        {session && (
+          <PostComposer onPost={handlePost} currentUser={currentUser} />
+        )}
         {loading ? (
           <div className="text-center text-sm text-slate-400 py-10">
             Đang tải...

@@ -6,7 +6,6 @@ export default withAuth({
 
 export const config = {
   matcher: [
-    "/profile(.*)",
     "/settings(.*)",
     "/chat(.*)",
     "/library(.*)",

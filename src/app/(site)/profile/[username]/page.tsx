@@ -10,6 +10,7 @@ import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
+import Avatar from "@/components/ui/Avatar";
 import { SubjectsWidget } from "@/components/profile/widgets/SubjectsWidget";
 import { FriendsWidget } from "@/components/profile/widgets/FriendsWidget";
 import { SuggestionsWidget } from "@/components/profile/widgets/SuggestionsWidget";
@@ -178,27 +179,19 @@ function FriendSuggestPanel({
                 href={`/profile/${s.username}`}
                 className="flex items-center gap-2.5 flex-1 min-w-0"
               >
-                {s.avatarUrl ? (
-                  <img
-                    src={s.avatarUrl}
-                    alt={s.displayName}
-                    className="w-9 h-9 rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div
-                    className={clsx(
-                      "w-9 h-9 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0",
-                      SUGGEST_COLORS[i % SUGGEST_COLORS.length],
-                    )}
-                  >
-                    {s.displayName
-                      .split(" ")
-                      .map((w: string) => w[0])
-                      .slice(-2)
-                      .join("")
-                      .toUpperCase()}
-                  </div>
-                )}
+                {/* Xóa hết đoạn if/else cũ, chỉ giữ: */}
+                <Avatar
+                  src={s.avatarUrl}
+                  name={s.displayName}
+                  initials={s.displayName
+                    .split(" ")
+                    .map((w: string) => w[0])
+                    .slice(-2)
+                    .join("")
+                    .toUpperCase()}
+                  color={SUGGEST_COLORS[i % SUGGEST_COLORS.length]}
+                  size="md"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-text-primary truncate">
                     {s.displayName}
@@ -716,7 +709,21 @@ export default function ProfilePage() {
 
           {activeTab === "Bài đăng" && (
             <>
-              {isOwner && <PostComposer onPost={handlePost} />}
+              {isOwner && session?.user && (
+                <PostComposer
+                  onPost={handlePost}
+                  currentUser={{
+                    name: session.user.name ?? "Người dùng",
+                    initials: (session.user.name ?? "U")
+                      .split(" ")
+                      .map((w: string) => w[0])
+                      .slice(-2)
+                      .join("")
+                      .toUpperCase(),
+                    image: session.user.image ?? undefined,
+                  }}
+                />
+              )}
               <div className="flex flex-col gap-3 mt-3">
                 {postsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (

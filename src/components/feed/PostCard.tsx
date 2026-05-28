@@ -39,6 +39,7 @@ import {
   ActionButton,
   type AttachedFile as ComposerAttachedFile,
 } from "@/components/feed/PostComposer";
+import Avatar from "@/components/ui/Avatar";
 import { useUploadThing } from "@/lib/uploadthing";
 
 const fileTypeColors: Record<string, string> = {
@@ -105,7 +106,13 @@ interface AttachedFile {
 interface Comment {
   id: string;
   authorId: string;
-  author: { name: string; initials: string; color: string };
+  author: {
+    name: string;
+    initials: string;
+    color: string;
+    avatarUrl?: string | null;
+    username?: string;
+  };
   time: string;
   content: string;
   editedAt?: string | null;
@@ -126,7 +133,13 @@ interface Comment {
 interface Reply {
   id: string;
   authorId: string;
-  author: { name: string; initials: string; color: string };
+  author: {
+    name: string;
+    initials: string;
+    color: string;
+    avatarUrl?: string | null;
+    username?: string;
+  };
   time: string;
   content: string;
   replyTo?: string;
@@ -239,61 +252,6 @@ function RichContent({
     </p>
   );
 }
-
-function AuthorAvatar({
-  author,
-  size = "sm",
-}: {
-  author: PostAuthor;
-  size?: "sm" | "md";
-}) {
-  const dim = size === "md" ? "w-9 h-9 text-sm" : "w-9 h-9 text-sm";
-  if (author.avatarUrl) {
-    return (
-      <img
-        src={author.avatarUrl}
-        alt={author.name}
-        className={clsx("rounded-full object-cover shrink-0", dim)}
-      />
-    );
-  }
-  return (
-    <div
-      className={clsx(
-        "rounded-full flex items-center justify-center text-white font-bold shrink-0",
-        dim,
-        author.color,
-      )}
-    >
-      {author.initials}
-    </div>
-  );
-}
-
-function CommentAvatar({
-  initials,
-  color,
-  size = "sm",
-}: {
-  initials: string;
-  color: string;
-  size?: "sm" | "md";
-}) {
-  const dim = size === "md" ? "w-9 h-9 text-sm" : "w-8 h-8 text-xs";
-  return (
-    <div
-      className={clsx(
-        "rounded-full flex items-center justify-center text-white font-bold shrink-0",
-        dim,
-        color,
-      )}
-    >
-      {initials}
-    </div>
-  );
-}
-
-const Avatar = CommentAvatar;
 
 function CommentFileBadge({
   name,
@@ -1137,6 +1095,9 @@ function CommentInput({
     .join("")
     .toUpperCase();
 
+  const userName = session?.user?.name ?? "U";
+  const userImage = session?.user?.image ?? null;
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1235,7 +1196,13 @@ function CommentInput({
 
   return (
     <div className="flex gap-2.5">
-      <Avatar initials={initials} color="bg-primary" size="sm" />
+      <Avatar
+        src={userImage}
+        name={userName}
+        initials={initials}
+        color="bg-primary"
+        size="sm"
+      />
       <div className="flex-1 min-w-0">
         {attachment && (
           <div className="relative mb-2 inline-block max-w-full">
@@ -1378,6 +1345,8 @@ function ReplyInput({
     .slice(-2)
     .join("")
     .toUpperCase();
+  const userName = session?.user?.name ?? "U";
+  const userImage = session?.user?.image ?? null;
   useEffect(() => {
     const el = inputRef.current;
     if (el) {
@@ -1394,7 +1363,13 @@ function ReplyInput({
   };
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
-      <Avatar initials={initials} color="bg-primary" size="sm" />
+      <Avatar
+        src={userImage}
+        name={userName}
+        initials={initials}
+        color="bg-primary"
+        size="sm"
+      />
       <div className="flex-1 flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-full px-3 py-1.5 focus-within:border-primary transition-colors">
         <input
           ref={inputRef}
@@ -1827,7 +1802,17 @@ function CommentList({
                 </div>
               )}
             <div className="flex gap-2.5 items-start group/comment">
-              <Avatar initials={c.author.initials} color={c.author.color} />
+              <NextLink
+                href={c.author.username ? `/profile/${c.author.username}` : "#"}
+              >
+                <Avatar
+                  src={c.author.avatarUrl}
+                  name={c.author.name}
+                  initials={c.author.initials}
+                  color={c.author.color}
+                  size="sm"
+                />
+              </NextLink>
               <div className="min-w-0 max-w-[85%]">
                 <div className="relative">
                   <div
@@ -2019,10 +2004,20 @@ function CommentList({
                       key={r.id}
                       className="flex gap-2 items-start group/reply"
                     >
-                      <Avatar
-                        initials={r.author.initials}
-                        color={r.author.color}
-                      />
+                      <NextLink
+                        href={
+                          r.author.username
+                            ? `/profile/${r.author.username}`
+                            : "#"
+                        }
+                      >
+                        <Avatar
+                          src={r.author.avatarUrl}
+                          name={r.author.name}
+                          initials={r.author.initials}
+                          color={r.author.color}
+                        />
+                      </NextLink>
                       <div className="min-w-0 max-w-[85%]">
                         <div className="relative">
                           <div
@@ -2210,6 +2205,8 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
           .join("")
           .toUpperCase(),
         color: "bg-primary",
+        avatarUrl: c.author.profile?.avatarUrl ?? null,
+        username: c.author.username ?? null,
       },
       time: formatCommentTime(new Date(c.createdAt)),
       content: c.content,
@@ -2239,6 +2236,8 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
               .join("")
               .toUpperCase(),
             color: "bg-primary",
+            avatarUrl: r.author.profile?.avatarUrl ?? null,
+            username: r.author.username ?? null,
           },
           time: formatCommentTime(new Date(r.createdAt)),
           content: text,
@@ -2356,6 +2355,7 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
             .join("")
             .toUpperCase(),
           color: "bg-primary",
+          avatarUrl: session?.user?.image ?? null,
         },
         time: "Vừa xong",
         content: displayContent,
@@ -2408,6 +2408,7 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
               .join("")
               .toUpperCase(),
             color: "bg-primary",
+            avatarUrl: session?.user?.image ?? null,
           },
           time: "Vừa xong",
           content: payload.content,
@@ -2733,7 +2734,13 @@ function MediaLightbox({
             }
             className="shrink-0"
           >
-            <AuthorAvatar author={post.author} size="md" />
+            <Avatar
+              src={post.author.avatarUrl}
+              name={post.author.name}
+              initials={post.author.initials}
+              color={post.author.color}
+              size="md"
+            />
           </NextLink>
           <div className="flex-1">
             <NextLink
@@ -2932,7 +2939,13 @@ function CommentModal({
             }
             className="shrink-0"
           >
-            <AuthorAvatar author={post.author} size="md" />
+            <Avatar
+              src={post.author.avatarUrl}
+              name={post.author.name}
+              initials={post.author.initials}
+              color={post.author.color}
+              size="md"
+            />
           </NextLink>
           <div className="flex-1 min-w-0">
             <NextLink
@@ -3170,7 +3183,13 @@ export default function PostCard({
             }
             className="flex items-center gap-3 hover:opacity-90 transition-opacity"
           >
-            <AuthorAvatar author={post.author} />
+            <Avatar
+              src={post.author.avatarUrl}
+              name={post.author.name}
+              initials={post.author.initials}
+              color={post.author.color}
+              size="md"
+            />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-text-primary">

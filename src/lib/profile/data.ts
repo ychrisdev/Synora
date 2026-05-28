@@ -1,4 +1,3 @@
-// src/lib/profile/data.ts
 import type { ProfileData } from "./types";
 
 export const profileData: ProfileData = {
