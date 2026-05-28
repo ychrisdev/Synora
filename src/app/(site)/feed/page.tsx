@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback  } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
@@ -37,6 +37,11 @@ export default function FeedPage() {
       })
       .catch(() => setLoading(false));
   }, [session]);
+
+  const handleDeleted = useCallback((id: string | number) => {
+    setLocalPosts((prev) => prev.filter((p) => p.id !== id));
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+  }, []);
 
   const handlePost = async ({
     content,
@@ -144,9 +149,8 @@ export default function FeedPage() {
         mediaDocs.length > 0
           ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image"))
           : undefined,
-        mediaDocIds: mediaDocs.length > 0
-    ? mediaDocs.map((d: any) => d.id)
-    : undefined,
+      mediaDocIds:
+        mediaDocs.length > 0 ? mediaDocs.map((d: any) => d.id) : undefined,
       attachment:
         fileDocs.length > 0
           ? {
@@ -178,7 +182,7 @@ export default function FeedPage() {
           </div>
         ) : (
           [...localPosts, ...mappedPosts].map((post) => (
-            <PostCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} onDeleted={handleDeleted} />
           ))
         )}
       </div>

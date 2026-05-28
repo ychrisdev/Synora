@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ProfileHeader } from "@/components/profile/ProfileHeader";
@@ -590,6 +590,10 @@ export default function ProfilePage() {
       .catch(() => setPostsLoading(false));
   }, [username, activeTab]);
 
+  const handleDeleted = useCallback((id: string | number) => {
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const handlePost = async ({
     content,
     tags,
@@ -728,7 +732,13 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 ) : (
-                  posts.map((post) => <PostCard key={post.id} post={post} />)
+                  posts.map((post) => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      onDeleted={handleDeleted}
+                    />
+                  ))
                 )}
                 {nextCursor && (
                   <button
