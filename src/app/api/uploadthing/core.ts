@@ -19,12 +19,24 @@ export const ourFileRouter = {
     }),
 
   postDocument: f({
-    pdf: { maxFileSize: "16MB", maxFileCount: 5 },
+    pdf: { maxFileSize: "32MB", maxFileCount: 5 },
     "application/msword": { maxFileSize: "32MB", maxFileCount: 5 },
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
       maxFileSize: "32MB",
       maxFileCount: 5,
     },
+    "application/vnd.ms-powerpoint": { maxFileSize: "32MB", maxFileCount: 5 },
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      {
+        maxFileSize: "32MB",
+        maxFileCount: 5,
+      },
+    "application/vnd.ms-excel": { maxFileSize: "32MB", maxFileCount: 5 },
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+      maxFileSize: "32MB",
+      maxFileCount: 5,
+    },
+    blob: { maxFileSize: "32MB", maxFileCount: 5 },
   })
     .middleware(async () => {
       const session = await getServerSession(authOptions);
@@ -56,6 +68,14 @@ export const ourFileRouter = {
     pdf: { maxFileSize: "16MB", maxFileCount: 1 },
     "application/msword": { maxFileSize: "16MB", maxFileCount: 1 },
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+      maxFileSize: "16MB",
+      maxFileCount: 1,
+    },
+    "application/vnd.ms-powerpoint": { maxFileSize: "16MB", maxFileCount: 1 },
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      { maxFileSize: "16MB", maxFileCount: 1 },
+    "application/vnd.ms-excel": { maxFileSize: "16MB", maxFileCount: 1 },
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
       maxFileSize: "16MB",
       maxFileCount: 1,
     },

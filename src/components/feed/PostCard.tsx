@@ -11,6 +11,8 @@ import {
   Smile,
   Bookmark,
   Link as LinkIcon,
+  ImageIcon,
+  Video,
   EyeOff,
   Pencil,
   Trash2,
@@ -26,6 +28,17 @@ import NextLink from "next/link";
 import { clsx } from "clsx";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import {
+  isImageType,
+  isVideoType,
+  formatFileSize as composerFormatFileSize,
+  getFileType,
+  MediaPreview,
+  FileChip,
+  MediaLightboxPreview,
+  ActionButton,
+  type AttachedFile as ComposerAttachedFile,
+} from "@/components/feed/PostComposer";
 import { useUploadThing } from "@/lib/uploadthing";
 
 const fileTypeColors: Record<string, string> = {
@@ -64,11 +77,19 @@ interface Post {
   content: string;
   images?: string[];
   mediaTypes?: string[];
+  mediaDocIds?: string[];
   tags: string[];
-  attachment?: { name: string; size: string; type: string; url?: string };
+  attachment?: {
+    name: string;
+    size: string;
+    type: string;
+    url?: string;
+    docId?: string;
+  };
   likes: number;
   isLikedByMe?: boolean;
   comments: number;
+  editedAt?: string | null;
 }
 
 interface AttachedFile {
@@ -112,6 +133,13 @@ interface Reply {
   likes: number;
   liked: boolean;
   hidden?: boolean;
+}
+
+interface ExistingMedia {
+  id: string;
+  url: string;
+  type: string;
+  name: string;
 }
 
 export function mapFilesToPostFields(
@@ -409,9 +437,471 @@ function CommentMediaThumb({
   );
 }
 
-function MoreMenu() {
+function EditPostComposer({
+  post,
+  attachments,
+  onSave,
+  onClose,
+}: {
+  post: Post;
+  attachments?: NonNullable<Post["attachment"]>[];
+  onSave: (result: { content: string; updatedPost: any }) => void;
+  onClose: () => void;
+}) {
+  const [content, setContent] = useState(post.content);
+  const [existingMedia, setExistingMedia] = useState<ExistingMedia[]>(
+    (post.images ?? []).map((url, i) => ({
+      id: post.mediaDocIds?.[i] ?? `existing-${i}`,
+      url,
+      type: post.mediaTypes?.[i] === "video" ? "VIDEO" : "IMAGE",
+      name: url.split("/").pop() ?? `media-${i}`,
+    })),
+  );
+  const [existingAttachments, setExistingAttachments] = useState<
+    NonNullable<Post["attachment"]>[]
+  >(attachments ?? (post.attachment ? [post.attachment] : []));
+  const [newFiles, setNewFiles] = useState<ComposerAttachedFile[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [removedDocIds, setRemovedDocIds] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const MAX_IMG_MB = 8;
+  const MAX_VID_MB = 64;
+  const MAX_DOC_MB = 32;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageVideoInputRef = useRef<HTMLInputElement>(null);
+
+  const { startUpload: startMediaUpload } = useUploadThing("postMedia");
+  const { startUpload: startDocUpload } = useUploadThing("postDocument");
+
+  const charLimit = 1000;
+  const isOverLimit = content.length > charLimit;
+  const canSave = content.trim().length > 0 && !isOverLimit && !saving;
+
+  const newMediaFiles = newFiles.filter(
+    (f) => isImageType(f.type) || isVideoType(f.type),
+  );
+  const newDocFiles = newFiles.filter(
+    (f) => !isImageType(f.type) && !isVideoType(f.type),
+  );
+
+  const processFiles = (files: File[]): ComposerAttachedFile[] =>
+    files.map((f) => {
+      const type = getFileType(f);
+      const canPreview = isImageType(type) || isVideoType(type);
+      return {
+        id: `${Date.now()}-${Math.random()}`,
+        file: f,
+        name: f.name,
+        size: composerFormatFileSize(f.size),
+        type,
+        previewUrl: canPreview ? URL.createObjectURL(f) : undefined,
+      };
+    });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError(null);
+    const files = Array.from(e.target.files ?? []).filter((f) => {
+      const type = getFileType(f);
+      return !isImageType(type) && !isVideoType(type);
+    });
+    for (const f of files) {
+      const sizeMB = f.size / (1024 * 1024);
+      if (sizeMB > MAX_DOC_MB) {
+        setUploadError(`"${f.name}" vượt quá ${MAX_DOC_MB}MB`);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
+    setNewFiles((prev) => [...prev, ...processFiles(files)]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadError(null);
+    const files = Array.from(e.target.files ?? []).filter((f) => {
+      const type = getFileType(f);
+      return isImageType(type) || isVideoType(type);
+    });
+    for (const f of files) {
+      const type = getFileType(f);
+      const sizeMB = f.size / (1024 * 1024);
+      if (isImageType(type) && sizeMB > MAX_IMG_MB) {
+        setUploadError(`"${f.name}" vượt quá ${MAX_IMG_MB}MB`);
+        if (imageVideoInputRef.current) imageVideoInputRef.current.value = "";
+        return;
+      }
+      if (isVideoType(type) && sizeMB > MAX_VID_MB) {
+        setUploadError(`"${f.name}" vượt quá ${MAX_VID_MB}MB`);
+        if (imageVideoInputRef.current) imageVideoInputRef.current.value = "";
+        return;
+      }
+    }
+    setNewFiles((prev) => [...prev, ...processFiles(files)]);
+    if (imageVideoInputRef.current) imageVideoInputRef.current.value = "";
+  };
+
+  const removeNewFile = (id: string) => {
+    setLightboxIndex(null);
+    setNewFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  const removeExistingMedia = (id: string) => {
+    setExistingMedia((prev) => prev.filter((m) => m.id !== id));
+    if (!id.startsWith("existing-")) {
+      setRemovedDocIds((prev) => [...prev, id]);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setUploadError(null);
+    try {
+      let uploadedMedia: any[] = [];
+      let uploadedDocs: any[] = [];
+
+      console.log("=== handleSave start ===");
+      console.log(
+        "newDocFiles:",
+        newDocFiles.map((f) => ({ name: f.name, type: f.type })),
+      );
+      console.log(
+        "newMediaFiles:",
+        newMediaFiles.map((f) => ({ name: f.name, type: f.type })),
+      );
+
+      if (newMediaFiles.length > 0) {
+        console.log("Uploading media...");
+        const results = await startMediaUpload(
+          newMediaFiles.map((f) => f.file),
+        );
+        console.log("Media upload results:", results);
+        uploadedMedia = (results ?? []).map((r, i) => ({
+          url: r.ufsUrl ?? r.url,
+          key: r.key,
+          name: newMediaFiles[i].name,
+          type: newMediaFiles[i].type,
+          size: newMediaFiles[i].file.size,
+        }));
+      }
+
+      if (newDocFiles.length > 0) {
+        console.log("Uploading docs...");
+        try {
+          const results = await startDocUpload(newDocFiles.map((f) => f.file));
+          console.log("Doc upload results:", results);
+          if (!results || results.length === 0) {
+            throw new Error(
+              "Upload tài liệu thất bại — UploadThing trả về rỗng",
+            );
+          }
+          uploadedDocs = results.map((r, i) => ({
+            url: r.ufsUrl ?? r.url,
+            key: r.key,
+            name: newDocFiles[i].name,
+            type: newDocFiles[i].type,
+            size: newDocFiles[i].file.size,
+          }));
+        } catch (uploadErr) {
+          console.error("Doc upload error:", uploadErr);
+          setUploadError(
+            "Tải tài liệu thất bại. Định dạng file có thể không được hỗ trợ.",
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      console.log("Sending PATCH with:", {
+        uploadedMedia,
+        uploadedDocs,
+        removedDocIds,
+      });
+
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: content.trim(),
+          removedDocIds,
+          uploadedMedia,
+          uploadedDocs,
+        }),
+      });
+
+      console.log("PATCH response status:", res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("PATCH error body:", errText);
+        throw new Error("Lưu thất bại");
+      }
+      const updatedPost = await res.json();
+      onSave({ content: updatedPost.content, updatedPost });
+    } catch (err) {
+      console.error("handleSave error:", err);
+      setUploadError("Lưu thất bại, thử lại nhé");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const allMediaForLightbox: ComposerAttachedFile[] = [
+    ...existingMedia.map((m) => ({
+      id: m.id,
+      file: new File([], m.name),
+      name: m.name,
+      size: "",
+      type: m.type,
+      previewUrl: m.url,
+    })),
+    ...newMediaFiles,
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 shrink-0">
+          <h2 className="text-sm font-bold text-text-primary">
+            Chỉnh sửa bài viết
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          <div className="px-5 pt-4">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                const el = e.target;
+                el.style.height = "auto";
+                el.style.height = `${el.scrollHeight}px`;
+              }}
+              placeholder="Nội dung bài viết..."
+              className="w-full resize-none text-sm text-text-primary placeholder:text-text-muted outline-none leading-relaxed min-h-[100px] max-h-[300px] bg-transparent"
+              rows={4}
+            />
+            {content.length > charLimit * 0.8 && (
+              <p
+                className={`text-xs text-right mb-1 ${isOverLimit ? "text-red-500 font-semibold" : "text-text-muted"}`}
+              >
+                {content.length}/{charLimit}
+              </p>
+            )}
+          </div>
+
+          {(existingMedia.length > 0 || newMediaFiles.length > 0) && (
+            <div className="px-5 pb-3 flex flex-wrap gap-2">
+              {existingMedia.map((m, idx) => (
+                <div
+                  key={m.id}
+                  className="relative group rounded-xl overflow-hidden border border-surface-200 bg-surface-50 shrink-0 cursor-pointer"
+                  style={{ width: 96, height: 96 }}
+                  onClick={() => setLightboxIndex(idx)}
+                >
+                  {m.type === "VIDEO" ? (
+                    <video
+                      src={m.url}
+                      muted
+                      preload="metadata"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={m.url}
+                      alt={m.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeExistingMedia(m.id);
+                    }}
+                    className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  >
+                    <X size={11} />
+                  </button>
+                  <span className="absolute bottom-1 left-1 bg-black/50 text-white text-[10px] px-1 rounded pointer-events-none">
+                    Hiện có
+                  </span>
+                </div>
+              ))}
+              {newMediaFiles.map((f, idx) => (
+                <MediaPreview
+                  key={f.id}
+                  attached={f}
+                  onRemove={() => removeNewFile(f.id)}
+                  onClick={() => setLightboxIndex(existingMedia.length + idx)}
+                />
+              ))}
+            </div>
+          )}
+
+          {(existingAttachments.length > 0 || newDocFiles.length > 0) && (
+            <div className="px-5 pb-3 flex flex-wrap gap-2">
+              {existingAttachments.map((att) => (
+                <div
+                  key={att.docId ?? att.name}
+                  className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <FileText size={16} className="text-red-400 shrink-0" />
+                  <span className="flex-1 truncate text-text-primary font-medium text-xs max-w-[160px]">
+                    {att.name}
+                  </span>
+                  <span className="text-text-muted text-xs shrink-0">
+                    {att.size}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (att.docId)
+                        setRemovedDocIds((prev) => [...prev, att.docId!]);
+                      setExistingAttachments((prev) =>
+                        prev.filter((a) => a.docId !== att.docId),
+                      );
+                    }}
+                    className="text-text-muted hover:text-text-secondary transition-colors ml-1"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              {newDocFiles.map((f) => (
+                <FileChip
+                  key={f.id}
+                  attached={f}
+                  onRemove={() => removeNewFile(f.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-surface-100 shrink-0">
+          {uploadError && (
+            <p className="text-xs text-red-500 px-5 pt-3">{uploadError}</p>
+          )}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar"
+              />
+              <input
+                ref={imageVideoInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleImageVideoChange}
+                accept="image/*,video/*"
+              />
+              <ActionButton
+                icon={<Paperclip size={18} />}
+                label="Đính kèm"
+                onClick={() => fileInputRef.current?.click()}
+              />
+              <ActionButton
+                icon={<ImageIcon size={18} />}
+                label="Ảnh"
+                onClick={() => {
+                  if (imageVideoInputRef.current) {
+                    imageVideoInputRef.current.accept = "image/*";
+                    imageVideoInputRef.current.click();
+                    setTimeout(() => {
+                      if (imageVideoInputRef.current)
+                        imageVideoInputRef.current.accept = "image/*,video/*";
+                    }, 500);
+                  }
+                }}
+              />
+              <ActionButton
+                icon={<Video size={18} />}
+                label="Video"
+                onClick={() => {
+                  if (imageVideoInputRef.current) {
+                    imageVideoInputRef.current.accept = "video/*";
+                    imageVideoInputRef.current.click();
+                    setTimeout(() => {
+                      if (imageVideoInputRef.current)
+                        imageVideoInputRef.current.accept = "image/*,video/*";
+                    }, 500);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-text-secondary border border-surface-200 rounded-xl hover:bg-surface-50 transition-colors"
+              >
+                Huỷ
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-primary text-white rounded-xl hover:bg-primary-600 transition-colors disabled:opacity-60"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Đang lưu...
+                  </>
+                ) : (
+                  <>Lưu</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {lightboxIndex !== null && allMediaForLightbox.length > 0 && (
+        <MediaLightboxPreview
+          files={allMediaForLightbox}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PostMoreMenu({
+  isOwner,
+  onEdit,
+  onDelete,
+  onSave,
+  onReport,
+}: {
+  isOwner: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSave: () => void;
+  onReport: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
@@ -420,13 +910,58 @@ function MoreMenu() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-  const items = [
-    { icon: <Bookmark size={15} />, label: "Lưu bài viết" },
-    { icon: <LinkIcon size={15} />, label: "Sao chép liên kết" },
-    null,
-    { icon: <EyeOff size={15} />, label: "Ẩn bài viết" },
-    { icon: <Flag size={15} />, label: "Báo cáo", danger: true },
+
+  type Item = {
+    icon: React.ReactNode;
+    label: string;
+    danger?: boolean;
+    onClick: () => void;
+  } | null;
+
+  const items: Item[] = [
+    {
+      icon: <Bookmark size={15} />,
+      label: "Lưu bài viết",
+      onClick: () => {
+        onSave();
+        setOpen(false);
+      },
+    },
+    ...(isOwner
+      ? [
+          null,
+          {
+            icon: <Pencil size={15} />,
+            label: "Chỉnh sửa bài viết",
+            onClick: () => {
+              onEdit();
+              setOpen(false);
+            },
+          } as Item,
+          {
+            icon: <Trash2 size={15} />,
+            label: "Xóa bài viết",
+            danger: true,
+            onClick: () => {
+              onDelete();
+              setOpen(false);
+            },
+          } as Item,
+        ]
+      : [
+          null,
+          {
+            icon: <Flag size={15} />,
+            label: "Báo cáo",
+            danger: true,
+            onClick: () => {
+              onReport();
+              setOpen(false);
+            },
+          } as Item,
+        ]),
   ];
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -436,14 +971,14 @@ function MoreMenu() {
         <MoreHorizontal size={16} />
       </button>
       {open && (
-        <div className="absolute right-0 top-8 bg-white border border-surface-200 rounded-xl shadow-lg z-20 min-w-[170px] overflow-hidden py-1">
+        <div className="absolute right-0 top-8 bg-white border border-surface-200 rounded-xl shadow-lg z-20 min-w-[190px] overflow-hidden py-1">
           {items.map((item, i) =>
             item === null ? (
               <div key={i} className="my-1 border-t border-surface-100" />
             ) : (
               <button
                 key={i}
-                onClick={() => setOpen(false)}
+                onClick={item.onClick}
                 className={clsx(
                   "w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-surface-50 transition-colors",
                   item.danger ? "text-red-500" : "text-text-primary",
@@ -2520,17 +3055,109 @@ function CommentModal({
   );
 }
 
-export default function PostCard({ post }: { post: Post }) {
+export default function PostCard({
+  post,
+  onDeleted,
+}: {
+  post: Post;
+  onDeleted?: (id: string | number) => void;
+}) {
+  const { data: session } = useSession();
   const [liked, setLiked] = useState(post.isLikedByMe ?? false);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [modal, setModal] = useState<ModalState>({ type: "none" });
+  const [content, setContent] = useState(post.content);
+  const [currentImages, setCurrentImages] = useState(post.images);
+  const [currentMediaTypes, setCurrentMediaTypes] = useState(post.mediaTypes);
+  const [currentAttachment, setCurrentAttachment] = useState(post.attachment);
+  const [currentAttachments, setCurrentAttachments] = useState<
+    NonNullable<Post["attachment"]>[]
+  >(post.attachment ? [post.attachment] : []);
+  const [editedAt, setEditedAt] = useState(post.editedAt ?? null);
+  const [currentMediaDocIds, setCurrentMediaDocIds] = useState(
+    post.mediaDocIds,
+  );
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+
+  const isOwner = session?.user?.id === post.authorId;
 
   const handleLike = async () => {
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
     await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+  };
+
+  const handleEdit = (result: { content: string; updatedPost: any }) => {
+    const updated = result.updatedPost;
+    setContent(updated.content);
+    setEditedAt(updated.editedAt);
+    const mediaDocs = (updated.documents ?? []).filter(
+      (d: any) => d.type === "IMAGE" || d.type === "VIDEO",
+    );
+    const docFiles = (updated.documents ?? []).filter(
+      (d: any) => d.type !== "IMAGE" && d.type !== "VIDEO",
+    );
+    setCurrentImages(
+      mediaDocs.length ? mediaDocs.map((d: any) => d.fileUrl) : undefined,
+    );
+    setCurrentMediaTypes(
+      mediaDocs.length
+        ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image"))
+        : undefined,
+    );
+    setCurrentMediaDocIds(
+      mediaDocs.length ? mediaDocs.map((d: any) => d.id) : undefined,
+    );
+    setCurrentAttachments(
+      docFiles.map((d: any) => ({
+        name: d.title,
+        size: d.fileSize ? `${(d.fileSize / 1024).toFixed(1)} KB` : "",
+        type: d.title.split(".").pop()?.toUpperCase() ?? d.type,
+        url: d.fileUrl,
+        docId: d.id,
+      })),
+    );
+    setCurrentAttachment(
+      docFiles.length
+        ? {
+            name: docFiles[0].title,
+            size: docFiles[0].fileSize
+              ? `${(docFiles[0].fileSize / 1024).toFixed(1)} KB`
+              : "",
+            type:
+              docFiles[0].title.split(".").pop()?.toUpperCase() ??
+              docFiles[0].type,
+            url: docFiles[0].fileUrl,
+            docId: docFiles[0].id,
+          }
+        : undefined,
+    );
+    setShowEditModal(false);
+  };
+
+  const handleDelete = async () => {
+    const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setDeleted(true);
+      onDeleted?.(post.id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  if (deleted) return null;
+
+  const displayPost = {
+    ...post,
+    content,
+    images: currentImages,
+    mediaTypes: currentMediaTypes,
+    mediaDocIds: currentMediaDocIds,
+    attachment: currentAttachment,
   };
 
   return (
@@ -2550,28 +3177,45 @@ export default function PostCard({ post }: { post: Post }) {
                   {post.author.name}
                 </span>
               </div>
-              <p className="text-xs text-text-secondary">{post.time}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs text-text-secondary">{post.time}</p>
+                {editedAt && (
+                  <span className="text-xs text-text-muted">
+                    · đã chỉnh sửa
+                  </span>
+                )}
+              </div>
             </div>
           </NextLink>
-          <MoreMenu />
+          <PostMoreMenu
+            isOwner={isOwner}
+            onEdit={() => setShowEditModal(true)}
+            onDelete={() => setShowDeleteConfirm(true)}
+            onSave={() => {}}
+            onReport={() => setShowReportModal(true)}
+          />
         </div>
 
         <RichContent
-          text={post.content}
+          text={content}
           className="text-sm text-text-primary leading-relaxed mb-3"
         />
 
-        {post.images && post.images.length > 0 && (
+        {currentImages && currentImages.length > 0 && (
           <ImageGrid
-            images={post.images}
-            mediaTypes={post.mediaTypes}
+            images={currentImages}
+            mediaTypes={currentMediaTypes}
             onImageClick={(index) => setModal({ type: "lightbox", index })}
           />
         )}
 
-        {post.attachment && (
-          <AttachmentRow attachment={post.attachment} className="mb-3" />
-        )}
+        {currentAttachments.map((att) => (
+          <AttachmentRow
+            key={att.docId ?? att.name}
+            attachment={att}
+            className="mb-3"
+          />
+        ))}
 
         <div className="flex items-center justify-between pt-2 border-t border-surface-100">
           <div className="flex items-center gap-1">
@@ -2608,12 +3252,12 @@ export default function PostCard({ post }: { post: Post }) {
         </div>
       </div>
 
-      {modal.type === "lightbox" && post.images ? (
+      {modal.type === "lightbox" && currentImages ? (
         <MediaLightbox
-          images={post.images}
-          mediaTypes={post.mediaTypes}
+          images={currentImages}
+          mediaTypes={currentMediaTypes}
           initialIndex={modal.index}
-          post={post}
+          post={displayPost}
           liked={liked}
           likeCount={likeCount}
           onClose={() => setModal({ type: "none" })}
@@ -2625,7 +3269,7 @@ export default function PostCard({ post }: { post: Post }) {
         />
       ) : modal.type === "comment" ? (
         <CommentModal
-          post={post}
+          post={displayPost}
           liked={liked}
           likeCount={likeCount}
           onClose={() => setModal({ type: "none" })}
@@ -2636,6 +3280,29 @@ export default function PostCard({ post }: { post: Post }) {
           }
         />
       ) : null}
+
+      {showEditModal && (
+        <EditPostComposer
+          post={displayPost}
+          attachments={currentAttachments}
+          onSave={handleEdit}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
+
+      {showDeleteConfirm && (
+        <DeleteConfirmDialog
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {showReportModal && (
+        <ReportPostModal
+          postId={post.id}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </>
   );
 }

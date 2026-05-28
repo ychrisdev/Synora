@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback  } from "react";
 import { useSession } from "next-auth/react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
@@ -144,6 +144,9 @@ export default function FeedPage() {
         mediaDocs.length > 0
           ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image"))
           : undefined,
+        mediaDocIds: mediaDocs.length > 0
+    ? mediaDocs.map((d: any) => d.id)
+    : undefined,
       attachment:
         fileDocs.length > 0
           ? {
@@ -155,6 +158,7 @@ export default function FeedPage() {
                 fileDocs[0].title.split(".").pop()?.toUpperCase() ??
                 fileDocs[0].type,
               url: fileDocs[0].fileUrl,
+              docId: fileDocs[0].id,
             }
           : undefined,
     };

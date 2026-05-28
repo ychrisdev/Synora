@@ -48,12 +48,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const MIME_TO_EXT: Record<string, string> = {
+      "image/jpeg": "JPG",
+      "image/png": "PNG",
+      "image/gif": "GIF",
+      "image/webp": "WEBP",
+      "image/bmp": "BMP",
+      "image/svg+xml": "SVG",
+      "video/mp4": "MP4",
+      "video/quicktime": "MOV",
+      "video/x-msvideo": "AVI",
+      "video/webm": "WEBM",
+      "video/x-matroska": "MKV",
+      "application/pdf": "PDF",
+    };
+
     const getDocType = (type: string) => {
-      const t = type.toUpperCase();
-      if (["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"].includes(t))
+      const ext = (MIME_TO_EXT[type.toLowerCase()] ?? type).toUpperCase();
+      if (["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"].includes(ext))
         return "IMAGE";
-      if (["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(t)) return "VIDEO";
-      if (t === "PDF") return "PDF";
+      if (["MP4", "MOV", "AVI", "WEBM", "MKV"].includes(ext)) return "VIDEO";
+      if (ext === "PDF") return "PDF";
       return "OTHER";
     };
 
