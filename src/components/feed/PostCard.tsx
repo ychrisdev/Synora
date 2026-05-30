@@ -633,12 +633,14 @@ function EditPostComposer({
           <h2 className="text-sm font-bold text-text-primary">
             Chỉnh sửa bài viết
           </h2>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
-          >
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto flex-1">
@@ -846,15 +848,19 @@ function EditPostComposer({
 
 function PostMoreMenu({
   isOwner,
+  authorName,
   onEdit,
   onDelete,
   onSave,
+  onBlock,
   onReport,
 }: {
   isOwner: boolean;
+  authorName: string;
   onEdit: () => void;
   onDelete: () => void;
   onSave: () => void;
+  onBlock: () => void;
   onReport: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -906,18 +912,20 @@ function PostMoreMenu({
             },
           } as Item,
         ]
-      : [
-          null,
-          {
-            icon: <Flag size={15} />,
-            label: "Báo cáo",
-            danger: true,
-            onClick: () => {
-              onReport();
-              setOpen(false);
-            },
-          } as Item,
-        ]),
+        : [
+      null,
+      {
+        icon: <Ban size={15} />,
+        label: `Chặn ${authorName.split(" ").pop()}`,
+        onClick: () => { onBlock(); setOpen(false); },
+      } as Item,
+      {
+        icon: <Flag size={15} />,
+        label: "Báo cáo",
+        danger: true,
+        onClick: () => { onReport(); setOpen(false); },
+      } as Item,
+    ]),
   ];
 
   return (
@@ -1496,7 +1504,7 @@ function CommentBubbleMenu({
               null,
               {
                 icon: <Ban size={14} />,
-                label: `Chặn ${authorName}`,
+                label: `Chặn ${authorName.split(" ").pop()}`,
                 onClick: () => {
                   onBlock?.();
                   setOpen(false);
@@ -2615,6 +2623,7 @@ function MediaLightbox({
   onLike,
   onCountChange,
   onSyncCount,
+  menuSlot,
 }: {
   images: string[];
   mediaTypes?: string[];
@@ -2626,6 +2635,7 @@ function MediaLightbox({
   onLike: () => void;
   onCountChange?: (delta: number) => void;
   onSyncCount?: (count: number) => void;
+  menuSlot?: React.ReactNode;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const { data: session, status } = useSession();
@@ -2756,6 +2766,7 @@ function MediaLightbox({
               <span className="text-xs text-text-secondary">{post.time}</span>
             </div>
           </div>
+          {menuSlot}
         </div>
         <div className="px-4 pt-3 pb-2 shrink-0">
           <RichContent
@@ -2864,6 +2875,7 @@ function CommentModal({
   onClose,
   onCountChange,
   onSyncCount,
+  menuSlot,
 }: {
   post: Post;
   liked: boolean;
@@ -2872,6 +2884,7 @@ function CommentModal({
   onClose: () => void;
   onCountChange?: (delta: number) => void;
   onSyncCount?: (count: number) => void;
+  menuSlot?: React.ReactNode;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
@@ -2920,6 +2933,7 @@ function CommentModal({
         onLike={onLike}
         onClose={() => setLightboxIndex(null)}
         onCountChange={onCountChange}
+        menuSlot={menuSlot}
       />
     );
   }
@@ -2959,6 +2973,7 @@ function CommentModal({
             </NextLink>
             <span className="text-xs text-text-secondary">{post.time}</span>
           </div>
+          {menuSlot}
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors shrink-0"
@@ -3095,7 +3110,7 @@ export default function PostCard({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [deleted, setDeleted] = useState(false);
-
+  const [blockingName, setBlockingName] = useState<string | null>(null);
   const isOwner = session?.user?.id === post.authorId;
 
   const handleLike = async () => {
@@ -3208,9 +3223,11 @@ export default function PostCard({
           </NextLink>
           <PostMoreMenu
             isOwner={isOwner}
+            authorName={post.author.name}
             onEdit={() => setShowEditModal(true)}
             onDelete={() => setShowDeleteConfirm(true)}
             onSave={() => {}}
+            onBlock={() => setBlockingName(post.author.name)}
             onReport={() => setShowReportModal(true)}
           />
         </div>
@@ -3285,6 +3302,17 @@ export default function PostCard({
           onCountChange={(delta) =>
             setCommentCount((c) => Math.max(0, c + delta))
           }
+          menuSlot={
+    <PostMoreMenu
+      isOwner={isOwner}
+      authorName={post.author.name}
+      onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
+      onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+      onSave={() => {}}
+      onBlock={() => setBlockingName(post.author.name)}
+      onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
+    />
+  }
         />
       ) : modal.type === "comment" ? (
         <CommentModal
@@ -3294,8 +3322,17 @@ export default function PostCard({
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
           onSyncCount={setCommentCount}
-          onCountChange={(delta) =>
-            setCommentCount((c) => Math.max(0, c + delta))
+          onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+          menuSlot={
+            <PostMoreMenu
+              isOwner={isOwner}
+              authorName={post.author.name}
+              onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
+              onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+              onSave={() => {}}
+              onBlock={() => setBlockingName(post.author.name)}
+              onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
+            />
           }
         />
       ) : null}
