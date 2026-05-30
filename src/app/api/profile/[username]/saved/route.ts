@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ username: string }> },
+) {
+  const { username } = await params;
+  const session = await getServerSession(authOptions);
+
+  const owner = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true },
+  });
+  if (!owner)
+    return NextResponse.json({ posts: [], nextCursor: null });
+
+  if (session?.user?.id !== owner.id)
+    return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const cursor = searchParams.get("cursor");
+  const take = 10;
+
+  const saves = await prisma.save.findMany({
+    where: { userId: owner.id },
+    orderBy: { createdAt: "desc" },
+    take,
+    ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    select: {
+      id: true,
+      post: {
+        include: {
+          author: { include: { profile: true } },
+          tags: { include: { tag: true } },
+          documents: true,
+          _count: { select: { likes: true, comments: true } },
+          likes: { where: { userId: owner.id }, select: { id: true } },
+        },
+      },
+    },
+  });
+
+  const nextCursor = saves.length === take ? saves[saves.length - 1].id : null;
+  const posts = saves.map((s) => s.post).filter(Boolean);
+
+  return NextResponse.json({ posts, nextCursor });
+}

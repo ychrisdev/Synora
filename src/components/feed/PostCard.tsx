@@ -10,6 +10,7 @@ import {
   Send,
   Smile,
   Bookmark,
+  BookmarkCheck,
   Link as LinkIcon,
   ImageIcon,
   Video,
@@ -848,6 +849,7 @@ function EditPostComposer({
 
 function PostMoreMenu({
   isOwner,
+  isSaved,
   authorName,
   onEdit,
   onDelete,
@@ -856,6 +858,7 @@ function PostMoreMenu({
   onReport,
 }: {
   isOwner: boolean;
+  isSaved?: boolean;
   authorName: string;
   onEdit: () => void;
   onDelete: () => void;
@@ -884,12 +887,9 @@ function PostMoreMenu({
 
   const items: Item[] = [
     {
-      icon: <Bookmark size={15} />,
-      label: "Lưu bài viết",
-      onClick: () => {
-        onSave();
-        setOpen(false);
-      },
+      icon: isSaved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />,
+      label: isSaved ? "Bỏ lưu bài viết" : "Lưu bài viết",
+      onClick: () => { onSave(); setOpen(false); },
     },
     ...(isOwner
       ? [
@@ -3086,9 +3086,13 @@ function CommentModal({
 export default function PostCard({
   post,
   onDeleted,
+  isSavedInitially = false,
+  onSaveToggle,
 }: {
   post: Post;
   onDeleted?: (id: string | number) => void;
+  isSavedInitially?: boolean;
+  onSaveToggle?: (id: string | number, saved: boolean) => void;
 }) {
   const { data: session } = useSession();
   const [liked, setLiked] = useState(post.isLikedByMe ?? false);
@@ -3109,6 +3113,8 @@ export default function PostCard({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [saved, setSaved] = useState(isSavedInitially);
+  const [toast, setToast] = useState<string | null>(null);
   const [deleted, setDeleted] = useState(false);
   const [blockingName, setBlockingName] = useState<string | null>(null);
   const isOwner = session?.user?.id === post.authorId;
@@ -3118,6 +3124,17 @@ export default function PostCard({
     setLiked(nextLiked);
     setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
     await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+  };
+
+  const handleSave = async () => {
+    const res = await fetch(`/api/posts/${post.id}/save`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      setSaved(data.saved);
+      setToast(data.saved ? "Đã lưu bài viết" : "Đã bỏ lưu bài viết");
+      setTimeout(() => setToast(null), 2500);
+      onSaveToggle?.(post.id, data.saved);
+    }
   };
 
   const handleEdit = (result: { content: string; updatedPost: any }) => {
@@ -3223,10 +3240,11 @@ export default function PostCard({
           </NextLink>
           <PostMoreMenu
             isOwner={isOwner}
+            isSaved={saved}
             authorName={post.author.name}
             onEdit={() => setShowEditModal(true)}
             onDelete={() => setShowDeleteConfirm(true)}
-            onSave={() => {}}
+            onSave={handleSave}
             onBlock={() => setBlockingName(post.author.name)}
             onReport={() => setShowReportModal(true)}
           />
@@ -3303,16 +3321,17 @@ export default function PostCard({
             setCommentCount((c) => Math.max(0, c + delta))
           }
           menuSlot={
-    <PostMoreMenu
-      isOwner={isOwner}
-      authorName={post.author.name}
-      onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
-      onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
-      onSave={() => {}}
-      onBlock={() => setBlockingName(post.author.name)}
-      onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
-    />
-  }
+          <PostMoreMenu
+            isOwner={isOwner}
+            isSaved={saved}
+            authorName={post.author.name}
+            onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
+            onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+            onSave={handleSave}
+            onBlock={() => setBlockingName(post.author.name)}
+            onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
+          />
+      }
         />
       ) : modal.type === "comment" ? (
         <CommentModal
@@ -3326,10 +3345,11 @@ export default function PostCard({
           menuSlot={
             <PostMoreMenu
               isOwner={isOwner}
+              isSaved={saved}
               authorName={post.author.name}
               onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
               onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
-              onSave={() => {}}
+              onSave={handleSave}
               onBlock={() => setBlockingName(post.author.name)}
               onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
             />
@@ -3358,6 +3378,13 @@ export default function PostCard({
           postId={post.id}
           onClose={() => setShowReportModal(false)}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-fade-in">
+          <Bookmark size={13} />
+          {toast}
+        </div>
       )}
     </>
   );
