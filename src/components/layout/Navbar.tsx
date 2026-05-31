@@ -17,11 +17,7 @@ import {
   Users,
   Trophy,
   Share2,
-  BookOpen,
-  Hash,
   Clock,
-  TrendingUp,
-  ArrowUpRight,
 } from "lucide-react";
 
 export type NotifType =
@@ -211,180 +207,168 @@ export function NotifRow({
   );
 }
 
-interface Suggestion {
-  type: "document" | "post" | "person" | "group" | "topic" | "history";
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
+const HISTORY_KEY = "synora_search_history";
+const MAX_HISTORY = 10;
+
+function loadHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveToHistory(query: string) {
+  if (!query.trim()) return;
+  const prev = loadHistory().filter(
+    (h) => h.toLowerCase() !== query.toLowerCase(),
+  );
+  const next = [query, ...prev].slice(0, MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+}
+
+function removeFromHistory(query: string) {
+  const next = loadHistory().filter(
+    (h) => h.toLowerCase() !== query.toLowerCase(),
+  );
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+}
+
+function clearHistory() {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify([]));
+}
+
+const CATEGORY_TABS: {
   label: string;
-  sub?: string;
-  href: string;
-}
-
-const TRENDING_SEARCHES = [
-  "Hóa hữu cơ lớp 12",
-  "Giải tích 1 bách khoa",
-  "Đề thi THPT 2024",
-  "IELTS writing task 2",
+  tab: string;
+  isTopic?: boolean;
+}[] = [
+  { label: "Tài liệu", tab: "documents" },
+  { label: "Bài viết", tab: "posts" },
+  { label: "Mọi người", tab: "people" },
+  { label: "Nhóm", tab: "groups" },
+  { label: "Chủ đề", tab: "topics", isTopic: true },
 ];
-
-function buildSuggestions(query: string): Suggestion[] {
-  if (!query.trim()) return [];
-
-  const all: Suggestion[] = [
-    {
-      type: "document",
-      icon: FileText,
-      iconBg: "bg-primary/10",
-      iconColor: "text-primary",
-      label: `Tài liệu "${query}"`,
-      sub: "Tìm trong Thư viện",
-      href: `/search?q=${encodeURIComponent(query)}&tab=documents`,
-    },
-    {
-      type: "post",
-      icon: MessageSquare,
-      iconBg: "bg-blue-50",
-      iconColor: "text-blue-500",
-      label: `Bài viết về "${query}"`,
-      sub: "Tìm trong Bảng tin",
-      href: `/search?q=${encodeURIComponent(query)}&tab=posts`,
-    },
-    {
-      type: "person",
-      icon: Users,
-      iconBg: "bg-violet-50",
-      iconColor: "text-violet-500",
-      label: `Người dùng "${query}"`,
-      sub: "Tìm trong Cộng đồng",
-      href: `/search?q=${encodeURIComponent(query)}&tab=people`,
-    },
-    {
-      type: "group",
-      icon: BookOpen,
-      iconBg: "bg-emerald-50",
-      iconColor: "text-emerald-500",
-      label: `Nhóm liên quan đến "${query}"`,
-      sub: "Tìm trong Nhóm học tập",
-      href: `/search?q=${encodeURIComponent(query)}&tab=groups`,
-    },
-    {
-      type: "topic",
-      icon: Hash,
-      iconBg: "bg-amber-50",
-      iconColor: "text-amber-500",
-      label: `#${query.replace(/\s+/g, "")}`,
-      sub: "Xem chủ đề",
-      href: `/explore?topic=${encodeURIComponent(query)}`,
-    },
-  ];
-  return all;
-}
 
 function SearchDropdown({
   query,
+  history,
+  onRemoveHistory,
+  onClearHistory,
   onSelect,
+  onSelectHistory,
 }: {
   query: string;
+  history: string[];
+  onRemoveHistory: (q: string) => void;
+  onClearHistory: () => void;
   onSelect: () => void;
+  onSelectHistory: (q: string) => void;
 }) {
-  const suggestions = buildSuggestions(query);
-  const showTrending = !query.trim();
+  const hasQuery = query.trim().length > 0;
+  const cleanQuery = query.startsWith("#") ? query.slice(1) : query;
+
+  if (!hasQuery) {
+    return (
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+        {history.length === 0 ? (
+          <div className="px-4 py-6 text-center text-xs text-slate-400">
+            Chưa có lịch sử tìm kiếm
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock size={10} /> Tìm kiếm gần đây
+              </p>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  onClearHistory();
+                }}
+                className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Xóa tất cả
+              </button>
+            </div>
+            <div className="px-2 pb-2">
+              {history.map((h) => (
+                <div
+                  key={h}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-slate-50 group/item transition-colors"
+                >
+                  <Clock size={13} className="text-slate-300 shrink-0" />
+                  <button
+                    className="flex-1 text-left text-sm text-slate-700 truncate"
+                    onClick={() => {
+                      onSelectHistory(h);
+                      onSelect();
+                    }}
+                  >
+                    {h}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onRemoveHistory(h);
+                    }}
+                    className="opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-200 text-slate-400 shrink-0"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-      {showTrending ? (
-        <>
-          <div className="px-4 pt-3 pb-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <Clock size={10} /> Tìm kiếm gần đây
-            </p>
-          </div>
-          <div className="px-2 pb-1">
-            {["Hóa hữu cơ lớp 12", "Giải tích 1"].map((s) => (
-              <Link
-                key={s}
-                href={`/search?q=${encodeURIComponent(s)}`}
-                onClick={onSelect}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group"
-              >
-                <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                  <Clock size={12} className="text-slate-400" />
-                </div>
-                <span className="text-sm text-slate-700 flex-1">{s}</span>
-                <X
-                  size={12}
-                  className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                />
-              </Link>
-            ))}
-          </div>
+    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+      <Link
+        href={`/search?q=${encodeURIComponent(query)}`}
+        onClick={onSelect}
+        className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-100"
+      >
+        <Search size={14} className="text-slate-400 shrink-0" />
+        <span className="flex-1 text-sm text-slate-800 font-medium truncate">
+          {query}
+        </span>
+        <span className="text-[10px] text-slate-400 shrink-0">Tìm kiếm</span>
+      </Link>
 
-          <div className="px-4 pt-2 pb-1 border-t border-slate-100 mt-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <TrendingUp size={10} /> Xu hướng tìm kiếm
-            </p>
-          </div>
-          <div className="px-2 pb-3">
-            {TRENDING_SEARCHES.map((s) => (
-              <Link
-                key={s}
-                href={`/search?q=${encodeURIComponent(s)}`}
-                onClick={onSelect}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group"
-              >
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <TrendingUp size={12} className="text-primary" />
-                </div>
-                <span className="text-sm text-slate-700 flex-1">{s}</span>
-                <ArrowUpRight
-                  size={12}
-                  className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                />
-              </Link>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <Link
-            href={`/search?q=${encodeURIComponent(query)}`}
-            onClick={onSelect}
-            className="flex items-center gap-3 px-4 py-3 bg-primary/5 hover:bg-primary/10 transition-colors border-b border-slate-100"
-          >
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
-              <Search size={12} className="text-white" />
-            </div>
-            <span className="text-sm font-semibold text-primary flex-1">
-              Tìm kiếm "{query}"
-            </span>
-            <ArrowUpRight size={13} className="text-primary" />
-          </Link>
+      <div className="px-2 py-1.5">
+        <p className="text-[10px] font-semibold text-slate-400 px-2 mb-1 uppercase tracking-wider">
+          Tìm theo danh mục
+        </p>
+        {CATEGORY_TABS.map(({ label, tab, isTopic }) => {
+          const searchQ = isTopic ? `#${cleanQuery}` : query;
+          const displaySuffix = isTopic ? `#${cleanQuery}` : `"${query}"`;
 
-          <div className="px-2 py-2">
-            {suggestions.map((s, i) => (
-              <Link
-                key={i}
-                href={s.href}
-                onClick={onSelect}
-                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 group transition-colors"
-              >
-                <div
-                  className={`w-7 h-7 rounded-lg ${s.iconBg} flex items-center justify-center shrink-0`}
-                >
-                  <s.icon size={12} className={s.iconColor} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 truncate">{s.label}</p>
-                  {s.sub && (
-                    <p className="text-[10px] text-slate-400">{s.sub}</p>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
+          return (
+            <Link
+              key={tab}
+              href={`/search?q=${encodeURIComponent(searchQ)}&tab=${tab}`}
+              onClick={onSelect}
+              className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-50 group/cat transition-colors"
+            >
+              <span className="text-sm text-slate-600">
+                {label}{" "}
+                <span className="text-slate-400 font-normal">
+                  {displaySuffix}
+                </span>
+              </span>
+              <span className="text-[10px] text-slate-300 opacity-0 group-hover/cat:opacity-100 transition-opacity shrink-0">
+                ↵
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -403,6 +387,7 @@ export default function Navbar({
   const [bellOpen, setBellOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
   const bellRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -426,6 +411,14 @@ export default function Navbar({
     );
   }, []);
 
+  const refreshHistory = useCallback(() => {
+    setHistory(loadHistory());
+  }, []);
+
+  useEffect(() => {
+    if (searchFocused) refreshHistory();
+  }, [searchFocused, refreshHistory]);
+
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (bellRef.current && !bellRef.current.contains(e.target as Node))
@@ -439,19 +432,42 @@ export default function Navbar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" && searchQuery.trim()) {
-        setSearchFocused(false);
-        router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      }
-      if (e.key === "Escape") setSearchFocused(false);
+  const doSearch = useCallback(
+    (q: string) => {
+      if (!q.trim()) return;
+      saveToHistory(q.trim());
+      setSearchFocused(false);
+      setSearchQuery("");
+      router.push(`/search?q=${encodeURIComponent(q.trim())}`);
     },
-    [searchQuery, router],
+    [router],
   );
 
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") doSearch(searchQuery);
+      if (e.key === "Escape") setSearchFocused(false);
+    },
+    [searchQuery, doSearch],
+  );
+
+  const handleRemoveHistory = (q: string) => {
+    removeFromHistory(q);
+    setHistory(loadHistory());
+  };
+
+  const handleClearHistory = () => {
+    clearHistory();
+    setHistory([]);
+  };
+
+  const handleDropdownSelect = () => {
+    if (searchQuery.trim()) saveToHistory(searchQuery.trim());
+    setSearchFocused(false);
+    setSearchQuery("");
+  };
+
   const unreadCount = notifs.filter((n) => n.unread).length;
-  const showDropdown = searchFocused;
 
   return (
     <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center z-30">
@@ -497,9 +513,7 @@ export default function Navbar({
             />
             {searchQuery && (
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                }}
+                onClick={() => setSearchQuery("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X size={13} />
@@ -507,13 +521,14 @@ export default function Navbar({
             )}
           </div>
 
-          {showDropdown && (
+          {searchFocused && (
             <SearchDropdown
               query={searchQuery}
-              onSelect={() => {
-                setSearchFocused(false);
-                setSearchQuery("");
-              }}
+              history={history}
+              onRemoveHistory={handleRemoveHistory}
+              onClearHistory={handleClearHistory}
+              onSelect={handleDropdownSelect}
+              onSelectHistory={doSearch}
             />
           )}
         </div>
@@ -562,7 +577,6 @@ export default function Navbar({
                   <X size={14} className="text-slate-400" />
                 </button>
               </div>
-
               <div className="max-h-[360px] overflow-y-auto py-1">
                 {notifs.length === 0 ? (
                   <p className="text-center text-xs text-slate-400 py-8">
@@ -576,7 +590,6 @@ export default function Navbar({
                     ))
                 )}
               </div>
-
               <Link
                 href="/notifications"
                 onClick={() => setBellOpen(false)}

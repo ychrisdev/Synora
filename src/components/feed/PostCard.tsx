@@ -240,12 +240,14 @@ function RichContent({
     <p className={className}>
       {text.split(/(#[\wÀ-ỹ]+)/gu).map((part, i) =>
         /^#[\wÀ-ỹ]+$/u.test(part) ? (
-          <span
+          <NextLink
             key={i}
+            href={`/search?q=${encodeURIComponent(part)}&tab=all`}
+            onClick={(e) => e.stopPropagation()}
             className="text-primary font-medium hover:underline cursor-pointer"
           >
             {part}
-          </span>
+          </NextLink>
         ) : (
           part
         ),
@@ -889,7 +891,10 @@ function PostMoreMenu({
     {
       icon: isSaved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />,
       label: isSaved ? "Bỏ lưu bài viết" : "Lưu bài viết",
-      onClick: () => { onSave(); setOpen(false); },
+      onClick: () => {
+        onSave();
+        setOpen(false);
+      },
     },
     ...(isOwner
       ? [
@@ -912,20 +917,26 @@ function PostMoreMenu({
             },
           } as Item,
         ]
-        : [
-      null,
-      {
-        icon: <Ban size={15} />,
-        label: `Chặn ${authorName.split(" ").pop()}`,
-        onClick: () => { onBlock(); setOpen(false); },
-      } as Item,
-      {
-        icon: <Flag size={15} />,
-        label: "Báo cáo",
-        danger: true,
-        onClick: () => { onReport(); setOpen(false); },
-      } as Item,
-    ]),
+      : [
+          null,
+          {
+            icon: <Ban size={15} />,
+            label: `Chặn ${authorName.split(" ").pop()}`,
+            onClick: () => {
+              onBlock();
+              setOpen(false);
+            },
+          } as Item,
+          {
+            icon: <Flag size={15} />,
+            label: "Báo cáo",
+            danger: true,
+            onClick: () => {
+              onReport();
+              setOpen(false);
+            },
+          } as Item,
+        ]),
   ];
 
   return (
@@ -3321,17 +3332,26 @@ export default function PostCard({
             setCommentCount((c) => Math.max(0, c + delta))
           }
           menuSlot={
-          <PostMoreMenu
-            isOwner={isOwner}
-            isSaved={saved}
-            authorName={post.author.name}
-            onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
-            onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
-            onSave={handleSave}
-            onBlock={() => setBlockingName(post.author.name)}
-            onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
-          />
-      }
+            <PostMoreMenu
+              isOwner={isOwner}
+              isSaved={saved}
+              authorName={post.author.name}
+              onEdit={() => {
+                setModal({ type: "none" });
+                setShowEditModal(true);
+              }}
+              onDelete={() => {
+                setModal({ type: "none" });
+                setShowDeleteConfirm(true);
+              }}
+              onSave={handleSave}
+              onBlock={() => setBlockingName(post.author.name)}
+              onReport={() => {
+                setModal({ type: "none" });
+                setShowReportModal(true);
+              }}
+            />
+          }
         />
       ) : modal.type === "comment" ? (
         <CommentModal
@@ -3341,17 +3361,28 @@ export default function PostCard({
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
           onSyncCount={setCommentCount}
-          onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+          onCountChange={(delta) =>
+            setCommentCount((c) => Math.max(0, c + delta))
+          }
           menuSlot={
             <PostMoreMenu
               isOwner={isOwner}
               isSaved={saved}
               authorName={post.author.name}
-              onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
-              onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+              onEdit={() => {
+                setModal({ type: "none" });
+                setShowEditModal(true);
+              }}
+              onDelete={() => {
+                setModal({ type: "none" });
+                setShowDeleteConfirm(true);
+              }}
               onSave={handleSave}
               onBlock={() => setBlockingName(post.author.name)}
-              onReport={() => { setModal({ type: "none" }); setShowReportModal(true); }}
+              onReport={() => {
+                setModal({ type: "none" });
+                setShowReportModal(true);
+              }}
             />
           }
         />

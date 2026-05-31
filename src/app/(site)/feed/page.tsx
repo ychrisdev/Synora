@@ -6,8 +6,8 @@ import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
 import { mapFilesToPostFields } from "@/components/feed/PostCard";
-import TrendingTopics from "@/components/feed/TrendingTopics";
-import WhoToFollow from "@/components/feed/WhoToFollow";
+import TrendingTopics from "@/components/ui/TrendingTopics";
+import SuggestedPeople from "@/components/ui/SuggestedPeople";
 
 export default function FeedPage() {
   const { data: session } = useSession();
@@ -190,7 +190,7 @@ export default function FeedPage() {
       </div>
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         <TrendingTopics />
-        <WhoToFollow />
+        <SuggestedPeople />
       </div>
     </div>
   );
