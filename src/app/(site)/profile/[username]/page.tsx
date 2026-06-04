@@ -27,6 +27,7 @@ export default function ProfilePage() {
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showSuggest, setShowSuggest] = useState(false);
+  const [docRefreshKey, setDocRefreshKey] = useState(0);
 
   const isOwner = session?.user?.username === username;
 
@@ -35,12 +36,17 @@ export default function ProfilePage() {
     setLoading(true);
     fetch(`/api/profile/${username}`)
       .then((r) => r.json())
-      .then((data) => { setProfileData(data); setLoading(false); })
+      .then((data) => {
+        setProfileData(data);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [username]);
 
   const refreshProfile = () => {
-    fetch(`/api/profile/${username}`).then((r) => r.json()).then(setProfileData);
+    fetch(`/api/profile/${username}`)
+      .then((r) => r.json())
+      .then(setProfileData);
   };
 
   if (loading) {
@@ -58,7 +64,9 @@ export default function ProfilePage() {
   if (!profileData || profileData.error) {
     return (
       <div className="max-w-[1080px] mx-auto px-4 pb-12 pt-20 text-center">
-        <p className="text-text-muted text-sm">Không tìm thấy người dùng này.</p>
+        <p className="text-text-muted text-sm">
+          Không tìm thấy người dùng này.
+        </p>
       </div>
     );
   }
@@ -90,7 +98,10 @@ export default function ProfilePage() {
       />
 
       {showSuggest && isOwner && (
-        <FriendSuggestPanel username={username} onClose={() => setShowSuggest(false)} />
+        <FriendSuggestPanel
+          username={username}
+          onClose={() => setShowSuggest(false)}
+        />
       )}
 
       <ProfileInfo
@@ -109,10 +120,21 @@ export default function ProfilePage() {
           <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
           <div className="mt-3">
             {activeTab === "Bài đăng" && (
-              <PostsTab username={username} isOwner={isOwner} session={session} />
+              <PostsTab
+                username={username}
+                isOwner={isOwner}
+                session={session}
+              />
             )}
             {activeTab === "Hình ảnh" && <ImagesTab username={username} />}
-            {activeTab === "Tài liệu" && <DocumentsTab username={username} />}
+            {activeTab === "Tài liệu" && (
+              <DocumentsTab
+                username={username}
+                isOwner={isOwner}
+                refreshKey={docRefreshKey}
+                onDownload={() => setDocRefreshKey((k) => k + 1)}
+              />
+            )}
             {activeTab === "Bài viết đã lưu" && (
               <SavedPostsTab username={username} isOwner={isOwner} />
             )}

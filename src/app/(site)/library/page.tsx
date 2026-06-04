@@ -121,17 +121,18 @@ export default function LibraryPage() {
   };
 
   const handleToggleSave = async (id: string) => {
-    if (!isLoggedIn) return;
-    const res = await fetch(`/api/library/documents/${id}/save`, {
-      method: "POST",
-    });
-    const data = await res.json();
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      data.saved ? next.add(id) : next.delete(id);
-      return next;
-    });
-  };
+  if (!isLoggedIn) return;
+  const res = await fetch(`/api/library/documents/${id}/save`, { method: "POST" });
+  const data = await res.json();
+  setSavedIds((prev) => {
+    const next = new Set(prev);
+    data.saved ? next.add(id) : next.delete(id);
+    return next;
+  });
+  if (activeSort === "saved" && !data.saved) {
+    setDocs((prev) => prev.filter((d) => d.id !== id));
+  }
+};
 
   const handleReport = (id: string) => {
     console.log("Report", id);

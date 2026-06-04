@@ -176,11 +176,9 @@ export default function DocumentCard({
           </h3>
         </div>
 
-        {doc.description && (
-          <p className="text-xs text-text-muted line-clamp-2 mb-2 leading-relaxed">
-            {doc.description}
-          </p>
-        )}
+        <p className="text-xs text-text-muted line-clamp-2 mb-2 leading-relaxed min-h-[2rem]">
+          {doc.description ?? ""}
+        </p>
 
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white text-[10px] font-bold shrink-0">
@@ -195,7 +193,7 @@ export default function DocumentCard({
         </div>
 
         {doc.tags && doc.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1 min-h-[1.5rem]">
             {doc.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
