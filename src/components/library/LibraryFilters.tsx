@@ -3,34 +3,52 @@
 import { Upload, Search, X } from "lucide-react";
 import clsx from "clsx";
 import { TYPE_TABS, SORT_OPTIONS } from "@/lib/library/data";
-import type { SortKey } from "@/lib/library/types";
-import SubjectTabs from "./SubjectTabs";
+import type { SortKey, LevelKey } from "@/lib/library/types";
+import LevelFilterBar from "./SubjectTabs";
 
 interface LibraryFiltersProps {
   query: string;
   setQuery: (v: string) => void;
+  activeLevel: LevelKey;
+  setActiveLevel: (v: LevelKey) => void;
+  activeGrade: string;
+  setActiveGrade: (v: string) => void;
   activeSubject: string;
   setActiveSubject: (v: string) => void;
+  activeMajor: string;
+  setActiveMajor: (v: string) => void;
   activeSort: SortKey;
   setActiveSort: (v: SortKey) => void;
   activeType: string;
   setActiveType: (v: string) => void;
   savedCount: number;
+  isLoggedIn: boolean;
   onUpload: () => void;
 }
 
 export default function LibraryFilters({
   query,
   setQuery,
+  activeLevel,
+  setActiveLevel,
+  activeGrade,
+  setActiveGrade,
   activeSubject,
   setActiveSubject,
+  activeMajor,
+  setActiveMajor,
   activeSort,
   setActiveSort,
   activeType,
   setActiveType,
   savedCount,
+  isLoggedIn,
   onUpload,
 }: LibraryFiltersProps) {
+  const visibleSortOptions = isLoggedIn
+    ? SORT_OPTIONS
+    : SORT_OPTIONS.filter((o) => o.key !== "saved");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
@@ -49,23 +67,34 @@ export default function LibraryFilters({
           {query && (
             <button
               onClick={() => setQuery("")}
-              aria-label="Xoá từ khoá"
+              aria-label="Xoá"
               className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
             >
               <X size={14} />
             </button>
           )}
         </div>
-        <button
-          onClick={onUpload}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors shrink-0"
-        >
-          <Upload size={14} />
-          Tải lên
-        </button>
+        {isLoggedIn && (
+          <button
+            onClick={onUpload}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors shrink-0"
+          >
+            <Upload size={14} />
+            Tải lên
+          </button>
+        )}
       </div>
 
-      <SubjectTabs activeSubject={activeSubject} onSelect={setActiveSubject} />
+      <LevelFilterBar
+        activeLevel={activeLevel}
+        onLevelChange={setActiveLevel}
+        activeGrade={activeGrade}
+        onGradeChange={setActiveGrade}
+        activeSubject={activeSubject}
+        onSubjectChange={setActiveSubject}
+        activeMajor={activeMajor}
+        onMajorChange={setActiveMajor}
+      />
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1 border-b border-surface-200">
@@ -86,21 +115,35 @@ export default function LibraryFilters({
         </div>
 
         <div className="flex items-center gap-1 shrink-0 bg-surface-100 rounded-lg p-0.5">
-          {SORT_OPTIONS.map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setActiveSort(opt.key)}
-              className={clsx(
-                "px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
-                activeSort === opt.key
-                  ? "bg-white text-primary shadow-sm"
-                  : "text-text-muted hover:text-text-secondary",
-              )}
-            >
-              {opt.label}
-              {opt.key === "saved" && savedCount > 0 && ` (${savedCount})`}
-            </button>
-          ))}
+          {visibleSortOptions.map((opt) => {
+            const isAZ = opt.key === "az";
+            const isActive =
+              activeSort === opt.key || (isAZ && activeSort === "za");
+            const displayLabel =
+              isAZ && activeSort === "za" ? "Z-A" : opt.label;
+
+            return (
+              <button
+                key={opt.key}
+                onClick={() => {
+                  if (isAZ) {
+                    setActiveSort(activeSort === "az" ? "za" : "az");
+                  } else {
+                    setActiveSort(opt.key);
+                  }
+                }}
+                className={clsx(
+                  "px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
+                  isActive
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-text-muted hover:text-text-secondary",
+                )}
+              >
+                {displayLabel}
+                {opt.key === "saved" && savedCount > 0 && ` (${savedCount})`}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

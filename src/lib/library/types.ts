@@ -1,26 +1,37 @@
-export type SortKey = "newest" | "mostDownloaded" | "oldest" | "saved";
+export type SortKey = "newest" | "mostDownloaded" | "az" | "za" | "saved";
+export type LevelKey = "all" | "thpt" | "university" | "other";
 
 export interface Document {
-  id: number;
+  id: string;
   title: string;
-  type: "PDF" | "DOCX" | "PPTX";
-  subject: string;
-  subjectId: string;
-  author: { name: string; initials: string; color: string };
-  date: string;
-  downloads: string;
-  downloadsNum: number;
+  description?: string;
+  type: "PDF" | "DOCX" | "PPTX" | string;
+  subject?: string;
+  subjectId?: string;
+  level?: string;
+  grade?: string;
+  major?: string;
+  tags: string[];
+  fileUrl: string;
+  fileSize: number;
+  downloadCount: number;
+  uploader: {
+    username: string;
+    profile: { displayName?: string | null; avatarUrl?: string | null } | null;
+  };
+  isSaved?: boolean;
+  createdAt: string;
 }
 
 export interface FeaturedDoc {
-  id: number;
+  id: string;
   title: string;
   type: string;
-  downloads: string;
-  color: string;
+  downloadCount: number;
 }
 
-export interface Stat {
-  value: string;
-  label: string;
+export interface LibraryStats {
+  totalDocuments: number;
+  totalContributors: number;
+  totalDownloads: number;
 }

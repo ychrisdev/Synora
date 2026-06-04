@@ -8,10 +8,7 @@ export const config = {
   matcher: [
     "/settings(.*)",
     "/chat(.*)",
-    "/library(.*)",
     "/community(.*)",
     "/notifications(.*)",
-    "/explore(.*)",
-    "/search(.*)",
   ],
 };

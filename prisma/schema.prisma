@@ -16,6 +16,8 @@ enum Role {
 
 enum DocumentType {
   PDF
+  DOCX
+  PPTX
   IMAGE
   VIDEO
   AUDIO
@@ -72,6 +74,7 @@ model User {
   likes         Like[]
   saves         Save[]
   documents     Document[]
+  savedDocuments SavedDocument[]
 
   followers     Follow[]  @relation("following")
   following     Follow[]  @relation("follower")
@@ -201,6 +204,14 @@ model Document {
   mimeType    String
   type        DocumentType
 
+  subject     String?
+  subjectId   String?
+  level       String?
+  grade       String?
+  major       String?
+  tags        String[]
+  savedBy     SavedDocument[]
+
   pageCount   Int?
 
   extractedText String?
@@ -211,6 +222,18 @@ model Document {
   updatedAt   DateTime     @updatedAt
 
   @@map("documents")
+}
+
+model SavedDocument {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, documentId])
+  @@map("saved_documents")
 }
 
 model Comment {

@@ -3,88 +3,80 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import { SECONDARY_SUBJECT_TABS } from "@/lib/library/data";
+
+interface Option { id: string; label: string; }
 
 interface SubjectDropdownProps {
-  activeSubject: string;
-  onSelect: (id: string) => void;
+  label:    string;
+  options:  Option[];
+  value:    string;
+  onChange: (id: string) => void;
 }
 
-export default function SubjectDropdown({ activeSubject, onSelect }: SubjectDropdownProps) {
+export default function SubjectDropdown({ label, options, value, onChange }: SubjectDropdownProps) {
   const [open, setOpen] = useState(false);
-  const containerRef    = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const isActiveInDropdown = SECONDARY_SUBJECT_TABS.some((t) => t.id === activeSubject);
-  const activeLabel        = SECONDARY_SUBJECT_TABS.find((t) => t.id === activeSubject)?.label;
+  const activeLabel = options.find((o) => o.id === value)?.label;
 
   useEffect(() => {
-    const handleOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    if (open) document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    if (open) document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    if (open) document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, [open]);
-
-  const handleSelect = (id: string) => {
-    onSelect(id);
-    setOpen(false);
-  };
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((p) => !p)}
         aria-haspopup="listbox"
         aria-expanded={open}
         className={clsx(
           "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-all",
-          isActiveInDropdown
+          value
             ? "bg-primary text-white shadow-sm"
-            : open
-              ? "bg-surface-100 border border-surface-300 text-text-primary"
-              : "bg-white border border-surface-200 text-text-secondary hover:border-primary hover:text-primary",
+            : "bg-white border border-surface-200 text-text-secondary hover:border-primary hover:text-primary",
         )}
       >
-        {isActiveInDropdown ? activeLabel : "Khác"}
-        <ChevronDown
-          size={13}
-          className={clsx("transition-transform duration-200", open && "rotate-180")}
-        />
+        {value ? activeLabel : label}
+        <ChevronDown size={13} className={clsx("transition-transform duration-200", open && "rotate-180")} />
       </button>
 
       {open && (
         <div
           role="listbox"
-          className={clsx(
-            "absolute top-full left-0 mt-2 z-30",
-            "w-44 bg-white border border-surface-200 rounded-xl shadow-lg py-1.5",
-            "animate-in fade-in zoom-in-95 duration-150 origin-top-left",
-          )}
+          className="absolute top-full left-0 mt-2 z-30 w-56 bg-white border border-surface-200 rounded-xl shadow-lg py-1.5 animate-in fade-in zoom-in-95 duration-150 origin-top-left"
         >
-          {SECONDARY_SUBJECT_TABS.map((tab) => (
+          {value && (
             <button
-              key={tab.id}
+              onClick={() => { onChange(""); setOpen(false); }}
+              className="w-full text-left px-3.5 py-2 text-sm text-text-muted hover:bg-surface-50 border-b border-surface-100 mb-1"
+            >
+              Bỏ chọn
+            </button>
+          )}
+          {options.map((opt) => (
+            <button
+              key={opt.id}
               role="option"
-              aria-selected={activeSubject === tab.id}
-              onClick={() => handleSelect(tab.id)}
+              aria-selected={value === opt.id}
+              onClick={() => { onChange(opt.id); setOpen(false); }}
               className={clsx(
                 "w-full text-left px-3.5 py-2 text-sm transition-colors",
-                activeSubject === tab.id
+                value === opt.id
                   ? "text-primary font-semibold bg-primary/5"
                   : "text-text-secondary hover:bg-surface-50 hover:text-text-primary",
               )}
             >
-              {tab.label}
+              {opt.label}
             </button>
           ))}
         </div>

@@ -1,39 +1,60 @@
-import { FileText, Users, Download } from "lucide-react";
-import type { Document, FeaturedDoc, Stat } from "./types";
+export const LEVEL_TABS = [
+  { id: "all", label: "Tất cả" },
+  { id: "thpt", label: "Trung học" },
+  { id: "university", label: "Cao đẳng / ĐH" },
+  { id: "other", label: "Khác" },
+];
 
-export const PRIMARY_SUBJECT_TABS = [
-  { id: "all",         label: "Tất cả" },
-  { id: "math",        label: "Toán" },
-  { id: "physics",     label: "Vật Lý" },
-  { id: "chemistry",   label: "Hóa học" },
-  { id: "english",     label: "Tiếng Anh" },
-  { id: "coding",      label: "Lập trình" },
-  { id: "economics",   label: "Kinh tế" },
+export const THPT_GRADES = [
+  { id: "6", label: "Lớp 6" },
+  { id: "7", label: "Lớp 7" },
+  { id: "8", label: "Lớp 8" },
+  { id: "9", label: "Lớp 9" },
+  { id: "10", label: "Lớp 10" },
+  { id: "11", label: "Lớp 11" },
+  { id: "12", label: "Lớp 12" },
 ];
-export const SECONDARY_SUBJECT_TABS = [
-  { id: "biology",     label: "Sinh học" },
-  { id: "literature",  label: "Ngữ văn" },
-  { id: "history",     label: "Lịch sử" },
-  { id: "geography",   label: "Địa lý" },
-  { id: "marketing",     label: "Marketing" },
-  { id: "design",      label: "Thiết kế" },
-  { id: "ielts",   label: "IELTS" },
-  { id: "soft-skills",   label: "Kỹ năng mềm" },
-  { id: "business",   label: "Quản trị" },
-  { id: "university",   label: "Đại học" },
+
+export const THPT_SUBJECTS = [
+  { id: "math", label: "Toán" },
+  { id: "literature", label: "Ngữ văn" },
+  { id: "english", label: "Tiếng Anh" },
+  { id: "physics", label: "Vật lý" },
+  { id: "chemistry", label: "Hóa học" },
+  { id: "biology", label: "Sinh học" },
+  { id: "history", label: "Lịch sử" },
+  { id: "geography", label: "Địa lý" },
+  { id: "informatics", label: "Tin học" },
+  { id: "technology", label: "Công nghệ" },
+  { id: "civics", label: "Giáo dục công dân" },
+  { id: "economics", label: "Giáo dục kinh tế và pháp luật" },
 ];
-export const ALL_SUBJECT_TABS = [
-  ...PRIMARY_SUBJECT_TABS,
-  ...SECONDARY_SUBJECT_TABS,
+
+export const UNIVERSITY_MAJORS = [
+  { id: "it", label: "CNTT & Máy tính" },
+  { id: "engineering", label: "Kỹ thuật" },
+  { id: "business", label: "Kinh doanh" },
+  { id: "economics", label: "Kinh tế" },
+  { id: "finance", label: "Tài chính" },
+  { id: "law", label: "Luật" },
+  { id: "education", label: "Sư phạm" },
+  { id: "medicine", label: "Y Dược" },
+  { id: "languages", label: "Ngôn ngữ" },
+  { id: "social", label: "Khoa học xã hội" },
+  { id: "media", label: "Truyền thông" },
+  { id: "tourism", label: "Du lịch" },
+  { id: "agriculture", label: "Nông nghiệp" },
+  { id: "architecture", label: "Kiến trúc" },
+  { id: "arts", label: "Thiết kế" },
 ];
 
 export const TYPE_TABS = ["Tất cả", "PDF", "DOCX", "PPTX"];
 
 export const SORT_OPTIONS: { key: import("./types").SortKey; label: string }[] = [
   { key: "newest",         label: "Mới nhất" },
-  { key: "mostDownloaded", label: "Nhiều tải nhất" },
-  { key: "oldest",         label: "Cũ nhất" },
-  { key: "saved", label: "Đã lưu" },
+  { key: "mostDownloaded", label: "Tải nhiều nhất" },
+  { key: "az",             label: "A-Z" },
+  { key: "saved",          label: "Đã lưu" },
 ];
 
 export const FILE_TYPE_COLORS: Record<string, string> = {
@@ -41,78 +62,3 @@ export const FILE_TYPE_COLORS: Record<string, string> = {
   DOCX: "bg-blue-600",
   PPTX: "bg-orange-500",
 };
-
-export const DOCUMENTS: Document[] = [
-  {
-    id: 1,
-    title: "Đề cương Giải Tích 1 chi tiết",
-    type: "PDF", subject: "Toán", subjectId: "math",
-    author: { name: "Trần Quỳnh Anh", initials: "QA", color: "bg-purple-500" },
-    date: "12/10/2023", downloads: "2.4k", downloadsNum: 2400,
-  },
-  {
-    id: 2,
-    title: "Tổng hợp đề thi Hóa hữu cơ 2020–2023",
-    type: "PDF", subject: "Hóa học", subjectId: "chemistry",
-    author: { name: "Nguyễn Văn An", initials: "NA", color: "bg-primary" },
-    date: "05/11/2023", downloads: "1.8k", downloadsNum: 1800,
-  },
-  {
-    id: 3,
-    title: "Slide Kinh tế vĩ mô – Full chương",
-    type: "PPTX", subject: "Kinh tế", subjectId: "economics",
-    author: { name: "Lê Minh Tuấn", initials: "MT", color: "bg-green-500" },
-    date: "20/09/2023", downloads: "956", downloadsNum: 956,
-  },
-  {
-    id: 4,
-    title: "Giáo trình Lập trình C++ cơ bản",
-    type: "DOCX", subject: "Lập trình", subjectId: "coding",
-    author: { name: "Phạm Thu Hà", initials: "TH", color: "bg-orange-500" },
-    date: "15/08/2023", downloads: "1.2k", downloadsNum: 1200,
-  },
-  {
-    id: 5,
-    title: "Bí kíp IELTS Writing Task 2",
-    type: "PDF", subject: "Tiếng Anh", subjectId: "english",
-    author: { name: "Hoàng Anh Tú", initials: "AT", color: "bg-teal-500" },
-    date: "02/11/2023", downloads: "3.1k", downloadsNum: 3100,
-  },
-  {
-    id: 6,
-    title: "Tóm tắt công thức Vật Lý 12",
-    type: "PDF", subject: "Vật Lý", subjectId: "physics",
-    author: { name: "Mai Lan Anh", initials: "LA", color: "bg-pink-500" },
-    date: "28/10/2023", downloads: "2.7k", downloadsNum: 2700,
-  },
-];
-
-export const FEATURED_DOCS: FeaturedDoc[] = [
-  { id: 1, title: "Bí kíp 8.0+ IELTS Reading",      type: "PDF",  downloads: "2.4k", color: "bg-red-500" },
-  { id: 2, title: "Tóm tắt công thức Vật Lý 12",    type: "PDF",  downloads: "1.8k", color: "bg-red-500" },
-  { id: 3, title: "Slide thuyết trình Kỹ năng mềm", type: "PPTX", downloads: "956",  color: "bg-orange-500" },
-];
-
-export const STATS: (Stat & {
-  icon: React.ElementType;
-  iconClass: string;
-})[] = [
-  {
-    value: "12,540",
-    label: "tài liệu",
-    icon: FileText,
-    iconClass: "text-red-600 bg-red-50",
-  },
-  {
-    value: "8,200",
-    label: "người đóng góp",
-    icon: Users,
-    iconClass: "text-primary bg-primary-50",
-  },
-  {
-    value: "2.4M",
-    label: "lượt tải",
-    icon: Download,
-    iconClass: "text-green-600 bg-green-50",
-  },
-];

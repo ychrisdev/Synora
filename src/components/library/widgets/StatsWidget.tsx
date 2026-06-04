@@ -1,30 +1,73 @@
-import clsx from "clsx";
-import { STATS } from "@/lib/library/data";
+"use client";
 
-export default function StatsWidget() {
+import { useEffect, useState } from "react";
+import { FileText, Users, Download } from "lucide-react";
+import clsx from "clsx";
+import type { LibraryStats } from "@/lib/library/types";
+
+interface StatsWidgetProps {
+  refreshKey?: number;
+}
+
+const ICONS = [
+  {
+    key: "totalDocuments",
+    label: "tài liệu",
+    icon: FileText,
+    iconClass: "text-red-600 bg-red-50",
+  },
+  {
+    key: "totalContributors",
+    label: "người đóng góp",
+    icon: Users,
+    iconClass: "text-primary bg-primary-50",
+  },
+  {
+    key: "totalDownloads",
+    label: "lượt tải",
+    icon: Download,
+    iconClass: "text-green-600 bg-green-50",
+  },
+];
+
+function fmt(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+export default function StatsWidget({ refreshKey = 0 }: StatsWidgetProps) {
+  const [stats, setStats] = useState<LibraryStats | null>(null);
+
+  useEffect(() => {
+    fetch("/api/library/stats", {
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
+      .then((r) => r.json())
+      .then(setStats);
+  }, [refreshKey]);
+
   return (
     <div className="bg-white rounded-xl border border-surface-200 shadow-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-text-primary">
-          Thống kê thư viện
-        </h3>
-      </div>
+      <h3 className="text-sm font-semibold text-text-primary mb-3">
+        Thống kê thư viện
+      </h3>
       <div className="flex flex-col gap-2.5">
-        {STATS.map((s) => (
-          <div key={s.label} className="flex items-center gap-3">
+        {ICONS.map(({ key, label, icon: Icon, iconClass }) => (
+          <div key={key} className="flex items-center gap-3">
             <div
               className={clsx(
                 "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
-                s.iconClass,
+                iconClass,
               )}
             >
-              <s.icon size={13} />
+              <Icon size={13} />
             </div>
             <div>
               <p className="text-sm font-bold text-text-primary leading-tight">
-                {s.value}
+                {stats ? fmt((stats as any)[key]) : "—"}
               </p>
-              <p className="text-[11px] text-text-muted">{s.label}</p>
+              <p className="text-[11px] text-text-muted">{label}</p>
             </div>
           </div>
         ))}

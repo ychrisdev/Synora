@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Upload, FileText, CheckCircle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import { ALL_SUBJECT_TABS } from "@/lib/library/data";
+import { useUploadThing } from "@/lib/uploadthing";
+import { THPT_GRADES, THPT_SUBJECTS, LEVEL_TABS } from "@/lib/library/data";
 
 const ACCEPTED_TYPES = ".pdf,.docx,.pptx";
 const ACCEPTED_MIME = [
@@ -19,34 +20,31 @@ const FILE_LABELS: Record<string, string> = {
     "PPTX",
 };
 
-interface UploadDocumentModalProps {
+interface Props {
   onClose: () => void;
-  onSuccess: (doc: {
-    title: string;
-    subject: string;
-    subjectId: string;
-    type: string;
-  }) => void;
+  onSuccess: () => void;
 }
 
-type UploadState = "idle" | "loading" | "success";
+type UploadState = "idle" | "uploading" | "saving" | "success" | "error";
 
-export default function UploadDocumentModal({
-  onClose,
-  onSuccess,
-}: UploadDocumentModalProps) {
+export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
   const [title, setTitle] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const subjects = ALL_SUBJECT_TABS.filter((s) => s.id !== "all");
   const [description, setDescription] = useState("");
+  const [level, setLevel] = useState("");
+  const [grade, setGrade] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [major, setMajor] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errorMsg, setErrorMsg] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const { startUpload } = useUploadThing("postDocument");
 
   useEffect(() => {
     firstFieldRef.current?.focus();
@@ -67,8 +65,8 @@ export default function UploadDocumentModal({
         const focusable = modalRef.current.querySelectorAll<HTMLElement>(
           'button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
+        const first = focusable[0],
+          last = focusable[focusable.length - 1];
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();
@@ -95,43 +93,68 @@ export default function UploadDocumentModal({
     });
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
-  };
-
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (!title.trim()) e.title = "Vui lòng nhập tiêu đề";
+  const e: Record<string, string> = {};
+  if (!title.trim()) e.title = "Vui lòng nhập tiêu đề";
+  if (!file)         e.file  = "Vui lòng chọn file";
+  if (!level)        e.level = "Vui lòng chọn cấp học";
+  
+  if (level === "thpt") {
+    if (!grade)     e.grade   = "Vui lòng chọn lớp";
     if (!subjectId) e.subject = "Vui lòng chọn môn học";
-    if (!file) e.file = "Vui lòng chọn file";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+  }
+  
+  if (level === "university" && !major) {
+    e.major = "Vui lòng chọn khối ngành";
+  }
+  
+  setErrors(e);
+  return Object.keys(e).length === 0;
+};
 
-  const handleSubmit = () => {
-    if (!validate()) return;
-    setUploadState("loading");
-    setTimeout(() => {
-      setUploadState("success");
+  const handleSubmit = async () => {
+    if (!validate() || !file) return;
+    setUploadState("uploading");
+    setErrorMsg("");
 
-      const subjectLabel =
-        ALL_SUBJECT_TABS.find((s) => s.id === subjectId)?.label ?? subjectId;
+    try {
+      const uploaded = await startUpload([file]);
+      if (!uploaded?.[0]) throw new Error("Upload thất bại");
 
-      onSuccess({
-        title: title.trim(),
-        subject: subjectLabel,
-        subjectId,
-        type: FILE_LABELS[file!.type] ?? "PDF",
+      setUploadState("saving");
+      const { ufsUrl, key } = uploaded[0] as any;
+
+      const subjectLabel = THPT_SUBJECTS.find((s) => s.id === subjectId)?.label;
+
+      const res = await fetch("/api/library/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          fileUrl: ufsUrl,
+          fileKey: key,
+          fileSize: file.size,
+          mimeType: file.type,
+          level: level || undefined,
+          grade: grade || undefined,
+          subjectId: subjectId || undefined,
+          subject: subjectLabel || undefined,
+          major: major || undefined,
+        }),
       });
-    }, 1600);
+
+      if (!res.ok) throw new Error("Lưu tài liệu thất bại");
+
+      setUploadState("success");
+      setTimeout(onSuccess, 1800);
+    } catch (err: any) {
+      setUploadState("error");
+      setErrorMsg(err.message ?? "Có lỗi xảy ra, vui lòng thử lại");
+    }
   };
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose();
-  };
+  const levelOptions = LEVEL_TABS.filter((l) => l.id !== "all");
 
   return (
     <div
@@ -139,18 +162,18 @@ export default function UploadDocumentModal({
       aria-modal="true"
       aria-label="Tải lên tài liệu"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 sm:p-6"
-      onClick={handleBackdropClick}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         ref={modalRef}
         className="relative flex flex-col bg-white shadow-2xl w-full max-w-lg rounded-2xl animate-in fade-in zoom-in-95 duration-200 max-sm:fixed max-sm:inset-0 max-sm:max-w-none max-sm:rounded-none overflow-hidden"
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-sm font-semibold text-text-primary">
-              Tải lên tài liệu
-            </h2>
-          </div>
+          <h2 className="text-sm font-semibold text-text-primary">
+            Tải lên tài liệu
+          </h2>
           <button
             onClick={onClose}
             aria-label="Đóng"
@@ -203,7 +226,7 @@ export default function UploadDocumentModal({
                   className={clsx(
                     "w-full px-3 py-2.5 bg-white border rounded-xl text-sm placeholder:text-text-muted focus:outline-none transition-colors",
                     errors.title
-                      ? "border-red-400 focus:border-red-400"
+                      ? "border-red-400"
                       : "border-surface-200 focus:border-primary",
                   )}
                 />
@@ -214,33 +237,23 @@ export default function UploadDocumentModal({
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-text-primary">
-                  Môn học <span className="text-red-500">*</span>
+                  Cấp học
                 </label>
                 <div className="relative">
                   <select
-                    value={subjectId}
+                    value={level}
                     onChange={(e) => {
-                      setSubjectId(e.target.value);
-                      setErrors((p) => {
-                        const n = { ...p };
-                        delete n.subject;
-                        return n;
-                      });
+                      setLevel(e.target.value);
+                      setGrade("");
+                      setSubjectId("");
+                      setMajor("");
                     }}
-                    className={clsx(
-                      "w-full px-3 py-2.5 bg-white border text-text-primary rounded-xl text-sm appearance-none focus:outline-none transition-colors",
-                      subjectId ? "text-text-primary" : "text-text-muted",
-                      errors.subject
-                        ? "border-red-400 focus:border-red-400"
-                        : "border-surface-200 focus:border-primary",
-                    )}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary transition-colors"
                   >
-                    <option value="" disabled>
-                      Chọn môn học...
-                    </option>
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
+                    <option value="">Chọn cấp học...</option>
+                    {levelOptions.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.label}
                       </option>
                     ))}
                   </select>
@@ -249,10 +262,106 @@ export default function UploadDocumentModal({
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                   />
                 </div>
-                {errors.subject && (
-                  <p className="text-[11px] text-red-500">{errors.subject}</p>
-                )}
+                  {errors.level && <p className="text-[11px] text-red-500">{errors.level}</p>}
               </div>
+
+              {level === "thpt" && (
+                <div className="flex gap-3">
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-text-primary">
+                      Lớp
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={grade}
+                        onChange={(e) => setGrade(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
+                      >
+                        <option value="">Chọn lớp...</option>
+                        {THPT_GRADES.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={14}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                      />
+                    </div>
+                      {errors.grade && <p className="text-[11px] text-red-500">{errors.grade}</p>}
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-text-primary">
+                      Môn học
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={subjectId}
+                        onChange={(e) => setSubjectId(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
+                      >
+                        <option value="">Chọn môn...</option>
+                        {THPT_SUBJECTS.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={14}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                      />
+                    </div>
+                      {errors.subject && <p className="text-[11px] text-red-500">{errors.subject}</p>}
+                  </div>
+                </div>
+              )}
+
+              {level === "university" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-text-primary">
+                    Khối ngành
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={major}
+                      onChange={(e) => setMajor(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
+                    >
+                      <option value="">Chọn khối ngành...</option>
+                      {[
+                        { id: "it", label: "Công nghệ thông tin & Máy tính" },
+                        {
+                          id: "business",
+                          label: "Kinh tế, Kinh doanh & Quản lý",
+                        },
+                        {
+                          id: "engineering",
+                          label: "Kỹ thuật & Công nghệ sản xuất",
+                        },
+                        {
+                          id: "languages",
+                          label: "Ngôn ngữ & Văn hóa nước ngoài",
+                        },
+                        { id: "social", label: "Khoa học Xã hội & Nhân văn" },
+                        { id: "medicine", label: "Y Dược & Khoa học Sức khỏe" },
+                        { id: "education", label: "Sư phạm & Giáo dục" },
+                        { id: "law", label: "Pháp luật / Luật học" },
+                      ].map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                    />
+                  </div>
+                    {errors.major && <p className="text-[11px] text-red-500">{errors.major}</p>}
+                </div>
+              )}
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-text-primary">
@@ -268,7 +377,12 @@ export default function UploadDocumentModal({
                     setDragOver(true);
                   }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleFile(f);
+                  }}
                   className={clsx(
                     "flex flex-col items-center justify-center gap-2 py-7 px-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors",
                     dragOver
@@ -337,30 +451,40 @@ export default function UploadDocumentModal({
                   className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm placeholder:text-text-muted focus:outline-none focus:border-primary transition-colors resize-none"
                 />
               </div>
+
+              {errorMsg && (
+                <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">
+                  {errorMsg}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-200 shrink-0">
               <button
                 onClick={onClose}
-                disabled={uploadState === "loading"}
-                className="px-4 py-2 text-sm font-semibold text-text-secondary border border-surface-200 rounded-xl hover:border-surface-300 hover:text-text-primary transition-colors disabled:opacity-50"
+                disabled={uploadState !== "idle"}
+                className="px-4 py-2 text-sm font-semibold text-text-secondary border border-surface-200 rounded-xl hover:border-surface-300 transition-colors disabled:opacity-50"
               >
                 Hủy
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={uploadState === "loading"}
+                disabled={uploadState !== "idle"}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-70"
               >
-                {uploadState === "loading" ? (
+                {uploadState === "uploading" ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
                     Đang tải lên...
+                  </>
+                ) : uploadState === "saving" ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                    Đang lưu...
                   </>
                 ) : (
                   <>
-                    <Upload size={13} />
-                    Tải lên
+                    <Upload size={13} /> Tải lên
                   </>
                 )}
               </button>
