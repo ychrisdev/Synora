@@ -4,8 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { X, Upload, FileText, CheckCircle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { useUploadThing } from "@/lib/uploadthing";
-import { THPT_GRADES, THPT_SUBJECTS, LEVEL_TABS } from "@/lib/library/data";
-
+import {
+  ACADEMIC_GRADES,
+  ACADEMIC_SUBJECTS,
+  LEVEL_TABS,
+  UNIVERSITY_MAJORS,
+} from "@/lib/library/data";
 const ACCEPTED_TYPES = ".pdf,.docx,.pptx";
 const ACCEPTED_MIME = [
   "application/pdf",
@@ -26,6 +30,19 @@ interface Props {
 }
 
 type UploadState = "idle" | "uploading" | "saving" | "success" | "error";
+
+const THPT_ONLY = ["economics"];
+const THCS_ONLY = ["civics"];
+
+function getFilteredSubjects(grade: string) {
+  const isThcs = ["6", "7", "8", "9"].includes(grade);
+  const isThpt = ["10", "11", "12"].includes(grade);
+  return ACADEMIC_SUBJECTS.filter((s) => {
+    if (THPT_ONLY.includes(s.id)) return isThpt || !grade;
+    if (THCS_ONLY.includes(s.id)) return isThcs || !grade;
+    return true;
+  });
+}
 
 export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
   const [title, setTitle] = useState("");
@@ -94,23 +111,23 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
   };
 
   const validate = () => {
-  const e: Record<string, string> = {};
-  if (!title.trim()) e.title = "Vui lòng nhập tiêu đề";
-  if (!file)         e.file  = "Vui lòng chọn file";
-  if (!level)        e.level = "Vui lòng chọn cấp học";
-  
-  if (level === "thpt") {
-    if (!grade)     e.grade   = "Vui lòng chọn lớp";
-    if (!subjectId) e.subject = "Vui lòng chọn môn học";
-  }
-  
-  if (level === "university" && !major) {
-    e.major = "Vui lòng chọn khối ngành";
-  }
-  
-  setErrors(e);
-  return Object.keys(e).length === 0;
-};
+    const e: Record<string, string> = {};
+    if (!title.trim()) e.title = "Vui lòng nhập tiêu đề";
+    if (!file) e.file = "Vui lòng chọn file";
+    if (!level) e.level = "Vui lòng chọn cấp học";
+
+    if (level === "academic") {
+      if (!grade) e.grade = "Vui lòng chọn lớp";
+      if (!subjectId) e.subject = "Vui lòng chọn môn học";
+    }
+
+    if (level === "university" && !major) {
+      e.major = "Vui lòng chọn khối ngành";
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleSubmit = async () => {
     if (!validate() || !file) return;
@@ -124,7 +141,9 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
       setUploadState("saving");
       const { ufsUrl, key } = uploaded[0] as any;
 
-      const subjectLabel = THPT_SUBJECTS.find((s) => s.id === subjectId)?.label;
+      const subjectLabel = ACADEMIC_SUBJECTS.find(
+        (s) => s.id === subjectId,
+      )?.label;
 
       const res = await fetch("/api/library/documents", {
         method: "POST",
@@ -262,10 +281,12 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                   />
                 </div>
-                  {errors.level && <p className="text-[11px] text-red-500">{errors.level}</p>}
+                {errors.level && (
+                  <p className="text-[11px] text-red-500">{errors.level}</p>
+                )}
               </div>
 
-              {level === "thpt" && (
+              {level === "academic" && (
                 <div className="flex gap-3">
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-text-primary">
@@ -274,11 +295,21 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                     <div className="relative">
                       <select
                         value={grade}
-                        onChange={(e) => setGrade(e.target.value)}
+                        onChange={(e) => {
+                          const newGrade = e.target.value;
+                          setGrade(newGrade);
+                          const filtered = getFilteredSubjects(newGrade);
+                          if (
+                            subjectId &&
+                            !filtered.find((s) => s.id === subjectId)
+                          ) {
+                            setSubjectId("");
+                          }
+                        }}
                         className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
                       >
                         <option value="">Chọn lớp...</option>
-                        {THPT_GRADES.map((g) => (
+                        {ACADEMIC_GRADES.map((g) => (
                           <option key={g.id} value={g.id}>
                             {g.label}
                           </option>
@@ -289,7 +320,9 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                       />
                     </div>
-                      {errors.grade && <p className="text-[11px] text-red-500">{errors.grade}</p>}
+                    {errors.grade && (
+                      <p className="text-[11px] text-red-500">{errors.grade}</p>
+                    )}
                   </div>
                   <div className="flex-1 flex flex-col gap-1.5">
                     <label className="text-xs font-semibold text-text-primary">
@@ -302,7 +335,7 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                         className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
                       >
                         <option value="">Chọn môn...</option>
-                        {THPT_SUBJECTS.map((s) => (
+                        {getFilteredSubjects(grade).map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.label}
                           </option>
@@ -313,7 +346,11 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                       />
                     </div>
-                      {errors.subject && <p className="text-[11px] text-red-500">{errors.subject}</p>}
+                    {errors.subject && (
+                      <p className="text-[11px] text-red-500">
+                        {errors.subject}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -330,25 +367,7 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                       className="w-full px-3 py-2.5 bg-white border border-surface-200 rounded-xl text-sm appearance-none focus:outline-none focus:border-primary"
                     >
                       <option value="">Chọn khối ngành...</option>
-                      {[
-                        { id: "it", label: "Công nghệ thông tin & Máy tính" },
-                        {
-                          id: "business",
-                          label: "Kinh tế, Kinh doanh & Quản lý",
-                        },
-                        {
-                          id: "engineering",
-                          label: "Kỹ thuật & Công nghệ sản xuất",
-                        },
-                        {
-                          id: "languages",
-                          label: "Ngôn ngữ & Văn hóa nước ngoài",
-                        },
-                        { id: "social", label: "Khoa học Xã hội & Nhân văn" },
-                        { id: "medicine", label: "Y Dược & Khoa học Sức khỏe" },
-                        { id: "education", label: "Sư phạm & Giáo dục" },
-                        { id: "law", label: "Pháp luật / Luật học" },
-                      ].map((m) => (
+                      {UNIVERSITY_MAJORS.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.label}
                         </option>
@@ -359,7 +378,9 @@ export default function UploadDocumentModal({ onClose, onSuccess }: Props) {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
                     />
                   </div>
-                    {errors.major && <p className="text-[11px] text-red-500">{errors.major}</p>}
+                  {errors.major && (
+                    <p className="text-[11px] text-red-500">{errors.major}</p>
+                  )}
                 </div>
               )}
 

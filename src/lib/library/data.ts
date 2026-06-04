@@ -1,11 +1,11 @@
 export const LEVEL_TABS = [
   { id: "all", label: "Tất cả" },
-  { id: "thpt", label: "Trung học" },
+  { id: "academic", label: "Trung học" },
   { id: "university", label: "Cao đẳng / ĐH" },
   { id: "other", label: "Khác" },
 ];
 
-export const THPT_GRADES = [
+export const ACADEMIC_GRADES = [
   { id: "6", label: "Lớp 6" },
   { id: "7", label: "Lớp 7" },
   { id: "8", label: "Lớp 8" },
@@ -15,7 +15,7 @@ export const THPT_GRADES = [
   { id: "12", label: "Lớp 12" },
 ];
 
-export const THPT_SUBJECTS = [
+export const ACADEMIC_SUBJECTS = [
   { id: "math", label: "Toán" },
   { id: "literature", label: "Ngữ văn" },
   { id: "english", label: "Tiếng Anh" },
@@ -53,7 +53,7 @@ export const TYPE_TABS = ["Tất cả", "PDF", "DOCX", "PPTX"];
 export const SORT_OPTIONS: { key: import("./types").SortKey; label: string }[] = [
   { key: "newest",         label: "Mới nhất" },
   { key: "mostDownloaded", label: "Tải nhiều nhất" },
-  { key: "az",             label: "A-Z" },
+  { key: "mine",           label: "Của tôi" },
   { key: "saved",          label: "Đã lưu" },
 ];
 

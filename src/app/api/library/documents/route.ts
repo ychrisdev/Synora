@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get("sort") ?? "newest";
   const query = searchParams.get("query") ?? "";
   const cursor = searchParams.get("cursor");
+  const mineOnly = searchParams.get("mine") === "1";
   const savedOnly = searchParams.get("saved") === "1";
   const take = 12;
 
@@ -47,20 +48,38 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    if (savedOnly && session?.user?.id) {
-      where.savedBy = { some: { userId: session.user.id } };
+    if (mineOnly && session?.user?.id) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            ...(session.user.id ? [{ id: session.user.id }] : []),
+            ...(session.user.email ? [{ email: session.user.email }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (user) where.uploaderId = user.id;
+    }
+
+    if (savedOnly && (session?.user?.id || session?.user?.email)) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            ...(session.user.id ? [{ id: session.user.id }] : []),
+            ...(session.user.email ? [{ email: session.user.email }] : []),
+          ],
+        },
+        select: { id: true },
+      });
+      if (user) where.savedBy = { some: { userId: user.id } };
     }
 
     const orderBy: any =
       sort === "mostDownloaded"
         ? { downloadCount: "desc" }
-        : sort === "az"
-          ? { title: "asc" }
-          : sort === "za"
-            ? { title: "desc" }
-            : sort === "newest"
-              ? { createdAt: "desc" }
-              : { createdAt: "desc" };
+        : sort === "newest"
+          ? { createdAt: "desc" }
+          : { createdAt: "desc" };
 
     const docs = await prisma.document.findMany({
       where,

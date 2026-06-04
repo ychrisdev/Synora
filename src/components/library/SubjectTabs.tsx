@@ -1,27 +1,52 @@
 "use client";
 
 import clsx from "clsx";
-import { LEVEL_TABS, THPT_GRADES, THPT_SUBJECTS, UNIVERSITY_MAJORS } from "@/lib/library/data";
+import {
+  LEVEL_TABS,
+  ACADEMIC_GRADES,
+  ACADEMIC_SUBJECTS,
+  UNIVERSITY_MAJORS,
+} from "@/lib/library/data";
 import type { LevelKey } from "@/lib/library/types";
 import SubjectDropdown from "./SubjectDropdown";
 
 interface LevelFilterBarProps {
-  activeLevel:    LevelKey;
-  onLevelChange:  (v: LevelKey) => void;
-  activeGrade:    string;
-  onGradeChange:  (v: string) => void;
-  activeSubject:  string;
-  onSubjectChange:(v: string) => void;
-  activeMajor:    string;
-  onMajorChange:  (v: string) => void;
+  activeLevel: LevelKey;
+  onLevelChange: (v: LevelKey) => void;
+  activeGrade: string;
+  onGradeChange: (v: string) => void;
+  activeSubject: string;
+  onSubjectChange: (v: string) => void;
+  activeMajor: string;
+  onMajorChange: (v: string) => void;
+}
+
+const THPT_ONLY_SUBJECTS = ["economics"];
+const THCS_ONLY_SUBJECTS = ["civics"];
+
+function getFilteredSubjects(grade: string) {
+  const isThcs = ["6", "7", "8", "9"].includes(grade);
+  const isThpt = ["10", "11", "12"].includes(grade);
+
+  return ACADEMIC_SUBJECTS.filter((s) => {
+    if (THPT_ONLY_SUBJECTS.includes(s.id)) return isThpt || !grade;
+    if (THCS_ONLY_SUBJECTS.includes(s.id)) return isThcs || !grade;
+    return true;
+  });
 }
 
 export default function LevelFilterBar({
-  activeLevel, onLevelChange,
-  activeGrade, onGradeChange,
-  activeSubject, onSubjectChange,
-  activeMajor, onMajorChange,
+  activeLevel,
+  onLevelChange,
+  activeGrade,
+  onGradeChange,
+  activeSubject,
+  onSubjectChange,
+  activeMajor,
+  onMajorChange,
 }: LevelFilterBarProps) {
+  const filteredSubjects = getFilteredSubjects(activeGrade);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -41,17 +66,26 @@ export default function LevelFilterBar({
         ))}
       </div>
 
-      {activeLevel === "thpt" && (
+      {activeLevel === "academic" && (
         <div className="flex items-center gap-2 flex-wrap">
           <SubjectDropdown
             label="Chọn lớp"
-            options={THPT_GRADES}
+            options={ACADEMIC_GRADES}
             value={activeGrade}
-            onChange={onGradeChange}
+            onChange={(v) => {
+              onGradeChange(v);
+              const newFiltered = getFilteredSubjects(v);
+              if (
+                activeSubject &&
+                !newFiltered.find((s) => s.id === activeSubject)
+              ) {
+                onSubjectChange("");
+              }
+            }}
           />
           <SubjectDropdown
             label="Chọn môn"
-            options={THPT_SUBJECTS}
+            options={filteredSubjects}
             value={activeSubject}
             onChange={onSubjectChange}
           />

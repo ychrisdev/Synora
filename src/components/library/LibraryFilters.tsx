@@ -47,7 +47,7 @@ export default function LibraryFilters({
 }: LibraryFiltersProps) {
   const visibleSortOptions = isLoggedIn
     ? SORT_OPTIONS
-    : SORT_OPTIONS.filter((o) => o.key !== "saved");
+    : SORT_OPTIONS.filter((o) => o.key !== "saved" && o.key !== "mine");
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,35 +115,21 @@ export default function LibraryFilters({
         </div>
 
         <div className="flex items-center gap-1 shrink-0 bg-surface-100 rounded-lg p-0.5">
-          {visibleSortOptions.map((opt) => {
-            const isAZ = opt.key === "az";
-            const isActive =
-              activeSort === opt.key || (isAZ && activeSort === "za");
-            const displayLabel =
-              isAZ && activeSort === "za" ? "Z-A" : opt.label;
-
-            return (
-              <button
-                key={opt.key}
-                onClick={() => {
-                  if (isAZ) {
-                    setActiveSort(activeSort === "az" ? "za" : "az");
-                  } else {
-                    setActiveSort(opt.key);
-                  }
-                }}
-                className={clsx(
-                  "px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
-                  isActive
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-text-muted hover:text-text-secondary",
-                )}
-              >
-                {displayLabel}
-                {opt.key === "saved" && savedCount > 0 && ` (${savedCount})`}
-              </button>
-            );
-          })}
+          {visibleSortOptions.map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setActiveSort(opt.key)}
+              className={clsx(
+                "px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap",
+                activeSort === opt.key
+                  ? "bg-white text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary",
+              )}
+            >
+              {opt.label}
+              {opt.key === "saved" && savedCount > 0 && ` (${savedCount})`}
+            </button>
+          ))}
         </div>
       </div>
     </div>

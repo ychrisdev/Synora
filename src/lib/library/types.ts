@@ -1,5 +1,5 @@
-export type SortKey = "newest" | "mostDownloaded" | "az" | "za" | "saved";
-export type LevelKey = "all" | "thpt" | "university" | "other";
+export type SortKey = "newest" | "mostDownloaded" | "mine" | "saved";
+export type LevelKey = "all" | "academic" | "university" | "other";
 
 export interface Document {
   id: string;

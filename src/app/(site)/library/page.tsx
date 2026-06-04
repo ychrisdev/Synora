@@ -52,11 +52,12 @@ export default function LibraryPage() {
     if (activeType !== "Tất cả") p.set("type", activeType);
     if (debouncedQuery) p.set("query", debouncedQuery);
     if (activeSort === "saved") p.set("saved", "1");
+    else if (activeSort === "mine") p.set("mine", "1");
     else p.set("sort", activeSort);
 
     fetch(`/api/library/documents?${p.toString()}`, {
-  headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
-})
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -93,12 +94,16 @@ export default function LibraryPage() {
     if (activeType !== "Tất cả") p.set("type", activeType);
     if (debouncedQuery) p.set("query", debouncedQuery);
     if (activeSort === "saved") p.set("saved", "1");
+    else if (activeSort === "mine") p.set("mine", "1");
     else p.set("sort", activeSort);
 
     try {
-      const res = await fetch(`/api/library/documents?${p.toString()}&cursor=${cursor}`, {
-  headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" }
-});
+      const res = await fetch(
+        `/api/library/documents?${p.toString()}&cursor=${cursor}`,
+        {
+          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+        },
+      );
       const data = await res.json();
       const newDocs: LibraryDocument[] = data.docs ?? [];
       setDocs((prev) => [...prev, ...newDocs]);
