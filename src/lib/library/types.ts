@@ -16,6 +16,7 @@ export interface Document {
   fileSize: number;
   downloadCount: number;
   uploader: {
+    id: string;
     username: string;
     profile: { displayName?: string | null; avatarUrl?: string | null } | null;
   };

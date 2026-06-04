@@ -8,10 +8,12 @@ import {
   Bookmark,
   Flag,
   BookmarkCheck,
+  Pencil,
 } from "lucide-react";
 import clsx from "clsx";
 import { FILE_TYPE_COLORS } from "@/lib/library/data";
 import type { Document } from "@/lib/library/types";
+import EditDocumentModal from "@/components/library/EditDocumentModal";
 
 interface DocumentCardProps {
   doc: Document;
@@ -20,6 +22,8 @@ interface DocumentCardProps {
   onToggleSave: (id: string) => void;
   onReport: (id: string) => void;
   onDownload?: () => void;
+  currentUserId?: string;
+  onEdited?: (updated: Partial<Document>) => void;
 }
 
 function getGoogleViewerUrl(fileUrl: string) {
@@ -33,13 +37,17 @@ export default function DocumentCard({
   onToggleSave,
   onReport,
   onDownload,
+  currentUserId,
+  onEdited,
 }: DocumentCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [toast, setToast] = useState<{
     msg: string;
     type: "save" | "unsave";
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const isOwner = !!currentUserId && currentUserId === doc.uploader?.id;
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -149,6 +157,19 @@ export default function DocumentCard({
                       )}
                       {isSaved ? "Bỏ lưu" : "Lưu tài liệu"}
                     </button>
+                    {isOwner && (
+                      <>
+                        <div className="my-1 border-t border-surface-100" />
+                        <button
+                          onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-text-secondary hover:bg-surface-50 hover:text-text-primary transition-colors"
+                        >
+                          <Pencil size={14} />
+                          Chỉnh sửa
+                        </button>
+                      </>
+                    )}
+                    <div className="my-1 border-t border-surface-100" />
                     <button
                       onClick={() => {
                         onReport(doc.id);
@@ -170,7 +191,7 @@ export default function DocumentCard({
           </div>
         </div>
 
-        <div className="h-10 mb-3">
+        <div className="h-8 mb-3">
           <h3 className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
             {doc.title}
           </h3>
@@ -235,6 +256,7 @@ export default function DocumentCard({
           </div>
         </div>
       </div>
+
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
           {toast.type === "save" ? (
@@ -244,6 +266,17 @@ export default function DocumentCard({
           )}
           {toast.msg}
         </div>
+      )}
+
+      {showEditModal && (
+        <EditDocumentModal
+          doc={doc}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={(updated) => {
+            setShowEditModal(false);
+            onEdited?.(updated);
+          }}
+        />
       )}
     </>
   );

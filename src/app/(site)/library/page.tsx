@@ -121,18 +121,20 @@ export default function LibraryPage() {
   };
 
   const handleToggleSave = async (id: string) => {
-  if (!isLoggedIn) return;
-  const res = await fetch(`/api/library/documents/${id}/save`, { method: "POST" });
-  const data = await res.json();
-  setSavedIds((prev) => {
-    const next = new Set(prev);
-    data.saved ? next.add(id) : next.delete(id);
-    return next;
-  });
-  if (activeSort === "saved" && !data.saved) {
-    setDocs((prev) => prev.filter((d) => d.id !== id));
-  }
-};
+    if (!isLoggedIn) return;
+    const res = await fetch(`/api/library/documents/${id}/save`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      data.saved ? next.add(id) : next.delete(id);
+      return next;
+    });
+    if (activeSort === "saved" && !data.saved) {
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+    }
+  };
 
   const handleReport = (id: string) => {
     console.log("Report", id);
@@ -187,6 +189,14 @@ export default function LibraryPage() {
                     onToggleSave={handleToggleSave}
                     onReport={handleReport}
                     onDownload={() => setRefreshKey((k) => k + 1)}
+                    currentUserId={session?.user?.id}
+                    onEdited={(updated) => {
+                      setDocs((prev) =>
+                        prev.map((d) =>
+                          d.id === updated.id ? { ...d, ...updated } : d,
+                        ),
+                      );
+                    }}
                   />
                 ))
               ) : (
