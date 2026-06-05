@@ -101,6 +101,15 @@ export default function FeedPage() {
               url: uploadedDocs[0].url,
             }
           : attachment,
+      attachments:
+        uploadedDocs.length > 0
+          ? uploadedDocs.map((d) => ({
+              name: d.name,
+              size: "",
+              type: d.type,
+              url: d.url,
+            }))
+          : undefined,
       likes: 0,
       isLikedByMe: false,
       comments: 0,
@@ -164,6 +173,16 @@ export default function FeedPage() {
               url: fileDocs[0].fileUrl,
               docId: fileDocs[0].id,
             }
+          : undefined,
+      attachments:
+        fileDocs.length > 0
+          ? fileDocs.map((d: any) => ({
+              name: d.title,
+              size: d.fileSize ? `${(d.fileSize / 1024).toFixed(1)} KB` : "",
+              type: d.title.split(".").pop()?.toUpperCase() ?? d.type,
+              url: d.fileUrl,
+              docId: d.id,
+            }))
           : undefined,
     };
   });

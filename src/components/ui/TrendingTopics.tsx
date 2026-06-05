@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 
 interface TrendingTag {
@@ -17,12 +17,21 @@ export default function TrendingTopics({ variant = "feed" }: Props) {
   const [topics, setTopics] = useState<TrendingTag[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const refetch = useCallback(() => {
+    fetch("/api/tags/trending")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setTopics(data); });
+  }, []);
+
   useEffect(() => {
     fetch("/api/tags/trending")
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setTopics(data); })
       .finally(() => setLoading(false));
-  }, []);
+
+    window.addEventListener("tags:changed", refetch);
+    return () => window.removeEventListener("tags:changed", refetch);
+  }, [refetch]);
 
   return (
     <div className={`bg-white rounded-xl border border-surface-200 p-4 ${variant === "feed" ? "shadow-card" : ""}`}>

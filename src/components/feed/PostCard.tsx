@@ -14,6 +14,7 @@ import {
   Link as LinkIcon,
   ImageIcon,
   Video,
+  Download,
   EyeOff,
   Pencil,
   Trash2,
@@ -88,6 +89,13 @@ interface Post {
     url?: string;
     docId?: string;
   };
+  attachments?: {
+    name: string;
+    size: string;
+    type: string;
+    url?: string;
+    docId?: string;
+  }[];
   likes: number;
   isLikedByMe?: boolean;
   comments: number;
@@ -154,6 +162,10 @@ interface ExistingMedia {
   url: string;
   type: string;
   name: string;
+}
+
+function notifyTagsChanged() {
+  window.dispatchEvent(new Event("tags:changed"));
 }
 
 export function mapFilesToPostFields(
@@ -2582,6 +2594,38 @@ function AttachmentRow({
     MEDIA_IMAGE_TYPES.has(attachment.type) ||
     MEDIA_VIDEO_TYPES.has(attachment.type);
   if (isMedia) return null;
+
+  const handleDownload = async () => {
+    if (!attachment.url) return;
+    try {
+      const res = await fetch(attachment.url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = attachment.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      window.open(attachment.url, "_blank");
+    }
+  };
+
+  const handlePreview = () => {
+    if (!attachment.url) return;
+    const encoded = encodeURIComponent(attachment.url);
+    const type = attachment.type.toUpperCase();
+    let viewerUrl: string;
+    if (type === "PPTX" || type === "DOCX") {
+      viewerUrl = `https://view.officeapps.live.com/op/view.aspx?src=${encoded}`;
+    } else {
+      viewerUrl = `https://docs.google.com/viewer?url=${encoded}`;
+    }
+    window.open(viewerUrl, "_blank");
+  };
+
   return (
     <div
       className={clsx(
@@ -2605,20 +2649,24 @@ function AttachmentRow({
           <p className="text-xs text-text-secondary">{attachment.size}</p>
         </div>
       </div>
-      <a
-        href={
-          attachment.url ? getViewUrl(attachment.url, attachment.type) : "#"
-        }
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => {
-          if (!attachment.url) e.preventDefault();
-        }}
-        className="p-2 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors"
-        title="Xem trước"
-      >
-        <Eye size={16} />
-      </a>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={handlePreview}
+          disabled={!attachment.url}
+          className="flex items-center gap-1 px-2 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-40"
+        >
+          <Eye size={12} />
+          Xem trước
+        </button>
+        <button
+          onClick={handleDownload}
+          disabled={!attachment.url}
+          aria-label="Tải xuống"
+          className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors disabled:opacity-40"
+        >
+          <Download size={14} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -3116,7 +3164,7 @@ export default function PostCard({
   const [currentAttachment, setCurrentAttachment] = useState(post.attachment);
   const [currentAttachments, setCurrentAttachments] = useState<
     NonNullable<Post["attachment"]>[]
-  >(post.attachment ? [post.attachment] : []);
+  >(post.attachments ?? (post.attachment ? [post.attachment] : []));
   const [editedAt, setEditedAt] = useState(post.editedAt ?? null);
   const [currentMediaDocIds, setCurrentMediaDocIds] = useState(
     post.mediaDocIds,
@@ -3193,6 +3241,7 @@ export default function PostCard({
           }
         : undefined,
     );
+    notifyTagsChanged();
     setShowEditModal(false);
   };
 
@@ -3201,6 +3250,7 @@ export default function PostCard({
     if (res.ok) {
       setDeleted(true);
       onDeleted?.(post.id);
+      notifyTagsChanged();
     }
     setShowDeleteConfirm(false);
   };
