@@ -207,36 +207,36 @@ export function NotifRow({
   );
 }
 
-const HISTORY_KEY = "synora_search_history";
+const HISTORY_KEY = (userId: string) => `synora_search_history_${userId}`;
 const MAX_HISTORY = 10;
 
-function loadHistory(): string[] {
+function loadHistory(userId: string): string[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+    return JSON.parse(localStorage.getItem(HISTORY_KEY(userId)) ?? "[]");
   } catch {
     return [];
   }
 }
 
-function saveToHistory(query: string) {
+function saveToHistory(query: string, userId: string) {
   if (!query.trim()) return;
-  const prev = loadHistory().filter(
+  const prev = loadHistory(userId).filter(
     (h) => h.toLowerCase() !== query.toLowerCase(),
   );
   const next = [query, ...prev].slice(0, MAX_HISTORY);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  localStorage.setItem(HISTORY_KEY(userId), JSON.stringify(next));
 }
 
-function removeFromHistory(query: string) {
-  const next = loadHistory().filter(
+function removeFromHistory(query: string, userId: string) {
+  const next = loadHistory(userId).filter(
     (h) => h.toLowerCase() !== query.toLowerCase(),
   );
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  localStorage.setItem(HISTORY_KEY(userId), JSON.stringify(next));
 }
 
-function clearHistory() {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify([]));
+function clearHistory(userId: string) {
+  localStorage.setItem(HISTORY_KEY(userId), JSON.stringify([]));
 }
 
 const CATEGORY_TABS: {
@@ -395,6 +395,7 @@ export default function Navbar({
   const displayName = session?.user?.name ?? "User";
   const email = session?.user?.email ?? "";
   const avatarUrl = session?.user?.image;
+  const userId = session?.user?.id ?? "guest";
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0])
@@ -412,8 +413,8 @@ export default function Navbar({
   }, []);
 
   const refreshHistory = useCallback(() => {
-    setHistory(loadHistory());
-  }, []);
+    setHistory(loadHistory(userId));
+  }, [userId]);
 
   useEffect(() => {
     if (searchFocused) refreshHistory();
@@ -435,12 +436,12 @@ export default function Navbar({
   const doSearch = useCallback(
     (q: string) => {
       if (!q.trim()) return;
-      saveToHistory(q.trim());
+      saveToHistory(q.trim(), userId);
       setSearchFocused(false);
       setSearchQuery("");
       router.push(`/search?q=${encodeURIComponent(q.trim())}`);
     },
-    [router],
+    [router, userId],
   );
 
   const handleSearchKeyDown = useCallback(
@@ -452,17 +453,17 @@ export default function Navbar({
   );
 
   const handleRemoveHistory = (q: string) => {
-    removeFromHistory(q);
-    setHistory(loadHistory());
+    removeFromHistory(q, userId);
+    setHistory(loadHistory(userId));
   };
 
   const handleClearHistory = () => {
-    clearHistory();
+    clearHistory(userId);
     setHistory([]);
   };
 
   const handleDropdownSelect = () => {
-    if (searchQuery.trim()) saveToHistory(searchQuery.trim());
+    if (searchQuery.trim()) saveToHistory(searchQuery.trim(), userId);
     setSearchFocused(false);
     setSearchQuery("");
   };
