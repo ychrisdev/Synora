@@ -197,6 +197,10 @@ export default function LibraryPage() {
                         ),
                       );
                     }}
+                    onDeleted={(id) => {
+                      setDocs((prev) => prev.filter((d) => d.id !== id));
+                      setRefreshKey((k) => k + 1);
+                    }}
                   />
                 ))
               ) : (

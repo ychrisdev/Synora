@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
   const take = 12;
 
   try {
-    const where: any = {};
+    const where: any = {
+      postId: null,
+    };
 
     if (level && level !== "all") where.level = level;
     if (grade) where.grade = grade;

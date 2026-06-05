@@ -4,9 +4,19 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const [totalDocuments, totalContributors, downloads] = await Promise.all([
-      prisma.document.count(),
-      prisma.document.groupBy({ by: ["uploaderId"] }).then((r) => r.length),
-      prisma.document.aggregate({ _sum: { downloadCount: true } }),
+      prisma.document.count({
+        where: { postId: null },
+      }),
+      prisma.document
+        .groupBy({
+          by: ["uploaderId"],
+          where: { postId: null },
+        })
+        .then((r) => r.length),
+      prisma.document.aggregate({
+        where: { postId: null },
+        _sum: { downloadCount: true },
+      }),
     ]);
 
     return NextResponse.json({
