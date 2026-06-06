@@ -24,7 +24,8 @@ export async function GET(
     const docs = await prisma.document.findMany({
       where: {
         uploaderId: user.id,
-        ...(type && { type: type as any }),
+        postId: null,
+        type: type ? (type as any) : { notIn: ["IMAGE", "VIDEO"] as any[] },
       },
       orderBy: { createdAt: "desc" },
       take,

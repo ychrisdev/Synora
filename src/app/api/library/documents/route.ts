@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     const where: any = {
       postId: null,
+      type: { notIn: ["IMAGE", "VIDEO"] },
     };
 
     if (level && level !== "all") where.level = level;

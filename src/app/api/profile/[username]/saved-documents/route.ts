@@ -16,8 +16,15 @@ export async function GET(
   });
   if (!owner) return NextResponse.json({ docs: [], nextCursor: null });
 
-  const isOwner = session?.user?.id === owner.id ||
-    session?.user?.email === (await prisma.user.findUnique({ where: { id: owner.id }, select: { email: true } }))?.email;
+  const isOwner =
+    session?.user?.id === owner.id ||
+    session?.user?.email ===
+      (
+        await prisma.user.findUnique({
+          where: { id: owner.id },
+          select: { email: true },
+        })
+      )?.email;
 
   if (!isOwner)
     return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
@@ -27,7 +34,12 @@ export async function GET(
   const take = 12;
 
   const saved = await prisma.savedDocument.findMany({
-    where: { userId: owner.id },
+    where: {
+      userId: owner.id,
+      document: {
+        type: { notIn: ["IMAGE", "VIDEO"] as any[] },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take,
     ...(cursor && { cursor: { id: cursor }, skip: 1 }),
