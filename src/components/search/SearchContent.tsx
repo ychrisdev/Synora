@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, Loader2, Hash, ArrowLeft } from "lucide-react";
 import {
@@ -75,7 +75,7 @@ function mapTopic(t: any): SearchResult {
     title: `#${t.name}`,
     subtitle: `Chủ đề về ${t.name}`,
     meta: `${t._count.posts} bài viết`,
-    href: `/search?q=${encodeURIComponent("#" + t.name)}&tab=all`,
+    href: `/search?q=${encodeURIComponent("#" + t.name)}&tab=topics`,
   };
 }
 
@@ -114,6 +114,8 @@ function mapPostToCard(p: any) {
       mediaDocs.length > 0
         ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image"))
         : undefined,
+    mediaDocIds:
+      mediaDocs.length > 0 ? mediaDocs.map((d: any) => d.id) : undefined,
     attachment:
       fileDocs.length > 0
         ? {
@@ -125,7 +127,18 @@ function mapPostToCard(p: any) {
               fileDocs[0].title.split(".").pop()?.toUpperCase() ??
               fileDocs[0].type,
             url: fileDocs[0].fileUrl,
+            docId: fileDocs[0].id,
           }
+        : undefined,
+    attachments:
+      fileDocs.length > 0
+        ? fileDocs.map((d: any) => ({
+            name: d.title,
+            size: d.fileSize ? `${(d.fileSize / 1024).toFixed(1)} KB` : "",
+            type: d.title.split(".").pop()?.toUpperCase() ?? d.type,
+            url: d.fileUrl,
+            docId: d.id,
+          }))
         : undefined,
   };
 }
@@ -143,7 +156,7 @@ function TopicPostsView({
   useEffect(() => {
     setLoading(true);
     fetch(
-      `/api/search?q=${encodeURIComponent("#" + tagName)}&tab=posts&sort=newest`,
+      `/api/search?q=${encodeURIComponent(tagName)}&tab=posts&sort=newest&strictTag=1`,
     )
       .then((r) => r.json())
       .then((data) => setPosts(data.posts ?? []))
@@ -154,32 +167,38 @@ function TopicPostsView({
     <div>
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary mb-4 transition-colors"
+        className="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-700 mb-4 transition-colors group"
       >
-        <ArrowLeft size={14} />
+        <span className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
+          <ArrowLeft size={14} className="text-primary" />
+        </span>
         Quay lại chủ đề
       </button>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Hash size={16} className="text-primary" />
+
+      <div className="flex items-center gap-3 mb-5 p-4 bg-white rounded-xl border border-surface-200">
+        <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Hash size={20} className="text-primary" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-text-primary">#{tagName}</h2>
-          <p className="text-xs text-text-secondary">{posts.length} bài viết</p>
+          <h2 className="text-base font-bold text-text-primary">#{tagName}</h2>
+          <p className="text-xs text-text-secondary mt-0.5">
+            {loading ? "Đang tải..." : `${posts.length} bài viết`}
+          </p>
         </div>
       </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-16 gap-2 text-text-secondary">
           <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">Đang tải...</span>
+          <span className="text-sm">Đang tải bài viết...</span>
         </div>
       ) : posts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-text-muted gap-2">
-          <Hash size={28} strokeWidth={1.2} />
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
+          <Hash size={32} strokeWidth={1.2} />
           <p className="text-sm">Chưa có bài viết nào với #{tagName}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-col gap-3">
           {posts.map((p) => (
             <PostCard key={p.id} post={mapPostToCard(p)} />
           ))}
@@ -205,7 +224,7 @@ function TopicsGrid({
           <button
             key={t.id}
             onClick={() => onSelectTopic(name)}
-            className="flex items-center gap-3 bg-white border border-surface-200 rounded-xl p-4 hover:border-primary/30 hover:bg-primary/5 transition-all text-left group"
+            className="flex items-center gap-3 bg-white border border-surface-200 rounded-xl p-4 hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
           >
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
               <Hash size={18} className="text-primary" />
@@ -214,7 +233,7 @@ function TopicsGrid({
               <p className="text-sm font-semibold text-text-primary truncate group-hover:text-primary transition-colors">
                 #{name}
               </p>
-              <p className="text-xs text-text-secondary">{t.meta}</p>
+              <p className="text-xs text-text-secondary mt-0.5">{t.meta}</p>
             </div>
           </button>
         );
@@ -223,11 +242,78 @@ function TopicsGrid({
   );
 }
 
+function TrendingTagsView({
+  onSelectTopic,
+}: {
+  onSelectTopic: (name: string) => void;
+}) {
+  const [tags, setTags] = useState<
+    { name: string; _count: { posts: number } }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/tags/trending?take=20")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setTags(data);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading)
+    return (
+      <div className="flex items-center justify-center py-20 gap-2 text-text-secondary">
+        <Loader2 size={18} className="animate-spin" />
+        <span className="text-sm">Đang tải chủ đề...</span>
+      </div>
+    );
+
+  if (tags.length === 0)
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
+        <Hash size={32} strokeWidth={1.2} />
+        <p className="text-sm">Chưa có chủ đề nào</p>
+      </div>
+    );
+
+  return (
+    <div>
+      <p className="text-xs text-text-secondary mb-3">
+        {tags.length} chủ đề thịnh hành
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        {tags.map((t, i) => (
+          <button
+            key={t.name}
+            onClick={() => onSelectTopic(t.name)}
+            className="flex items-center gap-3 bg-white border border-surface-200 rounded-xl p-4 hover:border-primary/40 hover:bg-primary/5 transition-all text-left group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+              <Hash size={18} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-text-primary truncate group-hover:text-primary transition-colors">
+                #{t.name}
+              </p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {t._count.posts} bài viết
+              </p>
+            </div>
+            <span className="text-xs font-bold text-text-muted shrink-0">
+              {i + 1}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SearchContent() {
   const searchParams = useSearchParams();
 
   const rawQuery = searchParams.get("q") ?? "";
-  const isHashtag = rawQuery.startsWith("#");
   const initialTab = (searchParams.get("tab") as TabKey) ?? "all";
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
@@ -237,38 +323,10 @@ export function SearchContent() {
   const [loading, setLoading] = useState(false);
   const [showAllPosts, setShowAllPosts] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-
   const [counts, setCounts] = useState<Partial<Record<TabKey, number>>>({});
   const [countsReady, setCountsReady] = useState(false);
 
-  useEffect(() => {
-    if (!rawQuery.trim()) {
-      setCounts({});
-      setCountsReady(false);
-      return;
-    }
-    setCountsReady(false);
-    fetch(
-      `/api/search?q=${encodeURIComponent(rawQuery)}&tab=all&sort=newest&countOnly=1`,
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        setCounts({
-          all:
-            data.posts +
-            data.documents +
-            data.people +
-            data.groups +
-            data.topics,
-          posts: data.posts,
-          documents: data.documents,
-          people: data.people,
-          groups: data.groups,
-          topics: data.topics,
-        });
-      })
-      .finally(() => setCountsReady(true));
-  }, [rawQuery]);
+  const activeTabRef = useRef<TabKey>(initialTab);
 
   const fetchResults = useCallback(
     async (q: string, tab: TabKey, sortKey: SortKey) => {
@@ -300,13 +358,44 @@ export function SearchContent() {
   );
 
   useEffect(() => {
+    if (!rawQuery.trim()) {
+      setCounts({});
+      setCountsReady(false);
+      return;
+    }
+    setCountsReady(false);
+    fetch(
+      `/api/search?q=${encodeURIComponent(rawQuery)}&tab=all&sort=newest&countOnly=1`,
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        setCounts({
+          all:
+            data.posts +
+            data.documents +
+            data.people +
+            data.groups +
+            data.topics,
+          posts: data.posts,
+          documents: data.documents,
+          people: data.people,
+          groups: data.groups,
+          topics: data.topics,
+        });
+      })
+      .finally(() => setCountsReady(true));
+  }, [rawQuery]);
+
+  useEffect(() => {
     const tab = (searchParams.get("tab") as TabKey) ?? "all";
     setActiveTab(tab);
+    activeTabRef.current = tab;
     fetchResults(rawQuery, tab, sort);
-  }, [rawQuery, searchParams, sort]);
+  }, [rawQuery, searchParams]);
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
+    activeTabRef.current = tab;
     setShowAllPosts(false);
     setSelectedTopic(null);
     fetchResults(rawQuery, tab, sort);
@@ -314,7 +403,7 @@ export function SearchContent() {
 
   const handleSortChange = (s: SortKey) => {
     setSort(s);
-    fetchResults(rawQuery, activeTab, s);
+    fetchResults(rawQuery, activeTabRef.current, s);
   };
 
   const topicResults = results.filter((r) => r.type === "topic");
@@ -329,15 +418,15 @@ export function SearchContent() {
     .filter((g) => g.items.length > 0);
 
   const displayedPosts = showAllPosts ? rawPosts : rawPosts.slice(0, 3);
-  const totalCount = counts.all ?? 0;
+  const totalCount = counts[activeTab] ?? counts.all ?? 0;
 
-  const visibleCounts = isHashtag ? { ...counts, topics: undefined } : counts;
+  const showResultBar = rawQuery && !loading && countsReady && !selectedTopic;
 
   return (
     <div className="min-h-screen bg-surface-50">
       <SearchTabs
         activeTab={activeTab}
-        tabCounts={visibleCounts}
+        tabCounts={counts}
         onTabChange={handleTabChange}
         sort={sort}
         onSortChange={handleSortChange}
@@ -345,7 +434,7 @@ export function SearchContent() {
 
       <div className="max-w-6xl mx-auto px-6 py-6 flex gap-6">
         <div className="flex-1 min-w-0">
-          {rawQuery && !loading && countsReady && (
+          {showResultBar && (
             <p className="text-sm text-text-secondary mb-4">
               Kết quả cho{" "}
               <span className="font-semibold text-text-primary">
@@ -360,85 +449,91 @@ export function SearchContent() {
               <Loader2 size={18} className="animate-spin" />
               <span className="text-sm">Đang tìm kiếm...</span>
             </div>
-          ) : countsReady && totalCount === 0 ? (
-            <EmptyState query={rawQuery} />
           ) : activeTab === "all" ? (
-            <div className="flex flex-col gap-6">
-              {rawPosts.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                      Bài viết
-                    </h2>
-                    <button
-                      onClick={() => handleTabChange("posts")}
-                      className="text-xs text-primary font-medium hover:underline"
-                    >
-                      Xem thêm
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {displayedPosts.map((p) => (
-                      <PostCard key={p.id} post={mapPostToCard(p)} />
-                    ))}
-                  </div>
-                  {!showAllPosts && rawPosts.length > 3 && (
-                    <button
-                      onClick={() => setShowAllPosts(true)}
-                      className="mt-3 w-full py-2.5 text-xs font-medium text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-colors"
-                    >
-                      Xem thêm {rawPosts.length - 3} bài viết
-                    </button>
-                  )}
-                </section>
-              )}
+            !rawQuery.trim() ? (
+              <EmptyState query="" />
+            ) : countsReady && totalCount === 0 ? (
+              <EmptyState query={rawQuery} />
+            ) : (
+              <div className="flex flex-col gap-6">
+                {rawPosts.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                        Bài viết
+                      </h2>
+                      <button
+                        onClick={() => handleTabChange("posts")}
+                        className="text-xs text-primary font-medium hover:underline"
+                      >
+                        Xem thêm
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      {displayedPosts.map((p) => (
+                        <PostCard key={p.id} post={mapPostToCard(p)} />
+                      ))}
+                    </div>
+                    {!showAllPosts && rawPosts.length > 3 && (
+                      <button
+                        onClick={() => setShowAllPosts(true)}
+                        className="mt-3 w-full py-2.5 text-xs font-medium text-primary border border-primary/20 rounded-xl hover:bg-primary/5 transition-colors"
+                      >
+                        Xem thêm {rawPosts.length - 3} bài viết
+                      </button>
+                    )}
+                  </section>
+                )}
 
-              {groupedAll.map((group) => (
-                <section key={group.type}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                      {SECTION_LABELS[group.type as ResultType]}
-                    </h2>
-                    <button
-                      onClick={() =>
-                        handleTabChange(TYPE_TO_TAB[group.type as ResultType])
-                      }
-                      className="text-xs text-primary font-medium hover:underline"
-                    >
-                      Xem thêm
-                    </button>
-                  </div>
-                  <div className="bg-white rounded-xl border border-surface-200 divide-y divide-surface-100 overflow-hidden">
-                    {group.items.slice(0, 3).map((r) => (
-                      <ResultCard key={r.id} r={r} />
-                    ))}
-                  </div>
-                </section>
-              ))}
+                {groupedAll.map((group) => (
+                  <section key={group.type}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                        {SECTION_LABELS[group.type as ResultType]}
+                      </h2>
+                      <button
+                        onClick={() =>
+                          handleTabChange(
+                            TYPE_TO_TAB[group.type as ResultType],
+                          )
+                        }
+                        className="text-xs text-primary font-medium hover:underline"
+                      >
+                        Xem thêm
+                      </button>
+                    </div>
+                    <div className="bg-white rounded-xl border border-surface-200 divide-y divide-surface-100 overflow-hidden">
+                      {group.items.slice(0, 3).map((r) => (
+                        <ResultCard key={r.id} r={r} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
 
-              {!isHashtag && topicResults.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-                      Chủ đề
-                    </h2>
-                    <button
-                      onClick={() => handleTabChange("topics")}
-                      className="text-xs text-primary font-medium hover:underline"
-                    >
-                      Xem thêm
-                    </button>
-                  </div>
-                  <TopicsGrid
-                    topics={topicResults.slice(0, 4)}
-                    onSelectTopic={(name) => {
-                      handleTabChange("topics");
-                      setSelectedTopic(name);
-                    }}
-                  />
-                </section>
-              )}
-            </div>
+                {topicResults.length > 0 && (
+                  <section>
+                    <div className="flex items-center justify-between mb-2">
+                      <h2 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                        Chủ đề
+                      </h2>
+                      <button
+                        onClick={() => handleTabChange("topics")}
+                        className="text-xs text-primary font-medium hover:underline"
+                      >
+                        Xem thêm
+                      </button>
+                    </div>
+                    <TopicsGrid
+                      topics={topicResults.slice(0, 4)}
+                      onSelectTopic={(name) => {
+                        handleTabChange("topics");
+                        setSelectedTopic(name);
+                      }}
+                    />
+                  </section>
+                )}
+              </div>
+            )
           ) : activeTab === "posts" ? (
             <div className="flex flex-col gap-3">
               {rawPosts.length === 0 ? (
@@ -455,6 +550,8 @@ export function SearchContent() {
                 tagName={selectedTopic}
                 onBack={() => setSelectedTopic(null)}
               />
+            ) : !rawQuery.trim() ? (
+              <TrendingTagsView onSelectTopic={setSelectedTopic} />
             ) : topicResults.length === 0 ? (
               <EmptyState query={rawQuery} />
             ) : (

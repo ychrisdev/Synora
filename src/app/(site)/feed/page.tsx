@@ -67,6 +67,8 @@ export default function FeedPage() {
     if (!res.ok) return;
     const saved = await res.json();
 
+    window.dispatchEvent(new Event("tags:changed"));
+
     const IMAGE_EXTS = ["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"];
     const VIDEO_EXTS = ["MP4", "MOV", "AVI", "WEBM", "MKV"];
 

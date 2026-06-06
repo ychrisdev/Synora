@@ -254,7 +254,7 @@ function RichContent({
         /^#[\wÀ-ỹ]+$/u.test(part) ? (
           <NextLink
             key={i}
-            href={`/search?q=${encodeURIComponent(part)}&tab=all`}
+            href={`/search?q=${encodeURIComponent(part)}&tab=topics`}
             onClick={(e) => e.stopPropagation()}
             className="text-primary font-medium hover:underline cursor-pointer"
           >

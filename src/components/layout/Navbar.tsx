@@ -41,53 +41,6 @@ export interface NotifItem {
   action?: { accept: string; decline: string } | null;
 }
 
-export const initialNotifications: NotifItem[] = [
-  {
-    id: 1,
-    avatars: ["QA", "MT"],
-    avatarColors: ["bg-violet-500", "bg-emerald-500"],
-    text: "Quỳnh Anh, Minh Tuấn và 6 người khác đã thích bài viết của bạn",
-    sub: "Tổng hợp bộ đề thi Hóa hữu cơ các năm 2020–2023",
-    createdAt: new Date().toISOString(),
-    unread: true,
-    type: "like",
-    action: null,
-  },
-  {
-    id: 2,
-    avatars: ["QA"],
-    avatarColors: ["bg-violet-500"],
-    text: "Trần Lê Quỳnh Anh đã trả lời bình luận của bạn",
-    sub: '"Cảm ơn bạn! Mình cũng vướng phần tích phân bội này..."',
-    createdAt: new Date().toISOString(),
-    unread: true,
-    type: "comment",
-    action: null,
-  },
-  {
-    id: 5,
-    avatars: [],
-    avatarColors: [],
-    text: "Bạn được mời vào nhóm Câu lạc bộ Tiếng Anh",
-    sub: "Mời bởi Trần Lê Quỳnh Anh · 2,400 thành viên",
-    createdAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    unread: true,
-    type: "invite",
-    action: { accept: "Chấp nhận", decline: "Từ chối" },
-  },
-  {
-    id: 8,
-    avatars: ["NA"],
-    avatarColors: ["bg-blue-500"],
-    text: "Nguyễn Đức Tuấn đã chia sẻ tài liệu của bạn",
-    sub: "Đề cương Giải Tích 1 chi tiết",
-    createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    unread: false,
-    type: "share",
-    action: null,
-  },
-];
-
 const typeConfig: Record<
   NotifType,
   { icon: React.ElementType; bg: string; color: string }
@@ -402,15 +355,6 @@ export default function Navbar({
     .slice(-2)
     .join("")
     .toUpperCase();
-
-  useEffect(() => {
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 3600 * 1000;
-    setNotifs(
-      initialNotifications.filter(
-        (n) => new Date(n.createdAt).getTime() >= thirtyDaysAgo,
-      ),
-    );
-  }, []);
 
   const refreshHistory = useCallback(() => {
     setHistory(loadHistory(userId));
