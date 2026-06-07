@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { UserCheck, ArrowRight } from "lucide-react";
+import { UserCheck, ArrowRight, UserMinus, Trash2 } from "lucide-react";
 import NextLink from "next/link";
 import { useSession } from "next-auth/react";
 
@@ -32,25 +32,99 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+function ConfirmDialog({
+  displayName,
+  onConfirm,
+  onCancel,
+}: {
+  displayName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-center w-11 h-11 rounded-full bg-red-100 mx-auto mb-4">
+          <UserMinus size={20} className="text-red-500" />
+        </div>
+        <h3 className="text-sm font-semibold text-text-primary text-center mb-1">
+          Hủy kết bạn?
+        </h3>
+        <p className="text-xs text-text-muted text-center mb-5 leading-relaxed">
+          Bạn sẽ không còn là bạn bè với{" "}
+          <span className="font-medium text-text-secondary">{displayName}</span>{" "}
+          nữa.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 text-sm font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 rounded-xl transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors"
+          >
+            Hủy kết bạn
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toast({ msg }: { msg: string | null }) {
+  if (!msg) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+      <Trash2 size={13} />
+      {msg}
+    </div>
+  );
+}
+
 export function FriendsWidget({ username }: { username: string }) {
   const { data: session } = useSession();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmFriend, setConfirmFriend] = useState<Friend | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const actionInProgress = useRef<Set<string>>(new Set());
   const isOwner = session?.user?.username === username;
 
   useEffect(() => {
     fetch(`/api/profile/${username}/friends`)
       .then((r) => r.json())
       .then((data) => {
-        setFriends(data.friends ?? []);
+        const unique = Array.from(
+          new Map((data.friends ?? []).map((f: Friend) => [f.id, f])).values(),
+        ) as Friend[];
+        setFriends(unique);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [username]);
 
-  const handleUnfriend = async (friendUsername: string, friendId: string) => {
-    await fetch(`/api/profile/${friendUsername}/follow`, { method: "POST" });
-    setFriends((prev) => prev.filter((f) => f.id !== friendId));
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2500);
+  };
+
+  const doUnfriend = async (friend: Friend) => {
+    setConfirmFriend(null);
+    if (actionInProgress.current.has(friend.id)) return;
+    actionInProgress.current.add(friend.id);
+    try {
+      await fetch(`/api/profile/${friend.username}/follow`, { method: "POST" });
+      setFriends((prev) => prev.filter((f) => f.id !== friend.id));
+      showToast("Đã hủy kết bạn");
+    } finally {
+      actionInProgress.current.delete(friend.id);
+    }
   };
 
   if (loading) {
@@ -71,73 +145,85 @@ export function FriendsWidget({ username }: { username: string }) {
   }
 
   return (
-    <div className="bg-white border border-surface-200 rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold text-text-primary">Bạn bè</h3>
-          {friends.length > 0 && (
-            <span className="text-[10px] text-text-muted bg-surface-100 px-1.5 py-0.5 rounded-full">
-              {friends.length}
-            </span>
-          )}
-        </div>
-        <NextLink
-          href={`/friends/${username}`}
-          className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline transition-colors"
-        >
-          Xem tất cả <ArrowRight size={11} />
-        </NextLink>
-      </div>
+    <>
+      <Toast msg={toastMsg} />
 
-      {friends.length === 0 ? (
-        <p className="text-[11px] text-text-muted text-center py-3">
-          Chưa có bạn bè nào.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {friends.map((f, i) => (
-            <div key={f.id} className="flex items-center gap-2 group">
-              <NextLink href={`/profile/${f.username}`} className="shrink-0">
-                {f.avatarUrl ? (
-                  <img
-                    src={f.avatarUrl}
-                    alt={f.displayName}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className={clsx(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold",
-                      COLORS[i % COLORS.length],
-                    )}
-                  >
-                    {getInitials(f.displayName)}
-                  </div>
-                )}
-              </NextLink>
-              <div className="flex-1 min-w-0">
-                <NextLink href={`/profile/${f.username}`}>
-                  <p className="text-xs font-medium text-text-primary truncate hover:text-primary transition-colors">
-                    {f.displayName}
-                  </p>
-                </NextLink>
-                <p className="text-[10px] text-text-muted">
-                  {f.followerCount.toLocaleString("vi-VN")} người theo dõi
-                </p>
-              </div>
-              {isOwner && (
-                <button
-                  onClick={() => handleUnfriend(f.username, f.id)}
-                  className="shrink-0 p-1.5 rounded-full transition-colors text-primary bg-primary/10 hover:bg-red-50 hover:text-red-500"
-                  title="Hủy kết bạn"
-                >
-                  <UserCheck size={13} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+      {confirmFriend && (
+        <ConfirmDialog
+          displayName={confirmFriend.displayName}
+          onConfirm={() => doUnfriend(confirmFriend)}
+          onCancel={() => setConfirmFriend(null)}
+        />
       )}
-    </div>
+
+      <div className="bg-white border border-surface-200 rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-text-primary">Bạn bè</h3>
+            {friends.length > 0 && (
+              <span className="text-[10px] text-text-muted bg-surface-100 px-1.5 py-0.5 rounded-full">
+                {friends.length}
+              </span>
+            )}
+          </div>
+          <NextLink
+            href={`/friends/${username}`}
+            className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline transition-colors"
+          >
+            Xem tất cả <ArrowRight size={11} />
+          </NextLink>
+        </div>
+
+        {friends.length === 0 ? (
+          <p className="text-[11px] text-text-muted text-center py-3">
+            Chưa có bạn bè nào.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {friends.map((f, i) => (
+              <div key={f.id} className="flex items-center gap-2 group">
+                <NextLink href={`/profile/${f.username}`} className="shrink-0">
+                  {f.avatarUrl ? (
+                    <img
+                      src={f.avatarUrl}
+                      alt={f.displayName}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className={clsx(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold",
+                        COLORS[i % COLORS.length],
+                      )}
+                    >
+                      {getInitials(f.displayName)}
+                    </div>
+                  )}
+                </NextLink>
+                <div className="flex-1 min-w-0">
+                  <NextLink href={`/profile/${f.username}`}>
+                    <p className="text-xs font-medium text-text-primary truncate hover:text-primary transition-colors">
+                      {f.displayName}
+                    </p>
+                  </NextLink>
+                  <p className="text-[10px] text-text-muted">
+                    {f.followerCount.toLocaleString("vi-VN")} người theo dõi
+                  </p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={() => setConfirmFriend(f)}
+                    className="shrink-0 p-1.5 rounded-full transition-colors text-primary bg-primary/10 hover:bg-red-50 hover:text-red-500"
+                    title="Hủy kết bạn"
+                  >
+                    <UserCheck size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

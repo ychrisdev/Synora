@@ -22,7 +22,6 @@ export async function GET(
       status: "ACCEPTED",
       OR: [{ senderId: user.id }, { receiverId: user.id }],
     },
-    take: 5,
     orderBy: { updatedAt: "desc" },
     include: {
       sender: {
@@ -44,17 +43,21 @@ export async function GET(
     },
   });
 
-  const friends = acceptedRequests.map((r) => {
+  const seenIds = new Set<string>();
+  const friends: object[] = [];
+  for (const r of acceptedRequests) {
     const friend = r.senderId === user.id ? r.receiver : r.sender;
-    return {
+    if (seenIds.has(friend.id)) continue;
+    seenIds.add(friend.id);
+    friends.push({
       id: friend.id,
       username: friend.username,
       displayName: friend.profile?.displayName ?? friend.username,
       avatarUrl: friend.profile?.avatarUrl ?? null,
       followerCount: friend._count.followers,
       isFriend: true,
-    };
-  });
+    });
+  }
 
   let pendingSent: object[] = [];
   let suggestions: object[] = [];
@@ -74,15 +77,23 @@ export async function GET(
         },
       },
     });
-    pendingSent = sent.map((r) => ({
-      id: r.receiver.id,
-      username: r.receiver.username,
-      displayName: r.receiver.profile?.displayName ?? r.receiver.username,
-      avatarUrl: r.receiver.profile?.avatarUrl ?? null,
-      followerCount: r.receiver._count.followers,
-    }));
 
-    const friendIds = friends.map((f) => f.id);
+    const seenPendingIds = new Set<string>();
+    pendingSent = sent
+      .filter((r) => {
+        if (seenPendingIds.has(r.receiver.id)) return false;
+        seenPendingIds.add(r.receiver.id);
+        return true;
+      })
+      .map((r) => ({
+        id: r.receiver.id,
+        username: r.receiver.username,
+        displayName: r.receiver.profile?.displayName ?? r.receiver.username,
+        avatarUrl: r.receiver.profile?.avatarUrl ?? null,
+        followerCount: r.receiver._count.followers,
+      }));
+
+    const friendIds = (friends as any[]).map((f) => f.id);
     const pendingIds = (pendingSent as any[]).map((s) => s.id);
     const excludeIds = [user.id, ...friendIds, ...pendingIds];
 

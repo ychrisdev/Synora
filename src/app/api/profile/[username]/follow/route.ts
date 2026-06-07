@@ -27,47 +27,47 @@ export async function POST(
   const senderId = session.user.id;
   const receiverId = target.id;
 
-  const existingRequest = await prisma.friendRequest.findUnique({
-    where: { senderId_receiverId: { senderId, receiverId } },
-  });
+  return await prisma.$transaction(async (tx) => {
+    const existingRequest = await tx.friendRequest.findUnique({
+      where: { senderId_receiverId: { senderId, receiverId } },
+    });
 
-  if (existingRequest) {
-    if (existingRequest.status === "ACCEPTED") {
-      await prisma.$transaction([
-        prisma.friendRequest.delete({ where: { id: existingRequest.id } }),
-        prisma.follow.deleteMany({
+    if (existingRequest) {
+      if (existingRequest.status === "ACCEPTED") {
+        await tx.friendRequest.delete({ where: { id: existingRequest.id } });
+        await tx.friendRequest.deleteMany({
+          where: { senderId: receiverId, receiverId: senderId },
+        });
+        await tx.follow.deleteMany({
           where: {
             OR: [
               { followerId: senderId, followingId: receiverId },
               { followerId: receiverId, followingId: senderId },
             ],
           },
-        }),
-      ]);
+        });
+        return NextResponse.json({ status: "none" });
+      }
+
+      await tx.friendRequest.delete({ where: { id: existingRequest.id } });
+      await tx.follow.deleteMany({
+        where: { followerId: senderId, followingId: receiverId },
+      });
       return NextResponse.json({ status: "none" });
     }
-    await prisma.$transaction([
-      prisma.friendRequest.delete({ where: { id: existingRequest.id } }),
-      prisma.follow.deleteMany({
-        where: { followerId: senderId, followingId: receiverId },
-      }),
-    ]);
-    return NextResponse.json({ status: "none" });
-  }
 
-  const reverseRequest = await prisma.friendRequest.findUnique({
-    where: {
-      senderId_receiverId: { senderId: receiverId, receiverId: senderId },
-    },
-  });
+    const reverseRequest = await tx.friendRequest.findUnique({
+      where: {
+        senderId_receiverId: { senderId: receiverId, receiverId: senderId },
+      },
+    });
 
-  if (reverseRequest?.status === "PENDING") {
-    await prisma.$transaction([
-      prisma.friendRequest.update({
+    if (reverseRequest?.status === "PENDING") {
+      await tx.friendRequest.update({
         where: { id: reverseRequest.id },
         data: { status: "ACCEPTED" },
-      }),
-      prisma.follow.upsert({
+      });
+      await tx.follow.upsert({
         where: {
           followerId_followingId: {
             followerId: senderId,
@@ -76,16 +76,18 @@ export async function POST(
         },
         create: { followerId: senderId, followingId: receiverId },
         update: {},
-      }),
-    ]);
-    return NextResponse.json({ status: "friends" });
-  }
+      });
+      return NextResponse.json({ status: "friends" });
+    }
 
-  await prisma.$transaction([
-    prisma.friendRequest.create({
+    if (reverseRequest?.status === "ACCEPTED") {
+      return NextResponse.json({ status: "friends" });
+    }
+
+    await tx.friendRequest.create({
       data: { senderId, receiverId, status: "PENDING" },
-    }),
-    prisma.follow.upsert({
+    });
+    await tx.follow.upsert({
       where: {
         followerId_followingId: {
           followerId: senderId,
@@ -94,7 +96,7 @@ export async function POST(
       },
       create: { followerId: senderId, followingId: receiverId },
       update: {},
-    }),
-  ]);
-  return NextResponse.json({ status: "pending" });
+    });
+    return NextResponse.json({ status: "pending" });
+  });
 }
