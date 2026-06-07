@@ -17,9 +17,12 @@ export default function MainLayout({
   const hideSidebar =
     hideAll ||
     pathname.startsWith("/search") ||
-    pathname.startsWith("/profile");
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/friends");
   const isFullWidth =
-    pathname.startsWith("/search") || pathname.startsWith("/profile");
+    pathname.startsWith("/search") ||
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/friends");
 
   if (hideAll) return <>{children}</>;
 

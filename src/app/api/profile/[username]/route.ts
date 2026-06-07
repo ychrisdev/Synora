@@ -58,6 +58,21 @@ export async function GET(
     });
 
     let isFollowing = false;
+    let friendStatus: "none" | "pending" | "friends" = "none";
+    let incomingRequestId: string | null = null;
+    if (session?.user?.id && session.user.id !== user.id) {
+      const sentReq = await prisma.friendRequest.findUnique({
+        where: {
+          senderId_receiverId: {
+            senderId: session.user.id,
+            receiverId: user.id,
+          },
+        },
+        select: { status: true },
+      });
+      if (sentReq?.status === "ACCEPTED") friendStatus = "friends";
+      else if (sentReq?.status === "PENDING") friendStatus = "pending";
+    }
     if (session?.user?.id && session.user.id !== user.id) {
       const follow = await prisma.follow.findUnique({
         where: {
@@ -68,6 +83,20 @@ export async function GET(
         },
       });
       isFollowing = !!follow;
+    }
+    if (session?.user?.id && session.user.id !== user.id) {
+      const incomingReq = await prisma.friendRequest.findUnique({
+        where: {
+          senderId_receiverId: {
+            senderId: user.id,
+            receiverId: session.user.id,
+          },
+        },
+        select: { id: true, status: true },
+      });
+      if (incomingReq?.status === "PENDING") {
+        incomingRequestId = incomingReq.id;
+      }
     }
 
     const postCategories = await prisma.post.findMany({
@@ -88,6 +117,8 @@ export async function GET(
       createdAt: user.createdAt,
       profile: user.profile,
       isFollowing,
+      friendStatus,
+      incomingRequestId,
       subjects,
       stats: {
         followers: user._count.followers,

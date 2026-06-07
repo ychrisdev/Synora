@@ -5,26 +5,66 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: Promise<{ username: string }> }
+  { params }: { params: Promise<{ username: string }> },
 ) {
   const { username } = await params;
   const session = await getServerSession(authOptions);
 
-  try {
-    const user = await prisma.user.findUnique({
-      where: { username },
-      select: { id: true },
-    });
+  const user = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true },
+  });
+  if (!user)
+    return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
 
-    if (!user) {
-      return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
-    }
+  const acceptedRequests = await prisma.friendRequest.findMany({
+    where: {
+      status: "ACCEPTED",
+      OR: [{ senderId: user.id }, { receiverId: user.id }],
+    },
+    take: 5,
+    orderBy: { updatedAt: "desc" },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          username: true,
+          profile: { select: { displayName: true, avatarUrl: true } },
+          _count: { select: { followers: true } },
+        },
+      },
+      receiver: {
+        select: {
+          id: true,
+          username: true,
+          profile: { select: { displayName: true, avatarUrl: true } },
+          _count: { select: { followers: true } },
+        },
+      },
+    },
+  });
 
-    const followers = await prisma.follow.findMany({
-      where: { followingId: user.id },
-      take: 6,
+  const friends = acceptedRequests.map((r) => {
+    const friend = r.senderId === user.id ? r.receiver : r.sender;
+    return {
+      id: friend.id,
+      username: friend.username,
+      displayName: friend.profile?.displayName ?? friend.username,
+      avatarUrl: friend.profile?.avatarUrl ?? null,
+      followerCount: friend._count.followers,
+      isFriend: true,
+    };
+  });
+
+  let pendingSent: object[] = [];
+  let suggestions: object[] = [];
+
+  if (session?.user?.id === user.id) {
+    const sent = await prisma.friendRequest.findMany({
+      where: { senderId: user.id, status: "PENDING" },
+      orderBy: { createdAt: "desc" },
       include: {
-        follower: {
+        receiver: {
           select: {
             id: true,
             username: true,
@@ -33,35 +73,41 @@ export async function GET(
           },
         },
       },
-      orderBy: { createdAt: "desc" },
     });
-
-    const followerIds = followers.map((f) => f.follower.id);
-    let followingBack: string[] = [];
-    if (session?.user?.id) {
-      const follows = await prisma.follow.findMany({
-        where: {
-          followerId: session.user.id,
-          followingId: { in: followerIds },
-        },
-        select: { followingId: true },
-      });
-      followingBack = follows.map((f) => f.followingId);
-    }
-
-    const result = followers.map((f) => ({
-      id: f.follower.id,
-      username: f.follower.username,
-      displayName:
-        f.follower.profile?.displayName ?? f.follower.username,
-      avatarUrl: f.follower.profile?.avatarUrl ?? null,
-      followerCount: f.follower._count.followers,
-      isFollowingBack: followingBack.includes(f.follower.id),
+    pendingSent = sent.map((r) => ({
+      id: r.receiver.id,
+      username: r.receiver.username,
+      displayName: r.receiver.profile?.displayName ?? r.receiver.username,
+      avatarUrl: r.receiver.profile?.avatarUrl ?? null,
+      followerCount: r.receiver._count.followers,
     }));
 
-    return NextResponse.json({ friends: result });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
+    const friendIds = friends.map((f) => f.id);
+    const pendingIds = (pendingSent as any[]).map((s) => s.id);
+    const excludeIds = [user.id, ...friendIds, ...pendingIds];
+
+    const suggestUsers = await prisma.user.findMany({
+      where: {
+        id: { notIn: excludeIds },
+        profile: { isNot: null },
+      },
+      take: 6,
+      orderBy: { followers: { _count: "desc" } },
+      select: {
+        id: true,
+        username: true,
+        profile: { select: { displayName: true, avatarUrl: true } },
+        _count: { select: { followers: true } },
+      },
+    });
+    suggestions = suggestUsers.map((u) => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.profile?.displayName ?? u.username,
+      avatarUrl: u.profile?.avatarUrl ?? null,
+      followerCount: u._count.followers,
+    }));
   }
+
+  return NextResponse.json({ friends, pendingSent, suggestions });
 }

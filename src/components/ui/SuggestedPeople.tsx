@@ -22,8 +22,13 @@ function formatFollowers(count: number): string {
 
 function getAvatarColor(username: string): string {
   const colors = [
-    "bg-rose-500", "bg-blue-500", "bg-teal-500",
-    "bg-violet-500", "bg-orange-500", "bg-emerald-500", "bg-indigo-500",
+    "bg-rose-500",
+    "bg-blue-500",
+    "bg-teal-500",
+    "bg-violet-500",
+    "bg-orange-500",
+    "bg-emerald-500",
+    "bg-indigo-500",
   ];
   let hash = 0;
   for (let i = 0; i < username.length; i++) hash += username.charCodeAt(i);
@@ -31,7 +36,12 @@ function getAvatarColor(username: string): string {
 }
 
 function getInitials(name: string): string {
-  return name.split(" ").map((w) => w[0]).slice(-2).join("").toUpperCase();
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(-2)
+    .join("")
+    .toUpperCase();
 }
 
 interface Props {
@@ -47,7 +57,9 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
   useEffect(() => {
     fetch("/api/users/suggested")
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setUsers(data); })
+      .then((data) => {
+        if (Array.isArray(data)) setUsers(data);
+      })
       .finally(() => setLoading(false));
   }, [session]);
 
@@ -56,9 +68,7 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
     const isFollowed = followed[userId];
     setFollowed((prev) => ({ ...prev, [userId]: !isFollowed }));
     try {
-      await fetch(`/api/profile/${username}/follow`, {
-        method: isFollowed ? "DELETE" : "POST",
-      });
+      await fetch(`/api/profile/${username}/follow`, { method: "POST" });
     } catch {
       setFollowed((prev) => ({ ...prev, [userId]: isFollowed }));
     }
@@ -74,7 +84,9 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
       <div className="flex items-center justify-between mb-3">
         {variant === "feed" ? (
           <>
-            <h3 className="text-sm font-semibold text-text-primary">Gợi ý theo dõi</h3>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Gợi ý theo dõi
+            </h3>
             <Link
               href="/search?tab=people"
               className="text-[11px] text-primary font-medium hover:underline"
@@ -94,7 +106,9 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
           <Loader2 size={16} className="animate-spin text-text-muted" />
         </div>
       ) : users.length === 0 ? (
-        <p className="text-xs text-text-muted text-center py-3">Không có gợi ý nào</p>
+        <p className="text-xs text-text-muted text-center py-3">
+          Không có gợi ý nào
+        </p>
       ) : (
         <div className="flex flex-col gap-3">
           {users.map((u) => (

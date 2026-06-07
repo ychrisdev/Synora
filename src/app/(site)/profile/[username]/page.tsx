@@ -91,7 +91,8 @@ export default function ProfilePage() {
         displayName={profileData.profile?.displayName ?? profileData.username}
         username={username}
         isOwner={isOwner}
-        isFollowing={profileData.isFollowing}
+        friendStatus={profileData.friendStatus}
+        incomingRequestId={profileData.incomingRequestId}
         onSuggestOpen={() => setShowSuggest((p) => !p)}
         profileData={profileData}
         onProfileSaved={refreshProfile}

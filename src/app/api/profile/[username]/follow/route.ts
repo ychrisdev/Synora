@@ -9,50 +9,92 @@ export async function POST(
 ) {
   const { username } = await params;
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  if (!session?.user?.id)
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+
+  const target = await prisma.user.findUnique({
+    where: { username },
+    select: { id: true },
+  });
+  if (!target)
+    return NextResponse.json(
+      { error: "Không tìm thấy người dùng" },
+      { status: 404 },
+    );
+  if (target.id === session.user.id)
+    return NextResponse.json({ error: "Không thể tự follow" }, { status: 400 });
+
+  const senderId = session.user.id;
+  const receiverId = target.id;
+
+  const existingRequest = await prisma.friendRequest.findUnique({
+    where: { senderId_receiverId: { senderId, receiverId } },
+  });
+
+  if (existingRequest) {
+    if (existingRequest.status === "ACCEPTED") {
+      await prisma.$transaction([
+        prisma.friendRequest.delete({ where: { id: existingRequest.id } }),
+        prisma.follow.deleteMany({
+          where: {
+            OR: [
+              { followerId: senderId, followingId: receiverId },
+              { followerId: receiverId, followingId: senderId },
+            ],
+          },
+        }),
+      ]);
+      return NextResponse.json({ status: "none" });
+    }
+    await prisma.$transaction([
+      prisma.friendRequest.delete({ where: { id: existingRequest.id } }),
+      prisma.follow.deleteMany({
+        where: { followerId: senderId, followingId: receiverId },
+      }),
+    ]);
+    return NextResponse.json({ status: "none" });
   }
 
-  try {
-    const target = await prisma.user.findUnique({
-      where: { username },
-      select: { id: true },
-    });
+  const reverseRequest = await prisma.friendRequest.findUnique({
+    where: {
+      senderId_receiverId: { senderId: receiverId, receiverId: senderId },
+    },
+  });
 
-    if (!target) {
-      return NextResponse.json(
-        { error: "Không tìm thấy người dùng" },
-        { status: 404 },
-      );
-    }
+  if (reverseRequest?.status === "PENDING") {
+    await prisma.$transaction([
+      prisma.friendRequest.update({
+        where: { id: reverseRequest.id },
+        data: { status: "ACCEPTED" },
+      }),
+      prisma.follow.upsert({
+        where: {
+          followerId_followingId: {
+            followerId: senderId,
+            followingId: receiverId,
+          },
+        },
+        create: { followerId: senderId, followingId: receiverId },
+        update: {},
+      }),
+    ]);
+    return NextResponse.json({ status: "friends" });
+  }
 
-    if (target.id === session.user.id) {
-      return NextResponse.json(
-        { error: "Không thể tự follow" },
-        { status: 400 },
-      );
-    }
-
-    const existing = await prisma.follow.findUnique({
+  await prisma.$transaction([
+    prisma.friendRequest.create({
+      data: { senderId, receiverId, status: "PENDING" },
+    }),
+    prisma.follow.upsert({
       where: {
         followerId_followingId: {
-          followerId: session.user.id,
-          followingId: target.id,
+          followerId: senderId,
+          followingId: receiverId,
         },
       },
-    });
-
-    if (existing) {
-      await prisma.follow.delete({ where: { id: existing.id } });
-      return NextResponse.json({ following: false });
-    } else {
-      await prisma.follow.create({
-        data: { followerId: session.user.id, followingId: target.id },
-      });
-      return NextResponse.json({ following: true });
-    }
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
-  }
+      create: { followerId: senderId, followingId: receiverId },
+      update: {},
+    }),
+  ]);
+  return NextResponse.json({ status: "pending" });
 }

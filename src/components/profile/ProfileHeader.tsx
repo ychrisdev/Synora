@@ -10,9 +10,13 @@ import {
   UserCheck,
   Pencil,
   Users,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
+
+type FriendStatus = "none" | "pending" | "friends";
 
 interface ProfileHeaderProps {
   coverUrl?: string | null;
@@ -20,7 +24,8 @@ interface ProfileHeaderProps {
   displayName: string;
   username: string;
   isOwner: boolean;
-  isFollowing?: boolean;
+  friendStatus?: FriendStatus;
+  incomingRequestId?: string | null;
   profileData?: any;
   onProfileSaved?: () => void;
   onSuggestOpen?: () => void;
@@ -32,14 +37,19 @@ export function ProfileHeader({
   displayName,
   username,
   isOwner,
-  isFollowing: initialFollowing = false,
+  friendStatus: initialStatus = "none",
+  incomingRequestId: initialIncomingId = null,
   profileData,
   onProfileSaved,
   onSuggestOpen,
 }: ProfileHeaderProps) {
   const router = useRouter();
-  const [following, setFollowing] = useState(initialFollowing);
+  const [status, setStatus] = useState<FriendStatus>(initialStatus);
+  const [incomingRequestId, setIncomingRequestId] = useState<string | null>(
+    initialIncomingId,
+  );
   const [followLoading, setFollowLoading] = useState(false);
+  const [showReplyMenu, setShowReplyMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
 
   const handleFollowToggle = async () => {
@@ -49,7 +59,31 @@ export function ProfileHeader({
         method: "POST",
       });
       const data = await res.json();
-      setFollowing(data.following);
+      setStatus(data.status ?? "none");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handleRequestAction = async (action: "accept" | "reject") => {
+    if (!incomingRequestId) return;
+    setFollowLoading(true);
+    setShowReplyMenu(false);
+    try {
+      await fetch(
+        `/api/profile/${profileData?.username ?? username}/friend-requests`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId: incomingRequestId, action }),
+        },
+      );
+      if (action === "accept") {
+        setStatus("friends");
+      } else {
+        setStatus("none");
+      }
+      setIncomingRequestId(null);
     } finally {
       setFollowLoading(false);
     }
@@ -72,7 +106,11 @@ export function ProfileHeader({
     <div className="relative mb-16">
       <div className="h-40 rounded-2xl overflow-hidden relative bg-slate-200">
         {coverUrl ? (
-          <img src={coverUrl} alt="cover" className="w-full h-full object-cover" />
+          <img
+            src={coverUrl}
+            alt="cover"
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="w-full h-full bg-[repeating-linear-gradient(45deg,#e2e5ec,#e2e5ec_10px,#eaecf2_10px,#eaecf2_20px)]" />
         )}
@@ -81,8 +119,7 @@ export function ProfileHeader({
             onClick={() => setShowEditModal(true)}
             className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/20 hover:bg-black/30 text-white text-xs font-medium px-3 py-1.5 rounded-full backdrop-blur-sm transition-colors"
           >
-            <Camera size={11} />
-            Đổi ảnh bìa
+            <Camera size={11} /> Đổi ảnh bìa
           </button>
         )}
       </div>
@@ -115,6 +152,7 @@ export function ProfileHeader({
         <button className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors">
           <Share2 size={13} /> Chia sẻ
         </button>
+
         {isOwner ? (
           <>
             <button
@@ -135,22 +173,61 @@ export function ProfileHeader({
             <button className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors">
               <MessageCircle size={13} /> Nhắn tin
             </button>
-            <button
-              onClick={handleFollowToggle}
-              disabled={followLoading}
-              className={clsx(
-                "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-60",
-                following
-                  ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-surface-200"
-                  : "bg-primary text-white hover:bg-primary-700",
-              )}
-            >
-              {following ? (
-                <><UserCheck size={13} /> Đang theo dõi</>
-              ) : (
-                <><UserPlus size={13} /> Kết bạn</>
-              )}
-            </button>
+
+            {incomingRequestId && status !== "friends" ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowReplyMenu((p) => !p)}
+                  disabled={followLoading}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors bg-primary text-white hover:bg-primary-700 disabled:opacity-70"
+                >
+                  Trả lời <ChevronDown size={13} />
+                </button>
+                {showReplyMenu && (
+                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden z-20 min-w-[140px]">
+                    <button
+                      onClick={() => handleRequestAction("accept")}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-text-primary hover:bg-surface-50 transition-colors"
+                    >
+                      <UserCheck size={13} className="text-primary" /> Chấp nhận
+                    </button>
+                    <button
+                      onClick={() => handleRequestAction("reject")}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <span className="text-red-500">✕</span> Từ chối
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={handleFollowToggle}
+                disabled={followLoading}
+                className={clsx(
+                  "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-70",
+                  status === "friends"
+                    ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-surface-200"
+                    : status === "pending"
+                      ? "bg-surface-50 text-text-muted border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                      : "bg-primary text-white hover:bg-primary-700",
+                )}
+              >
+                {status === "friends" ? (
+                  <>
+                    <UserCheck size={13} /> Bạn bè
+                  </>
+                ) : status === "pending" ? (
+                  <>
+                    <Clock size={13} /> Đã gửi yêu cầu
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={13} /> Kết bạn
+                  </>
+                )}
+              </button>
+            )}
           </>
         )}
       </div>
