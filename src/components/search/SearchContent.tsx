@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Search, Loader2, Hash, ArrowLeft } from "lucide-react";
 import {
   TYPE_TO_TAB,
@@ -36,7 +37,7 @@ function mapDocument(d: any): SearchResult {
   };
 }
 
-function mapPerson(u: any): SearchResult {
+function mapPerson(u: any, sessionUsername?: string | null): SearchResult {
   const name = u.profile?.displayName ?? u.username;
   return {
     id: u.id,
@@ -51,7 +52,12 @@ function mapPerson(u: any): SearchResult {
       .join("")
       .toUpperCase(),
     avatarColor: "bg-primary",
+    avatarUrl: u.profile?.avatarUrl ?? null,
+    username: u.username,
     href: `/profile/${u.username}`,
+    friendStatus: u.friendStatus ?? "none",
+    incomingRequestId: u.incomingRequestId ?? null,
+    sessionUsername: sessionUsername ?? null,
   };
 }
 
@@ -312,6 +318,7 @@ function TrendingTagsView({
 
 export function SearchContent() {
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
 
   const rawQuery = searchParams.get("q") ?? "";
   const initialTab = (searchParams.get("tab") as TabKey) ?? "all";
@@ -346,7 +353,7 @@ export function SearchContent() {
         setRawPosts(data.posts ?? []);
         setResults([
           ...(data.documents ?? []).map(mapDocument),
-          ...(data.people ?? []).map(mapPerson),
+          ...(data.people ?? []).map((p: any) => mapPerson(p, session?.user?.username)),
           ...(data.groups ?? []).map(mapGroup),
           ...(data.topics ?? []).map(mapTopic),
         ]);
@@ -493,9 +500,7 @@ export function SearchContent() {
                       </h2>
                       <button
                         onClick={() =>
-                          handleTabChange(
-                            TYPE_TO_TAB[group.type as ResultType],
-                          )
+                          handleTabChange(TYPE_TO_TAB[group.type as ResultType])
                         }
                         className="text-xs text-primary font-medium hover:underline"
                       >

@@ -2804,7 +2804,7 @@ function MediaLightbox({
             className="shrink-0"
           >
             <Avatar
-              src={post.author.avatarUrl}
+              src={displayPost.author.avatarUrl}
               name={post.author.name}
               initials={post.author.initials}
               color={post.author.color}
@@ -3013,7 +3013,7 @@ function CommentModal({
             className="shrink-0"
           >
             <Avatar
-              src={post.author.avatarUrl}
+              src={displayPost.author.avatarUrl}
               name={post.author.name}
               initials={post.author.initials}
               color={post.author.color}
@@ -3154,6 +3154,10 @@ export default function PostCard({
   onSaveToggle?: (id: string | number, saved: boolean) => void;
 }) {
   const { data: session } = useSession();
+  const [sessionAvatarUrl, setSessionAvatarUrl] = useState<
+    string | null | undefined
+  >(undefined);
+
   const [liked, setLiked] = useState(post.isLikedByMe ?? false);
   const [likeCount, setLikeCount] = useState(post.likes);
   const [commentCount, setCommentCount] = useState(post.comments);
@@ -3255,6 +3259,17 @@ export default function PostCard({
     setShowDeleteConfirm(false);
   };
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (session?.user?.id === post.authorId) {
+        setSessionAvatarUrl(detail.avatarUrl);
+      }
+    };
+    window.addEventListener("profile:updated", handler);
+    return () => window.removeEventListener("profile:updated", handler);
+  }, [session?.user?.id, post.authorId]);
+
   if (deleted) return null;
 
   const displayPost = {
@@ -3264,6 +3279,13 @@ export default function PostCard({
     mediaTypes: currentMediaTypes,
     mediaDocIds: currentMediaDocIds,
     attachment: currentAttachment,
+    author: {
+      ...post.author,
+      avatarUrl:
+        sessionAvatarUrl !== undefined
+          ? sessionAvatarUrl
+          : post.author.avatarUrl,
+    },
   };
 
   return (
@@ -3277,7 +3299,7 @@ export default function PostCard({
             className="flex items-center gap-3 hover:opacity-90 transition-opacity"
           >
             <Avatar
-              src={post.author.avatarUrl}
+              src={displayPost.author.avatarUrl}
               name={post.author.name}
               initials={post.author.initials}
               color={post.author.color}

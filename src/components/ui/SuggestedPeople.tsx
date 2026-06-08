@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 import { clsx } from "clsx";
+import Avatar from "@/components/ui/Avatar";
 
 interface SuggestedUser {
   id: string;
@@ -112,22 +113,15 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
         <div className="flex flex-col gap-3">
           {users.map((u) => (
             <div key={u.id} className="flex items-center gap-2.5">
-              {u.avatarUrl ? (
-                <img
+              <Link href={`/profile/${u.username}`} className="shrink-0">
+                <Avatar
                   src={u.avatarUrl}
-                  alt={u.displayName}
-                  className="w-8 h-8 rounded-full object-cover shrink-0"
+                  name={u.displayName}
+                  initials={getInitials(u.displayName)}
+                  color="bg-primary"
+                  size="sm"
                 />
-              ) : (
-                <div
-                  className={clsx(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0",
-                    getAvatarColor(u.username),
-                  )}
-                >
-                  {getInitials(u.displayName)}
-                </div>
-              )}
+              </Link>
 
               <Link
                 href={`/profile/${u.username}`}

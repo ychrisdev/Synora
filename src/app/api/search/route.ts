@@ -209,5 +209,52 @@ export async function GET(req: NextRequest) {
       : [],
   ]);
 
-  return NextResponse.json({ posts, documents, people, groups, topics });
+  let peopleWithStatus = people;
+  if (session?.user?.id && (people as any[]).length > 0) {
+    const peopleIds = (people as any[]).map((u: any) => u.id);
+    const friendRequests = await prisma.friendRequest.findMany({
+      where: {
+        status: { in: ["ACCEPTED", "PENDING"] },
+        OR: [
+          { senderId: session.user.id, receiverId: { in: peopleIds } },
+          { senderId: { in: peopleIds }, receiverId: session.user.id },
+        ],
+      },
+      select: { id: true, senderId: true, receiverId: true, status: true },
+    });
+
+    peopleWithStatus = (people as any[]).map((u: any) => {
+      const req = friendRequests.find(
+        (r) =>
+          (r.senderId === session.user.id && r.receiverId === u.id) ||
+          (r.senderId === u.id && r.receiverId === session.user.id),
+      );
+      let friendStatus: "none" | "pending" | "friends" = "none";
+      let incomingRequestId: string | null = null;
+
+      if (req?.status === "ACCEPTED") {
+        friendStatus = "friends";
+      } else if (
+        req?.status === "PENDING" &&
+        req.senderId === session.user.id
+      ) {
+        friendStatus = "pending";
+      } else if (
+        req?.status === "PENDING" &&
+        req.receiverId === session.user.id
+      ) {
+        incomingRequestId = req.id;
+      }
+
+      return { ...u, friendStatus, incomingRequestId };
+    });
+  }
+
+  return NextResponse.json({
+    posts,
+    documents,
+    people: peopleWithStatus,
+    groups,
+    topics,
+  });
 }

@@ -127,6 +127,12 @@ export function EditProfileModal({
         image: uploadedAvatarUrl ?? initial.avatarUrl,
       });
 
+      window.dispatchEvent(
+        new CustomEvent("profile:updated", {
+          detail: { avatarUrl: uploadedAvatarUrl ?? initial.avatarUrl },
+        }),
+      );
+
       onSaved();
     } catch {
       setError("Có lỗi xảy ra, thử lại nhé.");
