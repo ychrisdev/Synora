@@ -48,7 +48,6 @@ export async function POST(
         });
         return NextResponse.json({ status: "none" });
       }
-
       await tx.friendRequest.delete({ where: { id: existingRequest.id } });
       await tx.follow.deleteMany({
         where: { followerId: senderId, followingId: receiverId },
@@ -61,6 +60,19 @@ export async function POST(
         senderId_receiverId: { senderId: receiverId, receiverId: senderId },
       },
     });
+
+    if (reverseRequest?.status === "ACCEPTED") {
+      await tx.friendRequest.delete({ where: { id: reverseRequest.id } });
+      await tx.follow.deleteMany({
+        where: {
+          OR: [
+            { followerId: senderId, followingId: receiverId },
+            { followerId: receiverId, followingId: senderId },
+          ],
+        },
+      });
+      return NextResponse.json({ status: "none" });
+    }
 
     if (reverseRequest?.status === "PENDING") {
       await tx.friendRequest.update({
@@ -77,10 +89,6 @@ export async function POST(
         create: { followerId: senderId, followingId: receiverId },
         update: {},
       });
-      return NextResponse.json({ status: "friends" });
-    }
-
-    if (reverseRequest?.status === "ACCEPTED") {
       return NextResponse.json({ status: "friends" });
     }
 

@@ -7,7 +7,6 @@ import { ProfileHeader } from "@/components/profile/ProfileHeader";
 import { ProfileInfo } from "@/components/profile/ProfileInfo";
 import { ProfileStats } from "@/components/profile/ProfileStats";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
-import { FriendSuggestPanel } from "@/components/profile/FriendSuggestPanel";
 import { PostsTab } from "@/components/profile/tabs/PostsTab";
 import { ImagesTab } from "@/components/profile/tabs/ImagesTab";
 import { DocumentsTab } from "@/components/profile/tabs/DocumentsTab";
@@ -26,7 +25,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>(PROFILE_TABS[0]);
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showSuggest, setShowSuggest] = useState(false);
+  const [friendsRefreshKey, setFriendsRefreshKey] = useState(0);
   const [docRefreshKey, setDocRefreshKey] = useState(0);
 
   const isOwner = session?.user?.username === username;
@@ -47,6 +46,7 @@ export default function ProfilePage() {
     fetch(`/api/profile/${username}`)
       .then((r) => r.json())
       .then(setProfileData);
+    setFriendsRefreshKey((k) => k + 1);
   };
 
   if (loading) {
@@ -93,17 +93,11 @@ export default function ProfilePage() {
         isOwner={isOwner}
         friendStatus={profileData.friendStatus}
         incomingRequestId={profileData.incomingRequestId}
-        onSuggestOpen={() => setShowSuggest((p) => !p)}
         profileData={profileData}
         onProfileSaved={refreshProfile}
+        sessionUsername={session?.user?.username}
+        onFriendStatusChanged={refreshProfile}
       />
-
-      {showSuggest && isOwner && (
-        <FriendSuggestPanel
-          username={username}
-          onClose={() => setShowSuggest(false)}
-        />
-      )}
 
       <ProfileInfo
         displayName={profileData.profile?.displayName ?? profileData.username}
@@ -143,7 +137,7 @@ export default function ProfilePage() {
         </div>
         <div className="w-[252px] shrink-0 flex flex-col gap-3">
           <SubjectsWidget subjects={profileData.subjects} />
-          <FriendsWidget username={username} />
+          <FriendsWidget username={username} refreshKey={friendsRefreshKey} onUnfriend={refreshProfile} />
           <SuggestionsWidget username={username} />
           <RecentDocsWidget docs={profileData.recentDocs} username={username} />
         </div>

@@ -15,7 +15,7 @@ interface SuggestedUser {
   followerCount: number;
 }
 
-function formatFollowers(count: number): string {
+function formatCount(count: number): string {
   if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
   return String(count);
 }
@@ -52,7 +52,7 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
   const { data: session } = useSession();
   const [users, setUsers] = useState<SuggestedUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [followed, setFollowed] = useState<Record<string, boolean>>({});
+  const [requested, setRequested] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch("/api/users/suggested")
@@ -63,14 +63,13 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
       .finally(() => setLoading(false));
   }, [session]);
 
-  const handleFollow = async (userId: string, username: string) => {
-    if (!session?.user) return;
-    const isFollowed = followed[userId];
-    setFollowed((prev) => ({ ...prev, [userId]: !isFollowed }));
+  const handleAddFriend = async (userId: string, username: string) => {
+    if (!session?.user || requested[userId]) return;
+    setRequested((prev) => ({ ...prev, [userId]: true }));
     try {
       await fetch(`/api/profile/${username}/follow`, { method: "POST" });
     } catch {
-      setFollowed((prev) => ({ ...prev, [userId]: isFollowed }));
+      setRequested((prev) => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -85,7 +84,7 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
         {variant === "feed" ? (
           <>
             <h3 className="text-sm font-semibold text-text-primary">
-              Gợi ý theo dõi
+              Gợi ý kết bạn
             </h3>
             <Link
               href="/search?tab=people"
@@ -96,7 +95,7 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
           </>
         ) : (
           <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
-            Gợi ý theo dõi
+            Gợi ý kết bạn
           </h3>
         )}
       </div>
@@ -138,26 +137,33 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
                   {u.displayName}
                 </p>
                 <p className="text-[10px] text-text-muted truncate">
-                  {u.role} · {formatFollowers(u.followerCount)} followers
+                  {u.role && <span>{u.role}</span>}
+                  {u.followerCount > 0 && (
+                    <>
+                      {u.role ? " · " : ""}
+                      {formatCount(u.followerCount)} người theo dõi
+                    </>
+                  )}
                 </p>
               </Link>
 
               {session?.user && (
                 <button
-                  onClick={() => handleFollow(u.id, u.username)}
+                  onClick={() => handleAddFriend(u.id, u.username)}
+                  disabled={requested[u.id]}
                   className={clsx(
-                    "shrink-0 text-[10px] font-semibold transition-all whitespace-nowrap",
+                    "shrink-0 text-[10px] font-semibold transition-all whitespace-nowrap disabled:opacity-70",
                     variant === "feed"
                       ? "px-2.5 py-1.5 rounded-full"
                       : "px-2 py-1 rounded-md",
-                    followed[u.id]
-                      ? "bg-surface-100 text-text-secondary hover:bg-surface-200"
+                    requested[u.id]
+                      ? "bg-surface-100 text-text-secondary"
                       : variant === "feed"
                         ? "bg-primary/10 text-primary hover:bg-primary hover:text-white"
                         : "text-primary border border-primary/30 hover:bg-primary hover:text-white",
                   )}
                 >
-                  {followed[u.id] ? "Đang theo dõi" : "Theo dõi"}
+                  {requested[u.id] ? "Đã gửi" : "Kết bạn"}
                 </button>
               )}
             </div>

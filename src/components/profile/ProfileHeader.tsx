@@ -9,12 +9,13 @@ import {
   UserPlus,
   UserCheck,
   Pencil,
-  Users,
+  UserMinus,
   Clock,
   ChevronDown,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type FriendStatus = "none" | "pending" | "friends";
 
@@ -23,12 +24,13 @@ interface ProfileHeaderProps {
   avatarUrl?: string | null;
   displayName: string;
   username: string;
+  sessionUsername?: string;
   isOwner: boolean;
   friendStatus?: FriendStatus;
   incomingRequestId?: string | null;
   profileData?: any;
   onProfileSaved?: () => void;
-  onSuggestOpen?: () => void;
+  onFriendStatusChanged?: () => void;
 }
 
 export function ProfileHeader({
@@ -41,7 +43,8 @@ export function ProfileHeader({
   incomingRequestId: initialIncomingId = null,
   profileData,
   onProfileSaved,
-  onSuggestOpen,
+  sessionUsername,
+  onFriendStatusChanged,
 }: ProfileHeaderProps) {
   const router = useRouter();
   const [status, setStatus] = useState<FriendStatus>(initialStatus);
@@ -51,6 +54,7 @@ export function ProfileHeader({
   const [followLoading, setFollowLoading] = useState(false);
   const [showReplyMenu, setShowReplyMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showUnfriendConfirm, setShowUnfriendConfirm] = useState(false);
 
   const handleFollowToggle = async () => {
     setFollowLoading(true);
@@ -60,6 +64,7 @@ export function ProfileHeader({
       });
       const data = await res.json();
       setStatus(data.status ?? "none");
+      onFriendStatusChanged?.();
     } finally {
       setFollowLoading(false);
     }
@@ -70,20 +75,23 @@ export function ProfileHeader({
     setFollowLoading(true);
     setShowReplyMenu(false);
     try {
-      await fetch(
-        `/api/profile/${profileData?.username ?? username}/friend-requests`,
+      const res = await fetch(
+        `/api/profile/${sessionUsername}/friend-requests`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ requestId: incomingRequestId, action }),
         },
       );
-      if (action === "accept") {
-        setStatus("friends");
-      } else {
-        setStatus("none");
+      if (res.ok) {
+        if (action === "accept") {
+          setStatus("friends");
+        } else {
+          setStatus("none");
+        }
+        setIncomingRequestId(null);
+        onFriendStatusChanged?.();
       }
-      setIncomingRequestId(null);
     } finally {
       setFollowLoading(false);
     }
@@ -161,12 +169,6 @@ export function ProfileHeader({
             >
               <Pencil size={13} /> Chỉnh sửa
             </button>
-            <button
-              onClick={onSuggestOpen}
-              className="flex items-center gap-1.5 border border-primary/25 bg-primary/5 text-primary text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-            >
-              <Users size={13} /> Gợi ý kết bạn
-            </button>
           </>
         ) : (
           <>
@@ -201,32 +203,48 @@ export function ProfileHeader({
                 )}
               </div>
             ) : (
-              <button
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-                className={clsx(
-                  "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-70",
-                  status === "friends"
-                    ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-surface-200"
-                    : status === "pending"
-                      ? "bg-surface-50 text-text-muted border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
-                      : "bg-primary text-white hover:bg-primary-700",
+              <>
+                {showUnfriendConfirm && (
+                  <ConfirmDialog
+                    displayName={displayName}
+                    onConfirm={() => {
+                      setShowUnfriendConfirm(false);
+                      handleFollowToggle();
+                    }}
+                    onCancel={() => setShowUnfriendConfirm(false)}
+                  />
                 )}
-              >
-                {status === "friends" ? (
-                  <>
-                    <UserCheck size={13} /> Bạn bè
-                  </>
-                ) : status === "pending" ? (
-                  <>
-                    <Clock size={13} /> Đã gửi yêu cầu
-                  </>
-                ) : (
-                  <>
-                    <UserPlus size={13} /> Kết bạn
-                  </>
-                )}
-              </button>
+                <button
+                  onClick={
+                    status === "friends"
+                      ? () => setShowUnfriendConfirm(true)
+                      : handleFollowToggle
+                  }
+                  disabled={followLoading}
+                  className={clsx(
+                    "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-70",
+                    status === "friends"
+                      ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                      : status === "pending"
+                        ? "bg-surface-50 text-text-muted border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                        : "bg-primary text-white hover:bg-primary-700",
+                  )}
+                >
+                  {status === "friends" ? (
+                    <>
+                      <UserCheck size={13} /> Bạn bè
+                    </>
+                  ) : status === "pending" ? (
+                    <>
+                      <Clock size={13} /> Đã gửi yêu cầu
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={13} /> Kết bạn
+                    </>
+                  )}
+                </button>
+              </>
             )}
           </>
         )}

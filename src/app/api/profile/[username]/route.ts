@@ -17,7 +17,6 @@ export async function GET(
         profile: true,
         _count: {
           select: {
-            followers: true,
             following: true,
           },
         },
@@ -31,6 +30,9 @@ export async function GET(
       );
     }
 
+    const pendingFollowerCount = await prisma.friendRequest.count({
+      where: { receiverId: user.id, status: "PENDING" },
+    });
     const docsWithDownloads = await prisma.document.aggregate({
       where: { uploaderId: user.id },
       _sum: { downloadCount: true },
@@ -61,17 +63,25 @@ export async function GET(
     let friendStatus: "none" | "pending" | "friends" = "none";
     let incomingRequestId: string | null = null;
     if (session?.user?.id && session.user.id !== user.id) {
-      const sentReq = await prisma.friendRequest.findUnique({
+      const friendReq = await prisma.friendRequest.findFirst({
         where: {
-          senderId_receiverId: {
-            senderId: session.user.id,
-            receiverId: user.id,
-          },
+          OR: [
+            { senderId: session.user.id, receiverId: user.id },
+            { senderId: user.id, receiverId: session.user.id },
+          ],
+          status: { in: ["ACCEPTED", "PENDING"] },
         },
-        select: { status: true },
+        select: { status: true, senderId: true },
       });
-      if (sentReq?.status === "ACCEPTED") friendStatus = "friends";
-      else if (sentReq?.status === "PENDING") friendStatus = "pending";
+
+      if (friendReq?.status === "ACCEPTED") {
+        friendStatus = "friends";
+      } else if (
+        friendReq?.status === "PENDING" &&
+        friendReq.senderId === session.user.id
+      ) {
+        friendStatus = "pending";
+      }
     }
     if (session?.user?.id && session.user.id !== user.id) {
       const follow = await prisma.follow.findUnique({
@@ -121,7 +131,7 @@ export async function GET(
       incomingRequestId,
       subjects,
       stats: {
-        followers: user._count.followers,
+        followers: pendingFollowerCount,
         following: user._count.following,
         documents: docCount,
         downloads: docsWithDownloads._sum.downloadCount ?? 0,
