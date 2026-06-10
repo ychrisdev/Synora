@@ -365,6 +365,13 @@ export default function Navbar({
   }, [searchFocused, refreshHistory]);
 
   useEffect(() => {
+    if (status === "unauthenticated") {
+      clearHistory("guest");
+      setHistory([]);
+    }
+  }, [status]);
+
+  useEffect(() => {
     function handler(e: MouseEvent) {
       if (bellRef.current && !bellRef.current.contains(e.target as Node))
         setBellOpen(false);
@@ -380,7 +387,7 @@ export default function Navbar({
   const doSearch = useCallback(
     (q: string) => {
       if (!q.trim()) return;
-      saveToHistory(q.trim(), userId);
+      if (isLoggedIn) saveToHistory(q.trim(), userId);
       setSearchFocused(false);
       setSearchQuery("");
       router.push(`/search?q=${encodeURIComponent(q.trim())}`);
@@ -407,7 +414,7 @@ export default function Navbar({
   };
 
   const handleDropdownSelect = () => {
-    if (searchQuery.trim()) saveToHistory(searchQuery.trim(), userId);
+    if (searchQuery.trim() && isLoggedIn) saveToHistory(searchQuery.trim(), userId);
     setSearchFocused(false);
     setSearchQuery("");
   };
@@ -480,16 +487,18 @@ export default function Navbar({
       </div>
 
       <div className="flex items-center gap-5 px-4 shrink-0">
-        <Link
-          href="/chat"
-          className="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-blue-500 transition-colors block"
-          title="Tin nhắn"
-        >
-          <MessageCircle size={18} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-        </Link>
+        {isLoggedIn && (
+          <Link
+            href="/chat"
+            className="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-blue-500 transition-colors block"
+            title="Tin nhắn"
+          >
+            <MessageCircle size={18} />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
+          </Link>
+        )}
 
-        <div ref={bellRef} className="relative">
+        {isLoggedIn && <div ref={bellRef} className="relative">
           <button
             onClick={() => setBellOpen(!bellOpen)}
             className={`relative p-2.5 rounded-full cursor-pointer transition-colors ${
@@ -544,7 +553,7 @@ export default function Navbar({
               </Link>
             </div>
           )}
-        </div>
+        </div>}
 
         {status === "loading" ? (
           <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />

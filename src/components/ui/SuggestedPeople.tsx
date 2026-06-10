@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
+import AuthGuardModal from "@/components/ui/AuthGuardModal";
 
 interface SuggestedUser {
   id: string;
@@ -54,6 +55,7 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
   const [users, setUsers] = useState<SuggestedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [requested, setRequested] = useState<Record<string, boolean>>({});
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     fetch("/api/users/suggested")
@@ -65,6 +67,10 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
   }, [session]);
 
   const handleAddFriend = async (userId: string, username: string) => {
+    if (!session?.user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!session?.user || requested[userId]) return;
     setRequested((prev) => ({ ...prev, [userId]: true }));
     try {
@@ -163,6 +169,12 @@ export default function SuggestedPeople({ variant = "feed" }: Props) {
             </div>
           ))}
         </div>
+      )}
+      {showAuthModal && (
+        <AuthGuardModal
+          onClose={() => setShowAuthModal(false)}
+          action="kết bạn với mọi người"
+        />
       )}
     </div>
   );

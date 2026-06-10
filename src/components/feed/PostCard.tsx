@@ -47,6 +47,7 @@ import {
   type AttachedFile as ComposerAttachedFile,
 } from "@/components/feed/PostComposer";
 import Avatar from "@/components/ui/Avatar";
+import AuthGuardModal from "@/components/ui/AuthGuardModal";
 import { useUploadThing } from "@/lib/uploadthing";
 
 const fileTypeColors: Record<string, string> = {
@@ -1846,6 +1847,7 @@ function CommentList({
   onHideComment,
   onCountChange,
   onEditComment,
+  onAuthRequired,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -1863,6 +1865,7 @@ function CommentList({
   onHideComment: (id: string) => void;
   onCountChange?: (delta: number) => void;
   onEditComment: (id: string, text: string) => void;
+  onAuthRequired?: (action: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2081,7 +2084,13 @@ function CommentList({
                       )}
                     >
                       <button
-                        onClick={() => onLike(c.id)}
+                        onClick={() => {
+                          if (!currentUserId) {
+                            onAuthRequired?.("thích bình luận");
+                            return;
+                          }
+                          onLike(c.id);
+                        }}
                         className={clsx(
                           "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
                           c.liked
@@ -2093,7 +2102,13 @@ function CommentList({
                         <span>{c.likes > 0 ? c.likes : "Thích"}</span>
                       </button>
                       <button
-                        onClick={() => onToggleReply(c.id, c.author.name)}
+                        onClick={() => {
+                          if (!currentUserId) {
+                            onAuthRequired?.("trả lời bình luận");
+                            return;
+                          }
+                          onToggleReply(c.id, c.author.name);
+                        }}
                         className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
                       >
                         Trả lời
@@ -2180,7 +2195,13 @@ function CommentList({
                           )}
                         >
                           <button
-                            onClick={() => onLikeReply(c.id, r.id)}
+                            onClick={() => {
+                              if (!currentUserId) {
+                                onAuthRequired?.("thích bình luận");
+                                return;
+                              }
+                              onLikeReply(c.id, r.id);
+                            }}
                             className={clsx(
                               "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
                               r.liked
@@ -2192,7 +2213,13 @@ function CommentList({
                             <span>{r.likes > 0 ? r.likes : "Thích"}</span>
                           </button>
                           <button
-                            onClick={() => onToggleReply(c.id, r.author.name)}
+                            onClick={() => {
+                              if (!currentUserId) {
+                                onAuthRequired?.("trả lời bình luận");
+                                return;
+                              }
+                              onToggleReply(c.id, r.author.name);
+                            }}
                             className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
                           >
                             Trả lời
@@ -2810,6 +2837,7 @@ function MediaLightbox({
   }, [comments, getVisibleCount, onSyncCount]);
   const currentSrc = images[index];
   const isVideo = isVideoItem(currentSrc, mediaTypes?.[index]);
+  const [authModal, setAuthModal] = useState<string | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
@@ -2906,11 +2934,17 @@ function MediaLightbox({
                   <span className="text-text-muted text-xs">·</span>
                   <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
                     {post.visibility === "PRIVATE" ? (
-                      <><LockIcon size={10} /> Riêng tư</>
+                      <>
+                        <LockIcon size={10} /> Riêng tư
+                      </>
                     ) : post.visibility === "FRIENDS_ONLY" ? (
-                      <><UsersIcon size={10} /> Bạn bè</>
+                      <>
+                        <UsersIcon size={10} /> Bạn bè
+                      </>
                     ) : (
-                      <><Globe size={10} /> Công khai</>
+                      <>
+                        <Globe size={10} /> Công khai
+                      </>
                     )}
                   </span>
                 </>
@@ -3004,16 +3038,34 @@ function MediaLightbox({
             onEditComment={editComment}
             onHideComment={hideComment}
             onCountChange={onCountChange}
+            onAuthRequired={setAuthModal}
           />
         </div>
         <div className="border-t border-surface-100 px-4 py-3 shrink-0">
-          <CommentInput
-            onSubmit={async (payload) => {
-              await submitComment(payload);
-            }}
-          />
+          {status === "authenticated" ? (
+            <CommentInput
+              onSubmit={async (payload) => {
+                await submitComment(payload);
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => setAuthModal("bình luận")}
+              className="w-full py-2.5 text-xs font-medium text-text-secondary border border-surface-200 rounded-2xl hover:bg-surface-50 transition-colors"
+            >
+              Đăng nhập để bình luận
+            </button>
+          )}
         </div>
       </div>
+      {authModal && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <AuthGuardModal
+            onClose={() => setAuthModal(null)}
+            action={authModal}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -3026,6 +3078,7 @@ function CommentModal({
   onClose,
   onCountChange,
   onSyncCount,
+  onAuthRequired,
   menuSlot,
 }: {
   post: Post;
@@ -3035,6 +3088,7 @@ function CommentModal({
   onClose: () => void;
   onCountChange?: (delta: number) => void;
   onSyncCount?: (count: number) => void;
+  onAuthRequired?: (action: string) => void;
   menuSlot?: React.ReactNode;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -3129,11 +3183,17 @@ function CommentModal({
                   <span className="text-text-muted text-xs">·</span>
                   <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
                     {post.visibility === "PRIVATE" ? (
-                      <><LockIcon size={10} /> Riêng tư</>
+                      <>
+                        <LockIcon size={10} /> Riêng tư
+                      </>
                     ) : post.visibility === "FRIENDS_ONLY" ? (
-                      <><UsersIcon size={10} /> Bạn bè</>
+                      <>
+                        <UsersIcon size={10} /> Bạn bè
+                      </>
                     ) : (
-                      <><Globe size={10} /> Công khai</>
+                      <>
+                        <Globe size={10} /> Công khai
+                      </>
                     )}
                   </span>
                 </>
@@ -3240,10 +3300,20 @@ function CommentModal({
             onEditComment={editComment}
             onHideComment={hideComment}
             onCountChange={onCountChange}
+            onAuthRequired={onAuthRequired}
           />
         </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
-          <CommentInput onSubmit={handleSubmitComment} />
+          {status === "authenticated" ? (
+            <CommentInput onSubmit={handleSubmitComment} />
+          ) : (
+            <button
+              onClick={() => onAuthRequired?.("bình luận")}
+              className="w-full py-2.5 text-xs font-medium text-text-secondary border border-surface-200 rounded-2xl hover:bg-surface-50 transition-colors"
+            >
+              Đăng nhập để bình luận
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -3290,8 +3360,13 @@ export default function PostCard({
   const [blockingName, setBlockingName] = useState<string | null>(null);
   const isOwner = session?.user?.id === post.authorId;
   const [currentVisibility, setCurrentVisibility] = useState(post.visibility);
+  const [authModal, setAuthModal] = useState<string | null>(null);
 
   const handleLike = async () => {
+    if (!session?.user) {
+      setAuthModal("thích bài viết");
+      return;
+    }
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
@@ -3299,6 +3374,10 @@ export default function PostCard({
   };
 
   const handleSave = async () => {
+    if (!session?.user) {
+      setAuthModal("lưu bài viết");
+      return;
+    }
     const res = await fetch(`/api/posts/${post.id}/save`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
@@ -3501,7 +3580,9 @@ export default function PostCard({
               <span>{likeCount}</span>
             </button>
             <button
-              onClick={() => setModal({ type: "comment" })}
+              onClick={() => {
+                setModal({ type: "comment" });
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors"
             >
               <MessageCircle size={15} />
@@ -3562,6 +3643,7 @@ export default function PostCard({
           onCountChange={(delta) =>
             setCommentCount((c) => Math.max(0, c + delta))
           }
+          onAuthRequired={setAuthModal}
           menuSlot={
             <PostMoreMenu
               isOwner={isOwner}
@@ -3609,8 +3691,12 @@ export default function PostCard({
         />
       )}
 
+      {authModal && (
+        <AuthGuardModal onClose={() => setAuthModal(null)} action={authModal} />
+      )}
+
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-fade-in">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
           <Bookmark size={13} />
           {toast}
         </div>

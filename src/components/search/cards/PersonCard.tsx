@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { clsx } from "clsx";
 import type { SearchResult } from "@/lib/search/types";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import AuthGuardModal from "@/components/ui/AuthGuardModal";
 
 function parseFollowerCount(meta?: string): number {
   const match = meta?.match(/(\d+)\s*người theo dõi/);
@@ -39,6 +40,7 @@ export function PersonCard({ r }: { r: SearchResult }) {
     /\d+\s*người theo dõi/,
     `${baseFollowers + followerDelta} người theo dõi`,
   );
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const openReplyMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -69,6 +71,10 @@ export function PersonCard({ r }: { r: SearchResult }) {
   }, [showReplyMenu]);
 
   const handleFriendAction = async (e: React.MouseEvent) => {
+    if (!r.sessionUsername) {
+      setShowAuthModal(true);
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (loading) return;
@@ -261,6 +267,12 @@ export function PersonCard({ r }: { r: SearchResult }) {
               .finally(() => setLoading(false));
           }}
           onCancel={() => setShowUnfriendConfirm(false)}
+        />
+      )}
+      {showAuthModal && (
+        <AuthGuardModal
+          onClose={() => setShowAuthModal(false)}
+          action="kết bạn với mọi người"
         />
       )}
     </>

@@ -9,13 +9,13 @@ import {
   UserPlus,
   UserCheck,
   Pencil,
-  UserMinus,
   Clock,
   ChevronDown,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import AuthGuardModal from "@/components/ui/AuthGuardModal";
 
 type FriendStatus = "none" | "pending" | "friends";
 
@@ -55,8 +55,13 @@ export function ProfileHeader({
   const [showReplyMenu, setShowReplyMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showUnfriendConfirm, setShowUnfriendConfirm] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleFollowToggle = async () => {
+    if (!sessionUsername) {
+      setShowAuthModal(true);
+      return;
+    }
     setFollowLoading(true);
     try {
       const res = await fetch(`/api/profile/${username}/follow`, {
@@ -172,7 +177,16 @@ export function ProfileHeader({
           </>
         ) : (
           <>
-            <button className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors">
+            <button
+              onClick={() => {
+                if (!sessionUsername) {
+                  setShowAuthModal(true);
+                  return;
+                }
+                router.push(`/chat?with=${username}`);
+              }}
+              className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors"
+            >
               <MessageCircle size={13} /> Nhắn tin
             </button>
 
@@ -265,6 +279,12 @@ export function ProfileHeader({
           }}
           onClose={() => setShowEditModal(false)}
           onSaved={handleSaved}
+        />
+      )}
+      {showAuthModal && (
+        <AuthGuardModal
+          onClose={() => setShowAuthModal(false)}
+          action="kết bạn với người này"
         />
       )}
     </div>
