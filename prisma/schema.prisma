@@ -42,7 +42,7 @@ enum MessageStatus {
 
 enum PostVisibility {
   PUBLIC
-  FOLLOWERS_ONLY
+  FRIENDS_ONLY
   PRIVATE
 }
 

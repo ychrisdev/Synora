@@ -6,8 +6,38 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   const session = await getServerSession(authOptions);
   try {
+    const friendIds: string[] = [];
+
+    if (session?.user?.id) {
+      const accepted = await prisma.friendRequest.findMany({
+        where: {
+          status: "ACCEPTED",
+          OR: [{ senderId: session.user.id }, { receiverId: session.user.id }],
+        },
+        select: { senderId: true, receiverId: true },
+      });
+      for (const r of accepted) {
+        friendIds.push(
+          r.senderId === session.user.id ? r.receiverId : r.senderId,
+        );
+      }
+    }
+
     const posts = await prisma.post.findMany({
-      where: { visibility: "PUBLIC" },
+      where: {
+        OR: [
+          { visibility: "PUBLIC" },
+          ...(session?.user?.id
+            ? [
+                { authorId: session.user.id },
+                {
+                  visibility: "FRIENDS_ONLY" as const,
+                  authorId: { in: friendIds },
+                },
+              ]
+            : []),
+        ],
+      },
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
@@ -21,16 +51,16 @@ export async function GET() {
       },
     });
     return NextResponse.json(posts);
-  } catch {
+  } catch (e) {
+    console.error(e);
     return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  if (!session?.user?.id)
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
-  }
 
   try {
     const {
@@ -41,12 +71,23 @@ export async function POST(req: NextRequest) {
       uploadedDocs = [],
     } = await req.json();
 
-    if (!content?.trim()) {
+    if (!content?.trim())
       return NextResponse.json(
         { error: "Nội dung không được trống" },
         { status: 400 },
       );
-    }
+
+    const VALID_VISIBILITY = ["PUBLIC", "FRIENDS_ONLY", "PRIVATE"];
+    const visibilityMap: Record<string, "PUBLIC" | "FRIENDS_ONLY" | "PRIVATE"> =
+      {
+        public: "PUBLIC",
+        friends: "FRIENDS_ONLY",
+        private: "PRIVATE",
+        PUBLIC: "PUBLIC",
+        FRIENDS_ONLY: "FRIENDS_ONLY",
+        PRIVATE: "PRIVATE",
+      };
+    const normalizedVisibility = visibilityMap[visibility] ?? "PUBLIC";
 
     const MIME_TO_EXT: Record<string, string> = {
       "image/jpeg": "JPG",
@@ -80,7 +121,7 @@ export async function POST(req: NextRequest) {
     const post = await prisma.post.create({
       data: {
         content,
-        visibility,
+        visibility: normalizedVisibility,
         authorId: session.user.id,
         tags: {
           create: await Promise.all(

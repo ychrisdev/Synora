@@ -25,6 +25,11 @@ import {
   Paperclip,
   FileText,
   Loader2,
+  User,
+  Globe,
+  Users as UsersIcon,
+  Lock as LockIcon,
+  ChevronDown,
 } from "lucide-react";
 import NextLink from "next/link";
 import { clsx } from "clsx";
@@ -81,6 +86,7 @@ interface Post {
   images?: string[];
   mediaTypes?: string[];
   mediaDocIds?: string[];
+  visibility?: "PUBLIC" | "FRIENDS_ONLY" | "PRIVATE";
   tags: string[];
   attachment?: {
     name: string;
@@ -164,6 +170,18 @@ interface ExistingMedia {
   name: string;
 }
 
+type EditVisibility = "PUBLIC" | "FRIENDS_ONLY" | "PRIVATE";
+
+const EDIT_VISIBILITY_OPTIONS: {
+  value: EditVisibility;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  { value: "PUBLIC", label: "Mọi người", icon: <Globe size={13} /> },
+  { value: "FRIENDS_ONLY", label: "Bạn bè", icon: <UsersIcon size={13} /> },
+  { value: "PRIVATE", label: "Chỉ mình tôi", icon: <LockIcon size={13} /> },
+];
+
 function notifyTagsChanged() {
   window.dispatchEvent(new Event("tags:changed"));
 }
@@ -199,6 +217,61 @@ export function mapFilesToPostFields(
     mediaTypes: mediaTypes.length ? mediaTypes : undefined,
     attachment,
   };
+}
+
+function EditVisibilityPicker({
+  value,
+  onChange,
+}: {
+  value: EditVisibility;
+  onChange: (v: EditVisibility) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = EDIT_VISIBILITY_OPTIONS.find((o) => o.value === value)!;
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1.5 text-xs font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 px-2.5 py-1.5 rounded-full transition-colors"
+      >
+        {current.icon}
+        {current.label}
+        <ChevronDown size={11} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-surface-200 rounded-xl shadow-lg z-30 min-w-[160px] overflow-hidden">
+          {EDIT_VISIBILITY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-50 transition-colors ${
+                opt.value === value
+                  ? "text-primary font-semibold"
+                  : "text-text-primary"
+              }`}
+            >
+              {opt.icon}
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatFileSize(bytes: number): string {
@@ -604,6 +677,7 @@ function EditPostComposer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: content.trim(),
+          visibility,
           removedDocIds,
           uploadedMedia,
           uploadedDocs,
@@ -626,6 +700,10 @@ function EditPostComposer({
     }
   };
 
+  const [visibility, setVisibility] = useState<EditVisibility>(
+    (post.visibility as EditVisibility) ?? "PUBLIC",
+  );
+
   const allMediaForLightbox: ComposerAttachedFile[] = [
     ...existingMedia.map((m) => ({
       id: m.id,
@@ -645,17 +723,18 @@ function EditPostComposer({
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 shrink-0">
-          <h2 className="text-sm font-bold text-text-primary">
-            Chỉnh sửa bài viết
-          </h2>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onClose}
-              className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
-            >
-              <X size={14} />
-            </button>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-bold text-text-primary">
+              Chỉnh sửa bài viết
+            </h2>
+            <EditVisibilityPicker value={visibility} onChange={setVisibility} />
           </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-surface-100 flex items-center justify-center text-text-secondary hover:bg-surface-200 transition-colors"
+          >
+            <X size={14} />
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1">
@@ -1118,7 +1197,6 @@ function CommentInput({
   const { data: session } = useSession();
   const { startUpload: uploadMedia } = useUploadThing("commentMedia");
   const { startUpload: uploadDoc } = useUploadThing("commentDocument");
-
   const initials = (session?.user?.name ?? "U")
     .split(" ")
     .map((w: string) => w[0])
@@ -2804,7 +2882,7 @@ function MediaLightbox({
             className="shrink-0"
           >
             <Avatar
-              src={displayPost.author.avatarUrl}
+              src={post.author.avatarUrl}
               name={post.author.name}
               initials={post.author.initials}
               color={post.author.color}
@@ -2821,8 +2899,22 @@ function MediaLightbox({
                 {post.author.name}
               </p>
             </NextLink>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <span className="text-xs text-text-secondary">{post.time}</span>
+              {post.visibility && (
+                <>
+                  <span className="text-text-muted text-xs">·</span>
+                  <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
+                    {post.visibility === "PRIVATE" ? (
+                      <><LockIcon size={10} /> Riêng tư</>
+                    ) : post.visibility === "FRIENDS_ONLY" ? (
+                      <><UsersIcon size={10} /> Bạn bè</>
+                    ) : (
+                      <><Globe size={10} /> Công khai</>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
           </div>
           {menuSlot}
@@ -3013,7 +3105,7 @@ function CommentModal({
             className="shrink-0"
           >
             <Avatar
-              src={displayPost.author.avatarUrl}
+              src={post.author.avatarUrl}
               name={post.author.name}
               initials={post.author.initials}
               color={post.author.color}
@@ -3030,7 +3122,23 @@ function CommentModal({
                 {post.author.name}
               </p>
             </NextLink>
-            <span className="text-xs text-text-secondary">{post.time}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-text-secondary">{post.time}</span>
+              {post.visibility && (
+                <>
+                  <span className="text-text-muted text-xs">·</span>
+                  <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
+                    {post.visibility === "PRIVATE" ? (
+                      <><LockIcon size={10} /> Riêng tư</>
+                    ) : post.visibility === "FRIENDS_ONLY" ? (
+                      <><UsersIcon size={10} /> Bạn bè</>
+                    ) : (
+                      <><Globe size={10} /> Công khai</>
+                    )}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
           {menuSlot}
           <button
@@ -3181,6 +3289,7 @@ export default function PostCard({
   const [deleted, setDeleted] = useState(false);
   const [blockingName, setBlockingName] = useState<string | null>(null);
   const isOwner = session?.user?.id === post.authorId;
+  const [currentVisibility, setCurrentVisibility] = useState(post.visibility);
 
   const handleLike = async () => {
     const nextLiked = !liked;
@@ -3204,6 +3313,7 @@ export default function PostCard({
     const updated = result.updatedPost;
     setContent(updated.content);
     setEditedAt(updated.editedAt);
+    setCurrentVisibility(updated.visibility);
     const mediaDocs = (updated.documents ?? []).filter(
       (d: any) => d.type === "IMAGE" || d.type === "VIDEO",
     );
@@ -3286,6 +3396,7 @@ export default function PostCard({
           ? sessionAvatarUrl
           : post.author.avatarUrl,
     },
+    visibility: currentVisibility,
   };
 
   return (
@@ -3311,12 +3422,27 @@ export default function PostCard({
                   {post.author.name}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <p className="text-xs text-text-secondary">{post.time}</p>
-                {editedAt && (
-                  <span className="text-xs text-text-muted">
-                    · đã chỉnh sửa
-                  </span>
+                {currentVisibility && (
+                  <>
+                    <span className="text-text-muted text-xs">·</span>
+                    <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
+                      {currentVisibility === "PRIVATE" ? (
+                        <>
+                          <LockIcon size={10} /> Riêng tư
+                        </>
+                      ) : currentVisibility === "FRIENDS_ONLY" ? (
+                        <>
+                          <UsersIcon size={10} /> Bạn bè
+                        </>
+                      ) : (
+                        <>
+                          <Globe size={10} /> Công khai
+                        </>
+                      )}
+                    </span>
+                  </>
                 )}
               </div>
             </div>

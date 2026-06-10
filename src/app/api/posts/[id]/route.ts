@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const VALID_VISIBILITY = ["PUBLIC", "FRIENDS_ONLY", "PRIVATE"];
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -12,11 +14,11 @@ export async function PATCH(
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
 
   const { id } = await params;
-
   const body = await req.json();
 
   const {
     content,
+    visibility,
     removedDocIds = [],
     uploadedMedia = [],
     uploadedDocs = [],
@@ -77,6 +79,18 @@ export async function PATCH(
     ...uploadedDocs.map((f: any) => ({ ...f, docType: getDocType(f.type) })),
   ];
 
+  const visibilityMap: Record<string, "PUBLIC" | "FRIENDS_ONLY" | "PRIVATE"> = {
+    public: "PUBLIC",
+    friends: "FRIENDS_ONLY",
+    private: "PRIVATE",
+    PUBLIC: "PUBLIC",
+    FRIENDS_ONLY: "FRIENDS_ONLY",
+    PRIVATE: "PRIVATE",
+  };
+  const normalizedVisibility = visibility
+    ? (visibilityMap[visibility] ?? undefined)
+    : undefined;
+
   const updated = await prisma.$transaction(async (tx) => {
     await tx.tagsOnPosts.deleteMany({ where: { postId: id } });
 
@@ -116,6 +130,7 @@ export async function PATCH(
       where: { id },
       data: {
         content: content.trim(),
+        ...(normalizedVisibility && { visibility: normalizedVisibility }),
         updatedAt: new Date(),
         editedAt: new Date(),
       },
@@ -139,7 +154,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
 
   const { id } = await params;
-
   const post = await prisma.post.findUnique({ where: { id } });
   if (!post)
     return NextResponse.json(

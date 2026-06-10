@@ -48,6 +48,7 @@ interface PostComposerProps {
       type: string;
       size: number;
     }[];
+    visibility: string;
   }) => void;
   currentUser?: { name: string; initials: string; image?: string | null };
 }
@@ -473,6 +474,7 @@ export default function PostComposer({
       files: attachedFiles,
       uploadedMedia,
       uploadedDocs,
+      visibility,
     });
 
     setContent("");

@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
-import { mapFilesToPostFields } from "@/components/feed/PostCard";
 import TrendingTopics from "@/components/ui/TrendingTopics";
 import SuggestedPeople from "@/components/ui/SuggestedPeople";
 
@@ -46,32 +45,34 @@ export default function FeedPage() {
   const handlePost = async ({
     content,
     tags,
-    files,
     uploadedMedia,
     uploadedDocs,
+    visibility,
   }: {
     content: string;
     tags: string[];
     files: AttachedFile[];
     uploadedMedia: { url: string; key: string; name: string; type: string }[];
     uploadedDocs: { url: string; key: string; name: string; type: string }[];
+    visibility: string;
   }) => {
-    const { images, mediaTypes, attachment } = mapFilesToPostFields(files);
-
     const res = await fetch("/api/posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content, tags, uploadedMedia, uploadedDocs }),
+      body: JSON.stringify({
+        content,
+        tags,
+        uploadedMedia,
+        uploadedDocs,
+        visibility,
+      }),
     });
 
     if (!res.ok) return;
     const saved = await res.json();
-
     window.dispatchEvent(new Event("tags:changed"));
 
-    const IMAGE_EXTS = ["JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG"];
     const VIDEO_EXTS = ["MP4", "MOV", "AVI", "WEBM", "MKV"];
-
     const newPost = {
       id: saved.id,
       authorId: session?.user?.id ?? "",
@@ -86,14 +87,18 @@ export default function FeedPage() {
       time: "Vừa xong",
       content,
       tags,
+      visibility: visibility.toUpperCase() as
+        | "PUBLIC"
+        | "FRIENDS_ONLY"
+        | "PRIVATE",
       images:
-        uploadedMedia.length > 0 ? uploadedMedia.map((f) => f.url) : images,
+        uploadedMedia.length > 0 ? uploadedMedia.map((f) => f.url) : undefined,
       mediaTypes:
         uploadedMedia.length > 0
           ? uploadedMedia.map((f) =>
               VIDEO_EXTS.includes(f.type.toUpperCase()) ? "video" : "image",
             )
-          : mediaTypes,
+          : undefined,
       attachment:
         uploadedDocs.length > 0
           ? {
@@ -102,7 +107,7 @@ export default function FeedPage() {
               type: uploadedDocs[0].type,
               url: uploadedDocs[0].url,
             }
-          : attachment,
+          : undefined,
       attachments:
         uploadedDocs.length > 0
           ? uploadedDocs.map((d) => ({
@@ -116,7 +121,9 @@ export default function FeedPage() {
       isLikedByMe: false,
       comments: 0,
     };
-    setLocalPosts((prev) => [newPost, ...prev]);
+    setLocalPosts((prev) =>
+      prev.some((p) => p.id === newPost.id) ? prev : [newPost, ...prev],
+    );
   };
 
   const mappedPosts = posts.map((p) => {
@@ -186,6 +193,11 @@ export default function FeedPage() {
               docId: d.id,
             }))
           : undefined,
+      visibility: p.visibility as
+        | "PUBLIC"
+        | "FRIENDS_ONLY"
+        | "PRIVATE"
+        | undefined,
     };
   });
 
@@ -204,9 +216,16 @@ export default function FeedPage() {
             Chưa có bài viết nào
           </div>
         ) : (
-          [...localPosts, ...mappedPosts].map((post) => (
-            <PostCard key={post.id} post={post} onDeleted={handleDeleted} />
-          ))
+          (() => {
+            const mappedIds = new Set(mappedPosts.map((p) => p.id));
+            const deduped = [
+              ...localPosts.filter((p) => !mappedIds.has(p.id)),
+              ...mappedPosts,
+            ];
+            return deduped.map((post) => (
+              <PostCard key={post.id} post={post} onDeleted={handleDeleted} />
+            ));
+          })()
         )}
       </div>
       <div className="w-[320px] shrink-0 flex flex-col gap-4">

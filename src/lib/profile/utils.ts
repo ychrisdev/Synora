@@ -4,7 +4,16 @@ export function formatCount(n: number): string {
 }
 
 export function getViewUrl(fileUrl: string, type: string): string {
-  const docTypes = ["PDF", "DOC", "DOCX", "PPT", "PPTX", "XLS", "XLSX", "OTHER"];
+  const docTypes = [
+    "PDF",
+    "DOC",
+    "DOCX",
+    "PPT",
+    "PPTX",
+    "XLS",
+    "XLSX",
+    "OTHER",
+  ];
   if (docTypes.includes(type.toUpperCase())) {
     return `https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=false`;
   }
@@ -66,5 +75,11 @@ export function mapApiPostToCard(post: any) {
     images: images.length ? images : undefined,
     mediaTypes: mediaTypes.length ? mediaTypes : undefined,
     attachment,
+    visibility: post.visibility as
+      | "PUBLIC"
+      | "FRIENDS_ONLY"
+      | "PRIVATE"
+      | undefined,
+    editedAt: post.editedAt ?? null,
   };
 }
