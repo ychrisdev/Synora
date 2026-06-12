@@ -79,15 +79,8 @@ export async function POST(
         where: { id: reverseRequest.id },
         data: { status: "ACCEPTED" },
       });
-      await tx.follow.upsert({
-        where: {
-          followerId_followingId: {
-            followerId: senderId,
-            followingId: receiverId,
-          },
-        },
-        create: { followerId: senderId, followingId: receiverId },
-        update: {},
+      await tx.follow.deleteMany({
+        where: { followerId: receiverId, followingId: senderId },
       });
       return NextResponse.json({ status: "friends" });
     }

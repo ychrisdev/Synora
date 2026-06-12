@@ -24,6 +24,47 @@ export async function GET(req: NextRequest) {
       topics: [],
     });
 
+  const friendIds: string[] = [];
+  if (session?.user?.id) {
+    const accepted = await prisma.friendRequest.findMany({
+      where: {
+        status: "ACCEPTED",
+        OR: [{ senderId: session.user.id }, { receiverId: session.user.id }],
+      },
+      select: { senderId: true, receiverId: true },
+    });
+    for (const r of accepted) {
+      friendIds.push(
+        r.senderId === session.user.id ? r.receiverId : r.senderId,
+      );
+    }
+  }
+
+  const postVisibilityFilter = session?.user?.id
+    ? {
+        OR: [
+          { visibility: "PUBLIC" as const },
+          { authorId: session.user.id },
+          { visibility: "FRIENDS_ONLY" as const, authorId: { in: friendIds } },
+        ],
+      }
+    : { visibility: "PUBLIC" as const };
+
+  const tagVisibilityFilter = session?.user?.id
+    ? {
+        OR: [
+          { post: { visibility: "PUBLIC" as const } },
+          { post: { authorId: session.user.id } },
+          {
+            post: {
+              visibility: "FRIENDS_ONLY" as const,
+              authorId: { in: friendIds },
+            },
+          },
+        ],
+      }
+    : { post: { visibility: "PUBLIC" as const } };
+
   const postOrderBy =
     sort === "newest"
       ? [{ createdAt: "desc" as const }]
@@ -42,40 +83,61 @@ export async function GET(req: NextRequest) {
 
   const postWhere = strictTag
     ? {
-        visibility: "PUBLIC" as const,
-        tags: {
-          some: {
-            tag: { name: { equals: q, mode: "insensitive" as const } },
+        AND: [
+          postVisibilityFilter,
+          {
+            tags: {
+              some: {
+                tag: { name: { equals: q, mode: "insensitive" as const } },
+              },
+            },
           },
-        },
+        ],
       }
     : isHashtag
       ? {
-          visibility: "PUBLIC" as const,
-          OR: [
+          AND: [
+            postVisibilityFilter,
             {
-              tags: {
-                some: {
-                  tag: { name: { equals: q, mode: "insensitive" as const } },
+              OR: [
+                {
+                  tags: {
+                    some: {
+                      tag: {
+                        name: { equals: q, mode: "insensitive" as const },
+                      },
+                    },
+                  },
                 },
-              },
+                { content: { contains: q, mode: "insensitive" as const } },
+              ],
             },
-            { content: { contains: q, mode: "insensitive" as const } },
           ],
         }
       : {
-          visibility: "PUBLIC" as const,
-          OR: [
-            { content: { contains: q, mode: "insensitive" as const } },
+          AND: [
+            postVisibilityFilter,
             {
-              tags: {
-                some: {
-                  tag: { name: { contains: q, mode: "insensitive" as const } },
+              OR: [
+                { content: { contains: q, mode: "insensitive" as const } },
+                {
+                  tags: {
+                    some: {
+                      tag: {
+                        name: { contains: q, mode: "insensitive" as const },
+                      },
+                    },
+                  },
                 },
-              },
+              ],
             },
           ],
         };
+
+  const topicWhere = {
+    name: { contains: q, mode: "insensitive" as const },
+    posts: { some: tagVisibilityFilter },
+  };
 
   if (countOnly) {
     const [postCount, docCount, peopleCount, groupCount, topicCount] =
@@ -115,12 +177,7 @@ export async function GET(req: NextRequest) {
               },
             })
           : Promise.resolve(0),
-        prisma.tag.count({
-          where: {
-            name: { contains: q, mode: "insensitive" },
-            posts: { some: {} },
-          },
-        }),
+        prisma.tag.count({ where: topicWhere }),
       ]);
     return NextResponse.json({
       posts: postCount,
@@ -131,7 +188,26 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const [posts, documents, people, groups, topics] = await Promise.all([
+  const rawTags =
+    tab === "all" || tab === "topics"
+      ? await prisma.tag.findMany({
+          where: topicWhere,
+          take: tab === "all" ? 5 : 20,
+          include: { _count: { select: { posts: true } } },
+          orderBy: { posts: { _count: "desc" } },
+        })
+      : [];
+
+  const tagsWithCorrectCount = await Promise.all(
+    rawTags.map(async (tag) => {
+      const count = await prisma.tagsOnPosts.count({
+        where: { tagId: tag.id, ...tagVisibilityFilter },
+      });
+      return { ...tag, _count: { posts: count } };
+    }),
+  );
+
+  const [posts, documents, people, groups] = await Promise.all([
     tab === "all" || tab === "posts"
       ? prisma.post.findMany({
           where: postWhere,
@@ -195,18 +271,6 @@ export async function GET(req: NextRequest) {
           include: { _count: { select: { members: true } } },
         })
       : [],
-
-    tab === "all" || tab === "topics"
-      ? prisma.tag.findMany({
-          where: {
-            name: { contains: q, mode: "insensitive" },
-            posts: { some: {} },
-          },
-          take: tab === "all" ? 5 : 20,
-          include: { _count: { select: { posts: true } } },
-          orderBy: { posts: { _count: "desc" } },
-        })
-      : [],
   ]);
 
   let peopleWithStatus = people;
@@ -255,6 +319,6 @@ export async function GET(req: NextRequest) {
     documents,
     people: peopleWithStatus,
     groups,
-    topics,
+    topics: tagsWithCorrectCount,
   });
 }

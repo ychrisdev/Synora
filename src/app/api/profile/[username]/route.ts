@@ -30,8 +30,8 @@ export async function GET(
       );
     }
 
-    const pendingFollowerCount = await prisma.friendRequest.count({
-      where: { receiverId: user.id, status: "PENDING" },
+    const followerCount = await prisma.follow.count({
+      where: { followingId: user.id },
     });
     const docsWithDownloads = await prisma.document.aggregate({
       where: { uploaderId: user.id },
@@ -131,7 +131,7 @@ export async function GET(
       incomingRequestId,
       subjects,
       stats: {
-        followers: pendingFollowerCount,
+        followers: followerCount,
         following: user._count.following,
         documents: docCount,
         downloads: docsWithDownloads._sum.downloadCount ?? 0,

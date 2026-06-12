@@ -95,6 +95,7 @@ function mapPostToCard(p: any) {
   return {
     id: p.id,
     authorId: p.authorId,
+    visibility: p.visibility,
     author: {
       name: p.author.profile?.displayName ?? p.author.username ?? "User",
       initials: (p.author.profile?.displayName ?? p.author.username ?? "U")

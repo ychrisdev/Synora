@@ -90,18 +90,11 @@ export async function POST(
         where: { id: requestId },
         data: { status: "ACCEPTED" },
       }),
-      prisma.follow.upsert({
+      prisma.follow.deleteMany({
         where: {
-          followerId_followingId: {
-            followerId: request.receiverId,
-            followingId: request.senderId,
-          },
+          followerId: request.senderId,
+          followingId: request.receiverId,
         },
-        create: {
-          followerId: request.receiverId,
-          followingId: request.senderId,
-        },
-        update: {},
       }),
     ]);
     return NextResponse.json({ success: true, action: "accepted" });

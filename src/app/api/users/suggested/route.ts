@@ -8,15 +8,33 @@ export async function GET() {
     const session = await getServerSession(authOptions);
 
     let excludeIds: string[] = [];
+    let pendingReceivedMap: Record<string, string> = {};
+
     if (session?.user?.id) {
-      const sentRequests = await prisma.friendRequest.findMany({
-        where: {
-          senderId: session.user.id,
-          status: { in: ["PENDING", "ACCEPTED"] },
-        },
-        select: { receiverId: true },
-      });
-      excludeIds = [session.user.id, ...sentRequests.map((r) => r.receiverId)];
+      const [sentRequests, receivedRequests] = await Promise.all([
+        prisma.friendRequest.findMany({
+          where: {
+            senderId: session.user.id,
+            status: { in: ["PENDING", "ACCEPTED"] },
+          },
+          select: { receiverId: true },
+        }),
+        prisma.friendRequest.findMany({
+          where: {
+            receiverId: session.user.id,
+            status: "PENDING",
+          },
+          select: { senderId: true, id: true },
+        }),
+      ]);
+
+      const sentIds = sentRequests.map((r) => r.receiverId);
+      const receivedIds = receivedRequests.map((r) => r.senderId);
+      excludeIds = [session.user.id, ...sentIds, ...receivedIds];
+
+      for (const r of receivedRequests) {
+        pendingReceivedMap[r.senderId] = r.id;
+      }
     }
 
     const users = await prisma.user.findMany({
@@ -36,21 +54,9 @@ export async function GET() {
             school: true,
           },
         },
+        _count: { select: { followers: true } },
       },
     });
-
-    const pendingCounts = await prisma.friendRequest.groupBy({
-      by: ["receiverId"],
-      where: {
-        receiverId: { in: users.map((u) => u.id) },
-        status: "PENDING",
-      },
-      _count: { receiverId: true },
-    });
-
-    const pendingMap = Object.fromEntries(
-      pendingCounts.map((p) => [p.receiverId, p._count.receiverId]),
-    );
 
     const result = users
       .map((u) => ({
@@ -61,7 +67,9 @@ export async function GET() {
         role:
           [u.profile?.major, u.profile?.school].filter(Boolean).join(" · ") ||
           "",
-        followerCount: pendingMap[u.id] ?? 0,
+        followerCount: u._count.followers,
+        friendStatus: "none" as const,
+        incomingRequestId: pendingReceivedMap[u.id] ?? null,
       }))
       .sort((a, b) => b.followerCount - a.followerCount)
       .slice(0, 5);
