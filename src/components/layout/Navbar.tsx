@@ -357,19 +357,22 @@ export default function Navbar({
     .toUpperCase();
 
   const refreshHistory = useCallback(() => {
-    setHistory(loadHistory(userId));
-  }, [userId]);
+    if (isLoggedIn) {
+      setHistory(loadHistory(userId));
+    }
+  }, [userId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      setHistory(loadHistory(userId));
+    } else {
+      setHistory([]);
+    }
+  }, [userId, isLoggedIn]);
 
   useEffect(() => {
     if (searchFocused) refreshHistory();
   }, [searchFocused, refreshHistory]);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      clearHistory("guest");
-      setHistory([]);
-    }
-  }, [status]);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -392,7 +395,7 @@ export default function Navbar({
       setSearchQuery("");
       router.push(`/search?q=${encodeURIComponent(q.trim())}`);
     },
-    [router, userId],
+    [router, userId, isLoggedIn],
   );
 
   const handleSearchKeyDown = useCallback(
@@ -414,7 +417,8 @@ export default function Navbar({
   };
 
   const handleDropdownSelect = () => {
-    if (searchQuery.trim() && isLoggedIn) saveToHistory(searchQuery.trim(), userId);
+    if (searchQuery.trim() && isLoggedIn)
+      saveToHistory(searchQuery.trim(), userId);
     setSearchFocused(false);
     setSearchQuery("");
   };
@@ -498,62 +502,64 @@ export default function Navbar({
           </Link>
         )}
 
-        {isLoggedIn && <div ref={bellRef} className="relative">
-          <button
-            onClick={() => setBellOpen(!bellOpen)}
-            className={`relative p-2.5 rounded-full cursor-pointer transition-colors ${
-              bellOpen
-                ? "bg-blue-50 text-blue-500"
-                : "hover:bg-slate-100 text-slate-600 hover:text-blue-500"
-            }`}
-            title="Thông báo"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
-                <span className="text-[9px] font-bold text-white leading-none">
-                  {unreadCount}
+        {isLoggedIn && (
+          <div ref={bellRef} className="relative">
+            <button
+              onClick={() => setBellOpen(!bellOpen)}
+              className={`relative p-2.5 rounded-full cursor-pointer transition-colors ${
+                bellOpen
+                  ? "bg-blue-50 text-blue-500"
+                  : "hover:bg-slate-100 text-slate-600 hover:text-blue-500"
+              }`}
+              title="Thông báo"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
+                  <span className="text-[9px] font-bold text-white leading-none">
+                    {unreadCount}
+                  </span>
                 </span>
-              </span>
-            )}
-          </button>
+              )}
+            </button>
 
-          {bellOpen && (
-            <div className="absolute top-full right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-                <span className="text-sm font-bold text-slate-900">
-                  Thông báo mới
-                </span>
-                <button
+            {bellOpen && (
+              <div className="absolute top-full right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                  <span className="text-sm font-bold text-slate-900">
+                    Thông báo mới
+                  </span>
+                  <button
+                    onClick={() => setBellOpen(false)}
+                    className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <X size={14} className="text-slate-400" />
+                  </button>
+                </div>
+                <div className="max-h-[360px] overflow-y-auto py-1">
+                  {notifs.length === 0 ? (
+                    <p className="text-center text-xs text-slate-400 py-8">
+                      Không có thông báo nào trong 30 ngày qua
+                    </p>
+                  ) : (
+                    notifs
+                      .slice(0, 5)
+                      .map((notif) => (
+                        <NotifRow key={notif.id} notif={notif} compact />
+                      ))
+                  )}
+                </div>
+                <Link
+                  href="/notifications"
                   onClick={() => setBellOpen(false)}
-                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-200 text-xs font-semibold text-blue-500 hover:bg-blue-50/5 transition-colors"
                 >
-                  <X size={14} className="text-slate-400" />
-                </button>
+                  Xem tất cả thông báo
+                </Link>
               </div>
-              <div className="max-h-[360px] overflow-y-auto py-1">
-                {notifs.length === 0 ? (
-                  <p className="text-center text-xs text-slate-400 py-8">
-                    Không có thông báo nào trong 30 ngày qua
-                  </p>
-                ) : (
-                  notifs
-                    .slice(0, 5)
-                    .map((notif) => (
-                      <NotifRow key={notif.id} notif={notif} compact />
-                    ))
-                )}
-              </div>
-              <Link
-                href="/notifications"
-                onClick={() => setBellOpen(false)}
-                className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-200 text-xs font-semibold text-blue-500 hover:bg-blue-50/5 transition-colors"
-              >
-                Xem tất cả thông báo
-              </Link>
-            </div>
-          )}
-        </div>}
+            )}
+          </div>
+        )}
 
         {status === "loading" ? (
           <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
