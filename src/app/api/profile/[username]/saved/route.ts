@@ -24,6 +24,17 @@ export async function GET(
   const cursor = searchParams.get("cursor");
   const take = 10;
 
+  const acceptedFriends = await prisma.friendRequest.findMany({
+    where: {
+      status: "ACCEPTED",
+      OR: [{ senderId: owner.id }, { receiverId: owner.id }],
+    },
+    select: { senderId: true, receiverId: true },
+  });
+  const friendIds = acceptedFriends.map((r) =>
+    r.senderId === owner.id ? r.receiverId : r.senderId,
+  );
+
   const saves = await prisma.save.findMany({
     where: { userId: owner.id },
     orderBy: { createdAt: "desc" },
@@ -44,7 +55,20 @@ export async function GET(
   });
 
   const nextCursor = saves.length === take ? saves[saves.length - 1].id : null;
-  const posts = saves.map((s) => s.post).filter(Boolean);
+
+  const posts = saves
+    .map((s) => s.post)
+    .filter((post): post is NonNullable<typeof post> => {
+      if (!post) return false;
+      if (post.visibility === "PUBLIC") return true;
+      if (post.authorId === owner.id) return true;
+      if (
+        post.visibility === "FRIENDS_ONLY" &&
+        friendIds.includes(post.authorId)
+      )
+        return true;
+      return false;
+    });
 
   return NextResponse.json({ posts, nextCursor });
 }
