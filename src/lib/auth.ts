@@ -62,6 +62,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.username = (user as any).username;
         token.role = (user as any).role;
+        token.picture = (user as any).image ?? null;
       }
       if (trigger === "update" && session) {
         if (session.name) token.name = session.name;

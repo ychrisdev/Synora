@@ -96,6 +96,13 @@ export async function POST(
           followingId: request.receiverId,
         },
       }),
+      prisma.notification.create({
+        data: {
+          recipientId: request.senderId,
+          actorId: request.receiverId,
+          type: "FRIEND_ACCEPT",
+        },
+      }),
     ]);
     return NextResponse.json({ success: true, action: "accepted" });
   }

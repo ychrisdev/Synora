@@ -29,12 +29,12 @@ export async function GET(
         author: { include: { profile: true } },
         replies: {
           where: {
-        OR: [
-          { hidden: false },
-          { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
-          { authorId: session?.user?.id ?? "" },
-        ],
-      },
+            OR: [
+              { hidden: false },
+              { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
+              { authorId: session?.user?.id ?? "" },
+            ],
+          },
           include: {
             author: { include: { profile: true } },
             _count: { select: { likes: true } },
@@ -93,10 +93,76 @@ export async function POST(
       },
     });
 
-    await prisma.post.update({
+    const post = await prisma.post.update({
       where: { id },
       data: { commentCount: { increment: 1 } },
+      select: { authorId: true },
     });
+
+    const recipientIds = new Set<string>();
+
+    if (post.authorId !== session.user.id) {
+      recipientIds.add(post.authorId);
+      await prisma.notification.create({
+        data: {
+          recipientId: post.authorId,
+          actorId: session.user.id,
+          type: "COMMENT",
+          postId: id,
+          commentId: comment.id,
+        },
+      });
+    }
+
+    if (parentId) {
+      const parent = await prisma.comment.findUnique({
+        where: { id: parentId },
+        select: { authorId: true },
+      });
+      if (
+        parent &&
+        parent.authorId !== session.user.id &&
+        !recipientIds.has(parent.authorId)
+      ) {
+        recipientIds.add(parent.authorId);
+        await prisma.notification.create({
+          data: {
+            recipientId: parent.authorId,
+            actorId: session.user.id,
+            type: "REPLY",
+            postId: id,
+            commentId: comment.id,
+          },
+        });
+      }
+    }
+
+    const mentionMatches: string[] =
+      (content ?? "").match(/@[\wÀ-ỹ.]+/gu) ?? [];
+    const mentionUsernames = Array.from(
+      new Set(mentionMatches.map((m: string) => m.slice(1).toLowerCase())),
+    );
+
+    if (mentionUsernames.length > 0) {
+      const mentionedUsers = await prisma.user.findMany({
+        where: { username: { in: mentionUsernames } },
+        select: { id: true, username: true },
+      });
+
+      for (const u of mentionedUsers) {
+        if (u.id === session.user.id || recipientIds.has(u.id)) continue;
+        recipientIds.add(u.id);
+        await prisma.notification.create({
+          data: {
+            recipientId: u.id,
+            actorId: session.user.id,
+            type: "MENTION",
+            postId: id,
+            commentId: comment.id,
+          },
+        });
+      }
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

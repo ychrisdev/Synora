@@ -82,6 +82,15 @@ export async function POST(
       await tx.follow.deleteMany({
         where: { followerId: receiverId, followingId: senderId },
       });
+
+      await tx.notification.create({
+        data: {
+          recipientId: receiverId,
+          actorId: senderId,
+          type: "FRIEND_ACCEPT",
+        },
+      });
+
       return NextResponse.json({ status: "friends" });
     }
 
@@ -98,6 +107,15 @@ export async function POST(
       create: { followerId: senderId, followingId: receiverId },
       update: {},
     });
+
+    await tx.notification.create({
+      data: {
+        recipientId: receiverId,
+        actorId: senderId,
+        type: "FRIEND_REQUEST",
+      },
+    });
+
     return NextResponse.json({ status: "pending" });
   });
 }

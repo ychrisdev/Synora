@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -32,10 +32,23 @@ export async function POST(
       await prisma.like.create({
         data: { userId: session.user.id, postId },
       });
-      await prisma.post.update({
+      const post = await prisma.post.update({
         where: { id: postId },
         data: { likeCount: { increment: 1 } },
+        select: { authorId: true },
       });
+
+      if (post.authorId !== session.user.id) {
+        await prisma.notification.create({
+          data: {
+            recipientId: post.authorId,
+            actorId: session.user.id,
+            type: "LIKE",
+            postId,
+          },
+        });
+      }
+
       return NextResponse.json({ liked: true });
     }
   } catch {
