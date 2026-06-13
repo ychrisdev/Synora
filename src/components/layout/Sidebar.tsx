@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,13 +10,14 @@ import {
   Users,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { useUnreadNotifCount } from "@/lib/notifications/hooks";
 
 const navItems = [
   { href: "/feed", icon: Home, label: "Trang chủ" },
   { href: "/explore", icon: Compass, label: "Khám phá" },
   { href: "/library", icon: BookOpen, label: "Tài liệu" },
-  { href: "/chat", icon: MessageCircle, label: "Chat", badge: 3 },
-  { href: "/notifications", icon: Bell, label: "Thông báo", badge: 18 },
+  { href: "/chat", icon: MessageCircle, label: "Chat" },
+  { href: "/notifications", icon: Bell, label: "Thông báo" },
   { href: "/community", icon: Users, label: "Cộng đồng" },
 ];
 
@@ -47,6 +47,7 @@ const groups = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { count: unreadCount } = useUnreadNotifCount();
 
   return (
     <aside className="fixed left-0 top-14 h-[calc(100vh-56px)] w-[330px] bg-white border-r border-surface-200 flex flex-col overflow-y-auto z-20">
@@ -54,6 +55,7 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
+          const badge = item.href === "/notifications" ? unreadCount : 0;
           return (
             <Link
               key={item.href}
@@ -74,9 +76,9 @@ export default function Sidebar() {
                 )}
               />
               <span className="flex-1">{item.label}</span>
-              {item.badge && (
+              {badge > 0 && (
                 <span className="bg-primary text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
-                  {item.badge}
+                  {badge > 99 ? "99+" : badge}
                 </span>
               )}
             </Link>
@@ -89,7 +91,6 @@ export default function Sidebar() {
           <p className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">
             Nhóm học tập
           </p>
-
           <button className="text-xs text-primary font-medium hover:text-primary-700 cursor-pointer">
             Xem tất cả nhóm
           </button>

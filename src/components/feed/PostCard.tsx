@@ -25,7 +25,6 @@ import {
   Paperclip,
   FileText,
   Loader2,
-  User,
   Globe,
   Users as UsersIcon,
   Lock as LockIcon,
@@ -1848,6 +1847,7 @@ function CommentList({
   onCountChange,
   onEditComment,
   onAuthRequired,
+  targetCommentId,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -1866,6 +1866,7 @@ function CommentList({
   onCountChange?: (delta: number) => void;
   onEditComment: (id: string, text: string) => void;
   onAuthRequired?: (action: string) => void;
+  targetCommentId?: string | null;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1877,6 +1878,7 @@ function CommentList({
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
     new Set(),
   );
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const REPLIES_PREVIEW = 2;
 
   return (
@@ -1894,7 +1896,14 @@ function CommentList({
             currentUserId === c.authorId,
         )
         .map((c) => (
-          <div key={c.id}>
+          <div
+            key={c.id}
+            data-comment-id={c.id}
+            className={clsx(
+              "transition-colors duration-700 rounded-xl",
+              highlightedId === c.id && "bg-blue-50",
+            )}
+          >
             {c.hidden && currentUserId === postAuthorId && (
               <div className="flex items-center gap-1 mb-1 ml-1">
                 <EyeOff size={11} className="text-text-muted" />
@@ -3080,6 +3089,7 @@ function CommentModal({
   onSyncCount,
   onAuthRequired,
   menuSlot,
+  targetCommentId, // 👈 thêm
 }: {
   post: Post;
   liked: boolean;
@@ -3090,10 +3100,13 @@ function CommentModal({
   onSyncCount?: (count: number) => void;
   onAuthRequired?: (action: string) => void;
   menuSlot?: React.ReactNode;
+  targetCommentId?: string | null; // 👈 thêm
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
   const { data: session, status } = useSession();
+  const commentRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const {
     comments,
     sortedComments,
@@ -3120,6 +3133,22 @@ function CommentModal({
     },
     [submitComment],
   );
+
+  useEffect(() => {
+    if (!targetCommentId || comments.length === 0) return;
+    const timer = setTimeout(() => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const el = container.querySelector(
+        `[data-comment-id="${targetCommentId}"]`,
+      );
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [comments, targetCommentId]);
+
   const handleSubmitReply = useCallback(
     async (commentId: string, text: string, replyTo: string) => {
       await submitReply(commentId, text, replyTo);
@@ -3280,7 +3309,10 @@ function CommentModal({
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3 min-h-0">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3 min-h-0"
+        >
           <CommentList
             comments={sortedComments}
             replyingToId={replyingToId}
@@ -3301,6 +3333,7 @@ function CommentModal({
             onHideComment={hideComment}
             onCountChange={onCountChange}
             onAuthRequired={onAuthRequired}
+            targetCommentId={targetCommentId}
           />
         </div>
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
@@ -3325,11 +3358,15 @@ export default function PostCard({
   onDeleted,
   isSavedInitially = false,
   onSaveToggle,
+  autoOpenComments = false,
+  targetCommentId = null,
 }: {
   post: Post;
   onDeleted?: (id: string | number) => void;
   isSavedInitially?: boolean;
   onSaveToggle?: (id: string | number, saved: boolean) => void;
+  autoOpenComments?: boolean;
+  targetCommentId?: string | null;
 }) {
   const { data: session } = useSession();
   const [sessionAvatarUrl, setSessionAvatarUrl] = useState<
@@ -3458,6 +3495,12 @@ export default function PostCard({
     window.addEventListener("profile:updated", handler);
     return () => window.removeEventListener("profile:updated", handler);
   }, [session?.user?.id, post.authorId]);
+
+  useEffect(() => {
+    if (autoOpenComments) {
+      setModal({ type: "comment" });
+    }
+  }, [autoOpenComments]);
 
   if (deleted) return null;
 
@@ -3644,6 +3687,7 @@ export default function PostCard({
             setCommentCount((c) => Math.max(0, c + delta))
           }
           onAuthRequired={setAuthModal}
+          targetCommentId={targetCommentId}
           menuSlot={
             <PostMoreMenu
               isOwner={isOwner}

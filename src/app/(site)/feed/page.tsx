@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import PostComposer from "@/components/feed/PostComposer";
 import type { AttachedFile } from "@/components/feed/PostComposer";
 import PostCard from "@/components/feed/PostCard";
@@ -10,7 +11,11 @@ import SuggestedPeople from "@/components/ui/SuggestedPeople";
 
 export default function FeedPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const targetPostId = searchParams.get("post");
   const [posts, setPosts] = useState<any[]>([]);
+  const targetCommentId = searchParams.get("comment");
   const [localPosts, setLocalPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,12 +35,28 @@ export default function FeedPage() {
     if (session === undefined) return;
     fetch("/api/posts")
       .then((r) => r.json())
-      .then((data) => {
-        setPosts(Array.isArray(data) ? data : []);
+      .then(async (data) => {
+        let list = Array.isArray(data) ? data : [];
+        if (targetPostId && !list.some((p: any) => p.id === targetPostId)) {
+          try {
+            const res = await fetch(`/api/posts/${targetPostId}`);
+            if (res.ok) {
+              const single = await res.json();
+              list = [single, ...list];
+            }
+          } catch {}
+        }
+        setPosts(list);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [session]);
+  }, [session, targetPostId]);
+
+  useEffect(() => {
+    if ((targetPostId || targetCommentId) && !loading) {
+      router.replace("/feed", { scroll: false });
+    }
+  }, [targetPostId, targetCommentId, loading, router]);
 
   const handleDeleted = useCallback((id: string | number) => {
     setLocalPosts((prev) => prev.filter((p) => p.id !== id));
@@ -223,7 +244,15 @@ export default function FeedPage() {
               ...mappedPosts,
             ];
             return deduped.map((post) => (
-              <PostCard key={post.id} post={post} onDeleted={handleDeleted} />
+              <PostCard
+                key={post.id}
+                post={post}
+                onDeleted={handleDeleted}
+                autoOpenComments={String(post.id) === targetPostId}
+                targetCommentId={
+                  String(post.id) === targetPostId ? targetCommentId : null
+                }
+              />
             ));
           })()
         )}

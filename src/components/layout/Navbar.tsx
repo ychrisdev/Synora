@@ -6,159 +6,11 @@ import { Session } from "next-auth";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Bell,
-  Search,
-  MessageCircle,
-  X,
-  ThumbsUp,
-  MessageSquare,
-  FileText,
-  Users,
-  Trophy,
-  Share2,
-  Clock,
-} from "lucide-react";
-
-export type NotifType =
-  | "like"
-  | "comment"
-  | "milestone"
-  | "invite"
-  | "award"
-  | "share"
-  | "group";
-
-export interface NotifItem {
-  id: number;
-  avatars: string[];
-  avatarColors: string[];
-  text: string;
-  sub?: string;
-  createdAt: string;
-  unread: boolean;
-  type: NotifType;
-  action?: { accept: string; decline: string } | null;
-}
-
-const typeConfig: Record<
-  NotifType,
-  { icon: React.ElementType; bg: string; color: string }
-> = {
-  like: { icon: ThumbsUp, bg: "bg-rose-50", color: "text-rose-500" },
-  comment: { icon: MessageSquare, bg: "bg-blue-50", color: "text-blue-500" },
-  milestone: { icon: FileText, bg: "bg-amber-50", color: "text-amber-500" },
-  invite: { icon: Users, bg: "bg-emerald-50", color: "text-emerald-500" },
-  award: { icon: Trophy, bg: "bg-yellow-50", color: "text-yellow-500" },
-  share: { icon: Share2, bg: "bg-violet-50", color: "text-violet-500" },
-  group: { icon: Users, bg: "bg-teal-50", color: "text-teal-500" },
-};
-
-export function formatVietnameseTime(isoString: string) {
-  const diffMs = Date.now() - new Date(isoString).getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffMins < 60) return `${diffMins || 1} phút trước`;
-  if (diffHours < 24) return `${diffHours} giờ trước`;
-  return new Date(isoString).toLocaleDateString("vi-VN");
-}
-
-export function NotifRow({
-  notif,
-  compact = false,
-}: {
-  notif: NotifItem;
-  compact?: boolean;
-}) {
-  const [status, setStatus] = useState<"pending" | "accepted" | "declined">(
-    "pending",
-  );
-  const { icon: Icon, bg, color } = typeConfig[notif.type];
-
-  return (
-    <div
-      className={`group flex items-start gap-3 rounded-xl cursor-pointer transition-all duration-150 ${compact ? "px-3 py-2.5 hover:bg-slate-50" : "px-4 py-3.5 hover:bg-slate-50/80"} ${notif.unread ? "bg-blue-50/40 hover:bg-blue-50/60" : ""}`}
-    >
-      <div className="shrink-0 mt-0.5">
-        {notif.avatars.length > 0 ? (
-          <div className="flex -space-x-2">
-            {notif.avatars.slice(0, 2).map((av, i) => (
-              <div
-                key={i}
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-white ${notif.avatarColors[i]}`}
-              >
-                {av}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${bg}`}
-          >
-            <Icon size={15} className={color} />
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p
-          className={`text-sm leading-snug text-slate-700 ${notif.unread ? "font-medium text-slate-900" : ""}`}
-        >
-          {notif.text}
-        </p>
-        {notif.sub && (
-          <p className="text-xs text-slate-400 mt-0.5 truncate">{notif.sub}</p>
-        )}
-        <p
-          className={`text-[11px] mt-1 ${notif.unread ? "text-blue-500 font-medium" : "text-slate-400"}`}
-        >
-          {formatVietnameseTime(notif.createdAt)}
-        </p>
-
-        {notif.action && !compact && (
-          <div className="flex items-center gap-2 mt-2.5">
-            {status === "accepted" ? (
-              <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-3 py-1 rounded-lg">
-                Đã chấp nhận
-              </span>
-            ) : status === "declined" ? (
-              <span className="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">
-                Đã từ chối
-              </span>
-            ) : (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStatus("accepted");
-                  }}
-                  className="text-xs font-semibold text-white bg-blue-500 px-3 py-1.5 rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  {notif.action.accept}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStatus("declined");
-                  }}
-                  className="text-xs font-medium text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  {notif.action.decline}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-
-      {notif.unread && (
-        <div className="shrink-0 mt-2">
-          <span className="w-2 h-2 bg-blue-500 rounded-full block" />
-        </div>
-      )}
-    </div>
-  );
-}
+import { Bell, Search, MessageCircle, X, Clock, Loader2 } from "lucide-react";
+import { NotifRow } from "@/components/notifications/NotifRow";
+import type { NotifItem } from "@/lib/notifications/types";
+import { emitUnreadCount } from "@/lib/notifications/hooks";
+import Avatar from "@/components/ui/Avatar";
 
 const HISTORY_KEY = (userId: string) => `synora_search_history_${userId}`;
 const MAX_HISTORY = 10;
@@ -192,11 +44,7 @@ function clearHistory(userId: string) {
   localStorage.setItem(HISTORY_KEY(userId), JSON.stringify([]));
 }
 
-const CATEGORY_TABS: {
-  label: string;
-  tab: string;
-  isTopic?: boolean;
-}[] = [
+const CATEGORY_TABS: { label: string; tab: string; isTopic?: boolean }[] = [
   { label: "Tài liệu", tab: "documents" },
   { label: "Bài viết", tab: "posts" },
   { label: "Mọi người", tab: "people" },
@@ -293,7 +141,6 @@ function SearchDropdown({
         </span>
         <span className="text-[10px] text-slate-400 shrink-0">Tìm kiếm</span>
       </Link>
-
       <div className="px-2 py-1.5">
         <p className="text-[10px] font-semibold text-slate-400 px-2 mb-1 uppercase tracking-wider">
           Tìm theo danh mục
@@ -301,7 +148,6 @@ function SearchDropdown({
         {CATEGORY_TABS.map(({ label, tab, isTopic }) => {
           const searchQ = isTopic ? `#${cleanQuery}` : query;
           const displaySuffix = isTopic ? `#${cleanQuery}` : `"${query}"`;
-
           return (
             <Link
               key={tab}
@@ -337,6 +183,8 @@ export default function Navbar({
 }) {
   const router = useRouter();
   const [notifs, setNotifs] = useState<NotifItem[]>([]);
+  const [totalUnread, setTotalUnread] = useState(0);
+  const [bellLoading, setBellLoading] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
@@ -356,18 +204,60 @@ export default function Navbar({
     .join("")
     .toUpperCase();
 
-  const refreshHistory = useCallback(() => {
-    if (isLoggedIn) {
-      setHistory(loadHistory(userId));
+  const fetchNotifs = useCallback(() => {
+    if (!isLoggedIn) return;
+    fetch("/api/notifications")
+      .then((r) => r.json())
+      .then((data) => {
+        setNotifs(data.items ?? []);
+        setTotalUnread(data.totalUnread ?? 0);
+      })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 60_000);
+    return () => clearInterval(interval);
+  }, [fetchNotifs]);
+
+  const handleBellOpen = () => {
+    if (!bellOpen) {
+      setBellLoading(true);
+      fetch("/api/notifications")
+        .then((r) => r.json())
+        .then((data) => {
+          setNotifs(data.items ?? []);
+          setTotalUnread(data.totalUnread ?? 0);
+        })
+        .finally(() => setBellLoading(false));
     }
+    setBellOpen((v) => !v);
+  };
+
+  const markRead = useCallback((id: string) => {
+    setNotifs((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, unread: false } : n)),
+    );
+    setTotalUnread((prev) => {
+      const next = Math.max(0, prev - 1);
+      emitUnreadCount(next);
+      return next;
+    });
+    fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+  }, []);
+
+  const refreshHistory = useCallback(() => {
+    if (isLoggedIn) setHistory(loadHistory(userId));
   }, [userId, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      setHistory(loadHistory(userId));
-    } else {
-      setHistory([]);
-    }
+    if (isLoggedIn) setHistory(loadHistory(userId));
+    else setHistory([]);
   }, [userId, isLoggedIn]);
 
   useEffect(() => {
@@ -385,6 +275,14 @@ export default function Navbar({
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setTotalUnread((e as CustomEvent<{ count: number }>).detail.count);
+    };
+    window.addEventListener("notif:unread-changed", handler);
+    return () => window.removeEventListener("notif:unread-changed", handler);
   }, []);
 
   const doSearch = useCallback(
@@ -422,8 +320,6 @@ export default function Navbar({
     setSearchFocused(false);
     setSearchQuery("");
   };
-
-  const unreadCount = notifs.filter((n) => n.unread).length;
 
   return (
     <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center z-30">
@@ -476,7 +372,6 @@ export default function Navbar({
               </button>
             )}
           </div>
-
           {searchFocused && (
             <SearchDropdown
               query={searchQuery}
@@ -505,7 +400,7 @@ export default function Navbar({
         {isLoggedIn && (
           <div ref={bellRef} className="relative">
             <button
-              onClick={() => setBellOpen(!bellOpen)}
+              onClick={handleBellOpen}
               className={`relative p-2.5 rounded-full cursor-pointer transition-colors ${
                 bellOpen
                   ? "bg-blue-50 text-blue-500"
@@ -514,10 +409,10 @@ export default function Navbar({
               title="Thông báo"
             >
               <Bell size={18} />
-              {unreadCount > 0 && (
+              {totalUnread > 0 && (
                 <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
                   <span className="text-[9px] font-bold text-white leading-none">
-                    {unreadCount}
+                    {totalUnread > 99 ? "99+" : totalUnread}
                   </span>
                 </span>
               )}
@@ -526,36 +421,55 @@ export default function Navbar({
             {bellOpen && (
               <div className="absolute top-full right-0 mt-2 w-[380px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-                  <span className="text-sm font-bold text-slate-900">
-                    Thông báo mới
-                  </span>
-                  <button
-                    onClick={() => setBellOpen(false)}
-                    className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
-                    <X size={14} className="text-slate-400" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-900">
+                      Thông báo
+                    </span>
+                    {totalUnread > 0 && (
+                      <span className="text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5 py-0.5 leading-none">
+                        {totalUnread}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/notifications"
+                      onClick={() => setBellOpen(false)}
+                      className="text-[11px] font-semibold text-blue-500 hover:text-blue-600 transition-colors"
+                    >
+                      Xem tất cả
+                    </Link>
+                    <button
+                      onClick={() => setBellOpen(false)}
+                      className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
+                      <X size={14} className="text-slate-400" />
+                    </button>
+                  </div>
                 </div>
-                <div className="max-h-[360px] overflow-y-auto py-1">
-                  {notifs.length === 0 ? (
-                    <p className="text-center text-xs text-slate-400 py-8">
+                <div className="max-h-[400px] overflow-y-auto py-1">
+                  {bellLoading ? (
+                    <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
+                      <Loader2 size={16} className="animate-spin" />
+                      <span className="text-xs">Đang tải...</span>
+                    </div>
+                  ) : notifs.length === 0 ? (
+                    <p className="text-center text-xs text-slate-400 py-10">
                       Không có thông báo nào trong 30 ngày qua
                     </p>
                   ) : (
                     notifs
-                      .slice(0, 5)
+                      .slice(0, 6)
                       .map((notif) => (
-                        <NotifRow key={notif.id} notif={notif} compact />
+                        <NotifRow
+                          key={notif.id}
+                          notif={notif}
+                          compact
+                          onRead={markRead}
+                        />
                       ))
                   )}
                 </div>
-                <Link
-                  href="/notifications"
-                  onClick={() => setBellOpen(false)}
-                  className="flex items-center justify-center gap-1.5 py-3 border-t border-slate-200 text-xs font-semibold text-blue-500 hover:bg-blue-50/5 transition-colors"
-                >
-                  Xem tất cả thông báo
-                </Link>
               </div>
             )}
           </div>
@@ -569,33 +483,23 @@ export default function Navbar({
               onClick={() => setAvatarOpen(!avatarOpen)}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  className="w-8 h-8 rounded-full object-cover"
-                  alt={displayName}
-                />
-              ) : (
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {initials}
-                </div>
-              )}
+              <Avatar
+                src={avatarUrl}
+                name={displayName}
+                initials={initials}
+                size="sm"
+              />
             </button>
 
             {avatarOpen && (
               <div className="absolute top-full right-0 mt-2 w-[220px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      className="w-10 h-10 rounded-full object-cover shrink-0"
-                      alt={displayName}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0">
-                      {initials}
-                    </div>
-                  )}
+                  <Avatar
+                    src={avatarUrl}
+                    name={displayName}
+                    initials={initials}
+                    size="md"
+                  />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">
                       {displayName}
