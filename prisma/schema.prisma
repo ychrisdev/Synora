@@ -28,9 +28,16 @@ enum DocumentType {
 enum NotificationType {
   LIKE
   COMMENT
+  REPLY
   FOLLOW
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
   MENTION
   MESSAGE
+  DOCUMENT_APPROVED
+  DOCUMENT_REJECTED
+  DOCUMENT_REMOVED
+  DOCUMENT_REPORTED
   SYSTEM
 }
 
@@ -401,6 +408,7 @@ model Notification {
 
   postId      String?
   commentId   String?
+  documentId  String?
 
   isRead      Boolean          @default(false)
 
