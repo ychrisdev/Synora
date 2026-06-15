@@ -1848,6 +1848,7 @@ function CommentList({
   onEditComment,
   onAuthRequired,
   targetCommentId,
+  scrollContainer,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -1867,6 +1868,7 @@ function CommentList({
   onEditComment: (id: string, text: string) => void;
   onAuthRequired?: (action: string) => void;
   targetCommentId?: string | null;
+  scrollContainer?: React.RefObject<HTMLDivElement | null>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1875,11 +1877,51 @@ function CommentList({
   );
   const [deletingParentId, setDeletingParentId] = useState<string | null>(null);
   const [blockingName, setBlockingName] = useState<string | null>(null);
-  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
-    new Set(),
-  );
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(() => {
+    if (!targetCommentId) return new Set<string>();
+    return new Set<string>();
+  });
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const commentRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const REPLIES_PREVIEW = 2;
+
+  useEffect(() => {
+    if (!targetCommentId || comments.length === 0) return;
+
+    const isTopLevel = comments.some((c) => c.id === targetCommentId);
+
+    if (!isTopLevel) {
+      const parentComment = comments.find((c) =>
+        c.replies.some((r) => r.id === targetCommentId),
+      );
+      if (!parentComment) return;
+      setExpandedReplies((prev) => {
+        const next = new Set(prev);
+        next.add(parentComment.id);
+        return next;
+      });
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      const el = commentRefs.current[targetCommentId];
+      const container = scrollContainer?.current;
+      if (!el) return;
+
+      if (container) {
+        const containerTop = container.getBoundingClientRect().top;
+        const elTop = el.getBoundingClientRect().top;
+        const offset = elTop - containerTop + container.scrollTop - 80;
+        container.scrollTop = offset;
+      } else {
+        el.scrollIntoView({ block: "center" });
+      }
+
+      setHighlightedId(targetCommentId);
+      setTimeout(() => setHighlightedId(null), 2000);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [targetCommentId, comments, scrollContainer]);
 
   return (
     <>
@@ -1899,6 +1941,9 @@ function CommentList({
           <div
             key={c.id}
             data-comment-id={c.id}
+            ref={(el) => {
+              commentRefs.current[c.id] = el;
+            }}
             className={clsx(
               "transition-colors duration-700 rounded-xl",
               highlightedId === c.id && "bg-blue-50",
@@ -2135,7 +2180,13 @@ function CommentList({
                   ).map((r) => (
                     <div
                       key={r.id}
-                      className="flex gap-2 items-start group/reply"
+                      ref={(el) => {
+                        commentRefs.current[r.id] = el;
+                      }}
+                      className={clsx(
+                        "flex gap-2 items-start group/reply transition-colors duration-700 rounded-xl",
+                        highlightedId === r.id && "bg-blue-50",
+                      )}
                     >
                       <NextLink
                         href={
@@ -2409,60 +2460,85 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
 
   const handleCommentLike = useCallback(
     async (id: string) => {
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === id
-            ? {
-                ...c,
-                liked: !c.liked,
-                likes: c.liked ? c.likes - 1 : c.likes + 1,
-              }
-            : c,
-        ),
-      );
+      let prevLiked = false;
+      let prevLikes = 0;
+      setComments((prev) => {
+        return prev.map((c) => {
+          if (c.id === id) {
+            prevLiked = c.liked;
+            prevLikes = c.likes;
+            return {
+              ...c,
+              liked: !c.liked,
+              likes: c.liked ? c.likes - 1 : c.likes + 1,
+            };
+          }
+          return c;
+        });
+      });
+
       const res = await fetch(`/api/posts/${postId}/comments/${id}/like`, {
         method: "POST",
       });
-      if (!res.ok)
+
+      if (!res.ok) {
         setComments((prev) =>
           prev.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  liked: !c.liked,
-                  likes: c.liked ? c.likes - 1 : c.likes + 1,
-                }
-              : c,
+            c.id === id ? { ...c, liked: prevLiked, likes: prevLikes } : c,
           ),
         );
+      }
     },
     [postId],
   );
 
   const handleReplyLike = useCallback(
     async (commentId: string, replyId: string) => {
-      const toggle = (prev: Comment[]) =>
-        prev.map((c) =>
-          c.id === commentId
-            ? {
-                ...c,
-                replies: c.replies.map((r) =>
-                  r.id === replyId
-                    ? {
-                        ...r,
-                        liked: !r.liked,
-                        likes: r.liked ? r.likes - 1 : r.likes + 1,
-                      }
-                    : r,
-                ),
-              }
-            : c,
-        );
-      setComments(toggle);
+      let prevLiked = false;
+      let prevLikes = 0;
+      setComments((prev) =>
+        prev.map((c) => {
+          if (c.id === commentId) {
+            return {
+              ...c,
+              replies: c.replies.map((r) => {
+                if (r.id === replyId) {
+                  prevLiked = r.liked;
+                  prevLikes = r.likes;
+                  return {
+                    ...r,
+                    liked: !r.liked,
+                    likes: r.liked ? r.likes - 1 : r.likes + 1,
+                  };
+                }
+                return r;
+              }),
+            };
+          }
+          return c;
+        }),
+      );
+
       const res = await fetch(`/api/posts/${postId}/comments/${replyId}/like`, {
         method: "POST",
       });
-      if (!res.ok) setComments(toggle);
+
+      if (!res.ok) {
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === commentId
+              ? {
+                  ...c,
+                  replies: c.replies.map((r) =>
+                    r.id === replyId
+                      ? { ...r, liked: prevLiked, likes: prevLikes }
+                      : r,
+                  ),
+                }
+              : c,
+          ),
+        );
+      }
     },
     [postId],
   );
@@ -3089,7 +3165,7 @@ function CommentModal({
   onSyncCount,
   onAuthRequired,
   menuSlot,
-  targetCommentId, // 👈 thêm
+  targetCommentId,
 }: {
   post: Post;
   liked: boolean;
@@ -3100,7 +3176,7 @@ function CommentModal({
   onSyncCount?: (count: number) => void;
   onAuthRequired?: (action: string) => void;
   menuSlot?: React.ReactNode;
-  targetCommentId?: string | null; // 👈 thêm
+  targetCommentId?: string | null;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
@@ -3133,21 +3209,6 @@ function CommentModal({
     },
     [submitComment],
   );
-
-  useEffect(() => {
-    if (!targetCommentId || comments.length === 0) return;
-    const timer = setTimeout(() => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-      const el = container.querySelector(
-        `[data-comment-id="${targetCommentId}"]`,
-      );
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [comments, targetCommentId]);
 
   const handleSubmitReply = useCallback(
     async (commentId: string, text: string, replyTo: string) => {
@@ -3330,9 +3391,23 @@ function CommentModal({
             onDeleteComment={deleteComment}
             onDeleteReply={deleteReply}
             onEditComment={editComment}
-            onHideComment={hideComment}
+            onHideComment={async (id) => {
+              const comment = comments.find((c) => c.id === id);
+              await hideComment(id);
+              if (comment) {
+                const willHide = !comment.hidden;
+                const visibleReplies = comment.replies.filter(
+                  (r) => !r.hidden,
+                ).length;
+                const delta = willHide
+                  ? -(1 + visibleReplies)
+                  : 1 + visibleReplies;
+                onCountChange?.(delta);
+              }
+            }}
             onCountChange={onCountChange}
             onAuthRequired={onAuthRequired}
+            scrollContainer={scrollContainerRef}
             targetCommentId={targetCommentId}
           />
         </div>
@@ -3407,7 +3482,11 @@ export default function PostCard({
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
-    await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+    const res = await fetch(`/api/posts/${post.id}/like`, { method: "POST" });
+    if (!res.ok) {
+      setLiked(!nextLiked);
+      setLikeCount((c) => (nextLiked ? c - 1 : c + 1));
+    }
   };
 
   const handleSave = async () => {

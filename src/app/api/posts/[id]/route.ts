@@ -145,6 +145,40 @@ export async function PATCH(
   return NextResponse.json(updated);
 }
 
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+
+  try {
+    const post = await prisma.post.findUnique({
+      where: { id },
+      include: {
+        author: { include: { profile: true } },
+        tags: { include: { tag: true } },
+        documents: true,
+        _count: { select: { likes: true, comments: true } },
+        likes: session?.user?.id
+          ? { where: { userId: session.user.id }, select: { id: true } }
+          : false,
+      },
+    });
+
+    if (!post)
+      return NextResponse.json(
+        { error: "Không tìm thấy bài viết" },
+        { status: 404 },
+      );
+
+    return NextResponse.json(post);
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: "Lỗi server" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

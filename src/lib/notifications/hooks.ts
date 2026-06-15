@@ -25,7 +25,6 @@ export function useUnreadNotifCount() {
       .then((data) => {
         const total = data.totalUnread ?? 0;
         setCount(total);
-        // Không emit ở đây để tránh loop
       })
       .catch(() => {});
   }, [session?.user?.id]);
@@ -34,7 +33,6 @@ export function useUnreadNotifCount() {
     refresh();
     const interval = setInterval(refresh, 60_000);
 
-    // Lắng nghe khi Navbar/NotificationsPage mark read
     const handler = (e: Event) => {
       setCount((e as CustomEvent<{ count: number }>).detail.count);
     };

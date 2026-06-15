@@ -27,7 +27,8 @@ const AVATAR_COLORS = [
 
 function colorIndexFor(id: string) {
   let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % AVATAR_COLORS.length;
+  for (let i = 0; i < id.length; i++)
+    hash = (hash * 31 + id.charCodeAt(i)) % AVATAR_COLORS.length;
   return hash;
 }
 
@@ -84,27 +85,31 @@ export async function GET(req: NextRequest) {
 
     switch (n.type) {
       case "LIKE":
-        text = `${actorName} đã thích bài viết của bạn`;
-        href = n.postId ? `/feed?post=${n.postId}` : "/feed";
+        text = n.commentId
+          ? `${actorName} đã thích bình luận của bạn`
+          : `${actorName} đã thích bài viết của bạn`;
+        href = n.postId
+          ? `${n.commentId ? `/feed?post=${n.postId}&comment=${n.commentId}` : `/feed?post=${n.postId}`}`
+          : "/feed";
         break;
       case "COMMENT":
-  text = `${actorName} đã bình luận về bài viết của bạn`;
-  href = n.postId
-    ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
-    : "/feed";
-  break;
-case "REPLY":
-  text = `${actorName} đã trả lời bình luận của bạn`;
-  href = n.postId
-    ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
-    : "/feed";
-  break;
-case "MENTION":
-  text = `${actorName} đã nhắc đến bạn trong một bình luận`;
-  href = n.postId
-    ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
-    : "/feed";
-  break;
+        text = `${actorName} đã bình luận về bài viết của bạn`;
+        href = n.postId
+          ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
+          : "/feed";
+        break;
+      case "REPLY":
+        text = `${actorName} đã trả lời bình luận của bạn`;
+        href = n.postId
+          ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
+          : "/feed";
+        break;
+      case "MENTION":
+        text = `${actorName} đã nhắc đến bạn trong một bình luận`;
+        href = n.postId
+          ? `/feed?post=${n.postId}${n.commentId ? `&comment=${n.commentId}` : ""}`
+          : "/feed";
+        break;
       case "FRIEND_REQUEST":
         text = `${actorName} đã gửi cho bạn lời mời kết bạn`;
         href = n.actor ? `/profile/${n.actor.username}` : "/feed";
@@ -151,7 +156,8 @@ case "MENTION":
     };
   });
 
-  const nextCursor = notifs.length === take ? notifs[notifs.length - 1].id : null;
+  const nextCursor =
+    notifs.length === take ? notifs[notifs.length - 1].id : null;
   const totalUnread = await prisma.notification.count({
     where: { recipientId: session.user.id, isRead: false },
   });

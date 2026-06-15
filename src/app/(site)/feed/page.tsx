@@ -54,7 +54,10 @@ export default function FeedPage() {
 
   useEffect(() => {
     if ((targetPostId || targetCommentId) && !loading) {
-      router.replace("/feed", { scroll: false });
+      const t = setTimeout(() => {
+        router.replace("/feed", { scroll: false });
+      }, 2000);
+      return () => clearTimeout(t);
     }
   }, [targetPostId, targetCommentId, loading, router]);
 

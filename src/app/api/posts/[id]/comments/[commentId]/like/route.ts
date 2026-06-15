@@ -32,6 +32,21 @@ export async function POST(
       await prisma.like.create({
         data: { userId: session.user.id, commentId },
       });
+      const comment = await prisma.comment.findUnique({
+        where: { id: commentId },
+        select: { authorId: true, postId: true },
+      });
+      if (comment && comment.authorId !== session.user.id) {
+        await prisma.notification.create({
+          data: {
+            recipientId: comment.authorId,
+            actorId: session.user.id,
+            type: "LIKE",
+            postId: comment.postId,
+            commentId,
+          },
+        });
+      }
       return NextResponse.json({ liked: true });
     }
   } catch (error) {
