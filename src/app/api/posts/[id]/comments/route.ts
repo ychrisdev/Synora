@@ -75,6 +75,25 @@ export async function POST(
       fileType,
     } = await req.json();
 
+    if (parentId) {
+      const parent = await prisma.comment.findUnique({
+        where: { id: parentId },
+        select: { hidden: true, authorId: true },
+      });
+      if (!parent) {
+        return NextResponse.json(
+          { error: "Bình luận không tồn tại" },
+          { status: 404 },
+        );
+      }
+      if (parent.hidden) {
+        return NextResponse.json(
+          { error: "Không thể trả lời bình luận đã bị ẩn" },
+          { status: 403 },
+        );
+      }
+    }
+
     const comment = await prisma.comment.create({
       data: {
         content: content ?? "",

@@ -2137,36 +2137,40 @@ function CommentList({
                         c.hidden && "opacity-50",
                       )}
                     >
-                      <button
-                        onClick={() => {
-                          if (!currentUserId) {
-                            onAuthRequired?.("thích bình luận");
-                            return;
-                          }
-                          onLike(c.id);
-                        }}
-                        className={clsx(
-                          "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                          c.liked
-                            ? "text-primary"
-                            : "text-text-secondary hover:text-text-secondary",
-                        )}
-                      >
-                        <ThumbsUp size={11} />
-                        <span>{c.likes > 0 ? c.likes : "Thích"}</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (!currentUserId) {
-                            onAuthRequired?.("trả lời bình luận");
-                            return;
-                          }
-                          onToggleReply(c.id, c.author.name);
-                        }}
-                        className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
-                      >
-                        Trả lời
-                      </button>
+                      {!c.hidden && (
+                        <button
+                          onClick={() => {
+                            if (!currentUserId) {
+                              onAuthRequired?.("thích bình luận");
+                              return;
+                            }
+                            onLike(c.id);
+                          }}
+                          className={clsx(
+                            "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                            c.liked
+                              ? "text-primary"
+                              : "text-text-secondary hover:text-text-secondary",
+                          )}
+                        >
+                          <ThumbsUp size={11} />
+                          <span>{c.likes > 0 ? c.likes : "Thích"}</span>
+                        </button>
+                      )}
+                      {!c.hidden && (
+                        <button
+                          onClick={() => {
+                            if (!currentUserId) {
+                              onAuthRequired?.("trả lời bình luận");
+                              return;
+                            }
+                            onToggleReply(c.id, c.author.name);
+                          }}
+                          className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                        >
+                          Trả lời
+                        </button>
+                      )}
                     </div>
                   )}
               </div>
@@ -2254,36 +2258,40 @@ function CommentList({
                             r.hidden && "opacity-50",
                           )}
                         >
-                          <button
-                            onClick={() => {
-                              if (!currentUserId) {
-                                onAuthRequired?.("thích bình luận");
-                                return;
-                              }
-                              onLikeReply(c.id, r.id);
-                            }}
-                            className={clsx(
-                              "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                              r.liked
-                                ? "text-primary"
-                                : "text-text-secondary hover:text-text-secondary",
-                            )}
-                          >
-                            <ThumbsUp size={11} />
-                            <span>{r.likes > 0 ? r.likes : "Thích"}</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (!currentUserId) {
-                                onAuthRequired?.("trả lời bình luận");
-                                return;
-                              }
-                              onToggleReply(c.id, r.author.name);
-                            }}
-                            className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
-                          >
-                            Trả lời
-                          </button>
+                          {!c.hidden && (
+                            <button
+                              onClick={() => {
+                                if (!currentUserId) {
+                                  onAuthRequired?.("thích bình luận");
+                                  return;
+                                }
+                                onLikeReply(c.id, r.id);
+                              }}
+                              className={clsx(
+                                "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                                r.liked
+                                  ? "text-primary"
+                                  : "text-text-secondary hover:text-text-secondary",
+                              )}
+                            >
+                              <ThumbsUp size={11} />
+                              <span>{r.likes > 0 ? r.likes : "Thích"}</span>
+                            </button>
+                          )}
+                          {!c.hidden && (
+                            <button
+                              onClick={() => {
+                                if (!currentUserId) {
+                                  onAuthRequired?.("trả lời bình luận");
+                                  return;
+                                }
+                                onToggleReply(c.id, c.author.name);
+                              }}
+                              className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                            >
+                              Trả lời
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2321,7 +2329,7 @@ function CommentList({
                     )}
                 </div>
               )}
-            {replyingToId === c.id && (
+            {replyingToId === c.id && !c.hidden && (
               <ReplyInput
                 key={replyingToName ?? c.author.name}
                 replyTo={replyingToName ?? c.author.name}

@@ -15,6 +15,25 @@ export async function POST(
   const { commentId } = await params;
 
   try {
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { authorId: true, postId: true, hidden: true },
+    });
+
+    if (!comment) {
+      return NextResponse.json(
+        { error: "Không tìm thấy bình luận" },
+        { status: 404 },
+      );
+    }
+
+    if (comment.hidden) {
+      return NextResponse.json(
+        { error: "Bình luận đã bị ẩn" },
+        { status: 403 },
+      );
+    }
+
     const existing = await prisma.like.findUnique({
       where: {
         userId_commentId: { userId: session.user.id, commentId },
@@ -32,11 +51,7 @@ export async function POST(
       await prisma.like.create({
         data: { userId: session.user.id, commentId },
       });
-      const comment = await prisma.comment.findUnique({
-        where: { id: commentId },
-        select: { authorId: true, postId: true },
-      });
-      if (comment && comment.authorId !== session.user.id) {
+      if (comment.authorId !== session.user.id) {
         await prisma.notification.create({
           data: {
             recipientId: comment.authorId,
