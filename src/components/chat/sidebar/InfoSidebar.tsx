@@ -9,11 +9,15 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import { RoleBadge } from "@/components/chat/RoleBadge";
 import { useOutsideClick } from "@/lib/chat/hooks";
 import { groupMembers, sharedImages, sharedFiles } from "@/lib/chat/data";
 import type { Conversation, Member, ConfirmAction } from "@/lib/chat/types";
+
+function getInitials(name: string) {
+  return name.split(" ").slice(-2).map((w) => w[0]).join("").toUpperCase();
+}
 
 function MediaModal({ tab: init, onClose }: { tab: "images" | "files"; onClose: () => void }) {
   const [tab, setTab] = useState<"images" | "files">(init);
@@ -82,13 +86,13 @@ function MemberMenu({ member, onClose }: { member: Member; onClose: () => void }
         <div className="px-3 py-2 text-xs text-text-muted">Đây là bạn</div>
       ) : (
         <>
-          <Link href="/main/profile" onClick={onClose} className="flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors">
+          <Link href="/profile" onClick={onClose} className="flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors">
             <User size={13} className="text-text-muted shrink-0" />Trang cá nhân
           </Link>
           {[
-            { icon: <MessageSquare size={13} />, label: "Nhắn tin"       },
-            { icon: <PhoneCall     size={13} />, label: "Gọi âm thanh"   },
-            { icon: <VideoIcon     size={13} />, label: "Gọi video"      },
+            { icon: <MessageSquare size={13} />, label: "Nhắn tin"     },
+            { icon: <PhoneCall     size={13} />, label: "Gọi âm thanh" },
+            { icon: <VideoIcon     size={13} />, label: "Gọi video"    },
           ].map(({ icon, label }) => (
             <button key={label} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors">
               <span className="text-text-muted shrink-0">{icon}</span>{label}
@@ -158,10 +162,12 @@ interface InfoSidebarProps {
 }
 
 export function InfoSidebar({ conv, onClose }: InfoSidebarProps) {
-  const [notifOn,      setNotifOn]      = useState(true);
-  const [mediaModal,   setMediaModal]   = useState<"images" | "files" | null>(null);
-  const [membersOpen,  setMembersOpen]  = useState(false);
-  const [confirm,      setConfirm]      = useState<ConfirmAction | null>(null);
+  const [notifOn,     setNotifOn]     = useState(true);
+  const [mediaModal,  setMediaModal]  = useState<"images" | "files" | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [confirm,     setConfirm]     = useState<ConfirmAction | null>(null);
+
+  const initials = getInitials(conv.name);
 
   return (
     <>
@@ -174,16 +180,22 @@ export function InfoSidebar({ conv, onClose }: InfoSidebarProps) {
         </div>
 
         <div className="flex flex-col items-center pt-5 pb-4 px-4 border-b border-surface-100">
-          <Avatar initials={conv.initials} color={conv.color} size="xl" shape="circle" />
+          <Avatar
+            src={conv.avatarUrl}
+            initials={initials}
+            size="xl"
+            shape="circle"
+            className="mb-3"
+          />
           <p className="text-sm font-bold text-text-primary text-center">{conv.name}</p>
           {conv.isGroup ? (
             <p className="text-xs text-text-muted mt-0.5">Nhóm · {groupMembers.length} thành viên</p>
           ) : (
             <p className="text-xs text-green-500 mt-0.5 font-medium">● Đang hoạt động</p>
           )}
-          {!conv.isGroup && (
+          {!conv.isGroup && conv.otherUsername && (
             <Link
-              href="/main/profile"
+              href={`/profile/${conv.otherUsername}`}
               className="mt-2.5 px-3.5 py-1.5 bg-primary/10 text-primary text-xs font-semibold rounded-full hover:bg-primary/20 transition-colors flex items-center gap-1.5"
             >
               <User size={11} />Xem trang cá nhân
@@ -299,7 +311,7 @@ export function InfoSidebar({ conv, onClose }: InfoSidebarProps) {
         </div>
       </div>
 
-      {mediaModal  && <MediaModal  tab={mediaModal} onClose={() => setMediaModal(null)}  />}
+      {mediaModal  && <MediaModal tab={mediaModal} onClose={() => setMediaModal(null)} />}
       {membersOpen && <MembersModal onClose={() => setMembersOpen(false)} />}
 
       {confirm && (

@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import type { MyGroup } from "@/lib/community/data";
 
 type MyGroupsCardProps = {

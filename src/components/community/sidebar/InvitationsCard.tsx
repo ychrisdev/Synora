@@ -1,5 +1,4 @@
-import { Check, X } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import type { Invitation } from "@/lib/community/data";
 
 type InvitationsCardProps = {

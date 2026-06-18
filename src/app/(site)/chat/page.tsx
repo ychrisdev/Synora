@@ -1,47 +1,254 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Home, Edit, Phone, Video, Info, Send, Paperclip, ImageIcon, Smile, X } from "lucide-react";
+import {
+  Home,
+  Edit,
+  Phone,
+  Video,
+  Info,
+  Send,
+  Paperclip,
+  ImageIcon,
+  Smile,
+  X,
+} from "lucide-react";
 import { clsx } from "clsx";
 
-import { conversations, initialMessages, groupMembers } from "@/lib/chat/data";
-import type { Message, FilterChip } from "@/lib/chat/types";
+import type {
+  Conversation,
+  Message,
+  FilterChip,
+  ApiMessage,
+} from "@/lib/chat/types";
+import { adaptApiMessage } from "@/lib/chat/utils";
+import { groupMembers } from "@/lib/chat/data";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Badge } from "@/components/chat/Badge";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
-
 import { ConversationList } from "@/components/chat/sidebar/ConversationList";
 import { InfoSidebar } from "@/components/chat/sidebar/InfoSidebar";
+import Avatar from "@/components/ui/Avatar";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(-2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
 
 export default function ChatPage() {
-  const [activeConv,    setActiveConv]    = useState(1);
-  const [input,         setInput]         = useState("");
-  const [infoOpen,      setInfoOpen]      = useState(false);
-  const [replyingTo,    setReplyingTo]    = useState<Message | null>(null);
-  const [newConvOpen,   setNewConvOpen]   = useState(false);
-  const [searchQuery,   setSearchQuery]   = useState("");
-  const [activeFilter,  setActiveFilter]  = useState<FilterChip>("all");
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? "";
 
-  const currentConv = conversations.find((c) => c.id === activeConv)!;
+  const [convList, setConvList] = useState<Conversation[]>([]);
+  const [convLoading, setConvLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterChip>("all");
 
-  const filteredConversations = conversations.filter((c) => {
-    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    if (activeFilter === "unread") return c.unread > 0;
-    if (activeFilter === "group")  return c.isGroup;
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [newConvOpen, setNewConvOpen] = useState(false);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/conversations");
+      if (!res.ok) return;
+      const data: Conversation[] = await res.json();
+      setConvList(data);
+      if (!activeId && data.length > 0) setActiveId(data[0].id);
+    } finally {
+      setConvLoading(false);
+    }
+  }, [activeId]);
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  const fetchMessages = useCallback(
+    async (convId: string) => {
+      setMsgLoading(true);
+      setMessages([]);
+      setNextCursor(null);
+      try {
+        const res = await fetch(
+          `/api/conversations/${convId}/messages?limit=30`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const adapted = (data.messages as ApiMessage[]).map((m) =>
+          adaptApiMessage(m, currentUserId),
+        );
+        setMessages(adapted);
+        setNextCursor(data.nextCursor);
+      } finally {
+        setMsgLoading(false);
+      }
+    },
+    [currentUserId],
+  );
+
+  useEffect(() => {
+    if (!activeId) return;
+    fetchMessages(activeId);
+  }, [activeId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  const pollMessages = useCallback(async () => {
+    if (!activeId || msgLoading) return;
+    try {
+      const res = await fetch(
+        `/api/conversations/${activeId}/messages?limit=30`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const adapted = (data.messages as ApiMessage[]).map((m) =>
+        adaptApiMessage(m, currentUserId),
+      );
+      setMessages((prev) => {
+        if (
+          adapted.length === prev.length &&
+          adapted[adapted.length - 1]?.id === prev[prev.length - 1]?.id
+        )
+          return prev;
+        return adapted;
+      });
+    } catch {}
+  }, [activeId, currentUserId, msgLoading]);
+
+  useEffect(() => {
+    pollingRef.current = setInterval(pollMessages, 3000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [pollMessages]);
+
+  const loadMore = async () => {
+    if (!activeId || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/conversations/${activeId}/messages?cursor=${nextCursor}&limit=30`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const adapted = (data.messages as ApiMessage[]).map((m) =>
+        adaptApiMessage(m, currentUserId),
+      );
+      setMessages((prev) => [...adapted, ...prev]);
+      setNextCursor(data.nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || !activeId || sending) return;
+    const text = input.trim();
+    setInput("");
+    setSending(true);
+
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: Message = {
+      id: tempId,
+      sender: session?.user?.name ?? "Bạn",
+      initials: getInitials(session?.user?.name ?? "B"),
+      color: "bg-primary",
+      avatarUrl: session?.user?.image ?? null,
+      time: new Date().toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      content: text,
+      isMe: true,
+      attachment: null,
+      replyTo: replyingTo
+        ? { sender: replyingTo.sender, content: replyingTo.content ?? "" }
+        : null,
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setReplyingTo(null);
+
+    try {
+      const res = await fetch(`/api/conversations/${activeId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: text,
+          replyToId: replyingTo?.id,
+        }),
+      });
+      if (res.ok) {
+        const real: ApiMessage = await res.json();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? adaptApiMessage(real, currentUserId) : m,
+          ),
+        );
+        setConvList((prev) =>
+          prev.map((c) =>
+            c.id === activeId
+              ? { ...c, lastMessage: text, lastMessageAt: real.createdAt }
+              : c,
+          ),
+        );
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setInput(text);
+      }
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInput(text);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSelectConv = (id: string) => {
+    setActiveId(id);
+    setInfoOpen(false);
+    setReplyingTo(null);
+    setConvList((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
+    );
+  };
+
+  const handleConvCreated = (convId: string) => {
+    fetchConversations();
+    setActiveId(convId);
+    setNewConvOpen(false);
+  };
+
+  const filtered = convList.filter((c) => {
+    if (!c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (activeFilter === "unread") return c.unreadCount > 0;
+    if (activeFilter === "group") return c.isGroup;
     return true;
   });
 
-  const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
-
-  const handleSelectConv = (id: number) => {
-    setActiveConv(id);
-    setInfoOpen(false);
-    setReplyingTo(null);
-  };
+  const totalUnread = convList.reduce((sum, c) => sum + c.unreadCount, 0);
+  const currentConv = convList.find((c) => c.id === activeId) ?? null;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -53,9 +260,7 @@ export default function ChatPage() {
         >
           <Home size={16} />
         </Link>
-
         <div className="h-px w-6 bg-surface-200 my-1" />
-
         <div className="relative">
           <button
             onClick={() => setNewConvOpen(true)}
@@ -64,132 +269,189 @@ export default function ChatPage() {
           >
             <Edit size={16} />
           </button>
-          <Badge count={totalUnread} variant="unread" size="sm" className="absolute -top-1 -right-1 pointer-events-none" />
+          <Badge
+            count={totalUnread}
+            variant="unread"
+            size="sm"
+            className="absolute -top-1 -right-1 pointer-events-none"
+          />
         </div>
-
         <div className="flex-1" />
         <AvatarMenu />
       </div>
 
       <ConversationList
-        conversations={filteredConversations}
-        activeId={activeConv}
+        conversations={filtered}
+        activeId={activeId}
         onSelect={handleSelectConv}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
         totalUnread={totalUnread}
+        loading={convLoading}
       />
 
       <div className="flex-1 flex flex-col bg-white min-w-0">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className={clsx("w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold", currentConv.color)}>
-              {currentConv.initials}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-text-primary">{currentConv.name}</p>
-              <p className="text-xs text-text-muted">
-                {currentConv.isGroup ? `${groupMembers.length} thành viên` : "Đang hoạt động"}
-              </p>
-            </div>
+        {!currentConv ? (
+          <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
+            {convLoading ? "Đang tải..." : "Chọn một cuộc trò chuyện"}
           </div>
-          <div className="flex items-center gap-0.5">
-            {[Phone, Video].map((Icon, i) => (
-              <button key={i} className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
-                <Icon size={17} />
-              </button>
-            ))}
-            <button
-              onClick={() => setInfoOpen((v) => !v)}
-              className={clsx("p-2 rounded-lg transition-colors", infoOpen ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-surface-100")}
-              title="Thông tin cuộc trò chuyện"
-            >
-              <Info size={17} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 bg-surface-50">
-          <div className="flex items-center justify-center">
-            <span className="text-xs text-text-muted bg-surface-200 px-3 py-1 rounded-full">
-              Quỳnh Anh đã chia sẻ một tài liệu
-            </span>
-          </div>
-
-          {initialMessages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              msg={msg}
-              replyTarget={null}
-              onReply={setReplyingTo}
-            />
-          ))}
-
-          <div className="flex items-end gap-2">
-            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-              MT
-            </div>
-            <div className="bg-white border border-surface-200 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-              <div className="flex gap-1 items-center">
-                {[0, 150, 300].map((delay) => (
-                  <span
-                    key={delay}
-                    className="w-1.5 h-1.5 bg-text-muted rounded-full animate-bounce"
-                    style={{ animationDelay: `${delay}ms` }}
-                  />
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-surface-200 shrink-0">
+              <div className="flex items-center gap-3">
+                <Avatar
+                  src={currentConv.avatarUrl ?? undefined}
+                  initials={getInitials(currentConv.name)}
+                  size="md"
+                  shape="circle"
+                />
+                <div>
+                  <p className="text-sm font-bold text-text-primary">
+                    {currentConv.name}
+                  </p>
+                  <p className="text-xs text-text-muted">
+                    {currentConv.isGroup
+                      ? `${groupMembers.length} thành viên`
+                      : "Đang hoạt động"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-0.5">
+                {([Phone, Video] as const).map((Icon, i) => (
+                  <button
+                    key={i}
+                    className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors"
+                  >
+                    <Icon size={17} />
+                  </button>
                 ))}
+                <button
+                  onClick={() => setInfoOpen((v) => !v)}
+                  className={clsx(
+                    "p-2 rounded-lg transition-colors",
+                    infoOpen
+                      ? "bg-primary/10 text-primary"
+                      : "text-text-secondary hover:bg-surface-100",
+                  )}
+                >
+                  <Info size={17} />
+                </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        {replyingTo && (
-          <div className="px-4 py-2 border-t border-surface-100 bg-surface-50 flex items-center gap-3">
-            <div className="w-0.5 h-8 bg-primary rounded-full shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold text-primary">
-                Trả lời {replyingTo.isMe ? "chính mình" : replyingTo.sender}
-              </p>
-              <p className="text-[11px] text-text-muted truncate">
-                {replyingTo.content ?? replyingTo.attachment?.name}
-              </p>
+            <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 bg-surface-50">
+              {nextCursor && (
+                <button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="self-center text-xs text-primary font-semibold hover:underline disabled:opacity-50 mb-2"
+                >
+                  {loadingMore ? "Đang tải..." : "Tải tin cũ hơn"}
+                </button>
+              )}
+
+              {msgLoading ? (
+                <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
+                  Đang tải tin nhắn...
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
+                  Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <MessageBubble
+                    key={msg.id}
+                    msg={msg}
+                    replyTarget={
+                      msg.replyTo
+                        ? {
+                            id: msg.id,
+                            sender: msg.replyTo.sender,
+                            content: msg.replyTo.content,
+                            isMe: false,
+                            initials: "",
+                            color: "",
+                            time: "",
+                            attachment: null,
+                          }
+                        : null
+                    }
+                    onReply={setReplyingTo}
+                  />
+                ))
+              )}
+              <div ref={bottomRef} />
             </div>
-            <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-surface-200 rounded-lg transition-colors text-text-muted shrink-0">
-              <X size={14} />
-            </button>
-          </div>
+
+            {replyingTo && (
+              <div className="px-4 py-2 border-t border-surface-100 bg-surface-50 flex items-center gap-3">
+                <div className="w-0.5 h-8 bg-primary rounded-full shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-semibold text-primary">
+                    Trả lời {replyingTo.isMe ? "chính mình" : replyingTo.sender}
+                  </p>
+                  <p className="text-[11px] text-text-muted truncate">
+                    {replyingTo.content ?? replyingTo.attachment?.name}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setReplyingTo(null)}
+                  className="p-1 hover:bg-surface-200 rounded-lg transition-colors text-text-muted shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            <div className="px-4 py-3 border-t border-surface-200 bg-white shrink-0">
+              <div className="flex items-center gap-2">
+                <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
+                  <Paperclip size={17} />
+                </button>
+                <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
+                  <ImageIcon size={17} />
+                </button>
+                <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
+                  <Smile size={16} className="text-text-muted shrink-0" />
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder="Nhập tin nhắn..."
+                    className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || sending}
+                  className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </>
         )}
-
-        <div className="px-4 py-3 border-t border-surface-200 bg-white shrink-0">
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
-              <Paperclip size={17} />
-            </button>
-            <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
-              <ImageIcon size={17} />
-            </button>
-            <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
-              <Smile size={16} className="text-text-muted shrink-0" />
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-              />
-            </div>
-            <button className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors">
-              <Send size={16} />
-            </button>
-          </div>
-        </div>
       </div>
 
-      {infoOpen && <InfoSidebar conv={currentConv} onClose={() => setInfoOpen(false)} />}
-
-      {newConvOpen && <NewConversationModal onClose={() => setNewConvOpen(false)} />}
+      {infoOpen && currentConv && (
+        <InfoSidebar conv={currentConv} onClose={() => setInfoOpen(false)} />
+      )}
+      {newConvOpen && (
+        <NewConversationModal
+          onClose={() => setNewConvOpen(false)}
+          onCreated={handleConvCreated}
+        />
+      )}
     </div>
   );
 }

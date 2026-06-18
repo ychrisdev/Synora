@@ -235,15 +235,15 @@ export default function Navbar({
     setBellOpen((v) => !v);
   };
 
+  useEffect(() => {
+    emitUnreadCount(totalUnread);
+  }, [totalUnread]);
+
   const markRead = useCallback((id: string) => {
     setNotifs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, unread: false } : n)),
     );
-    setTotalUnread((prev) => {
-      const next = Math.max(0, prev - 1);
-      emitUnreadCount(next);
-      return next;
-    });
+    setTotalUnread((prev) => Math.max(0, prev - 1));
     fetch("/api/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

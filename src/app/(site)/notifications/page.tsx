@@ -40,6 +40,10 @@ export default function NotificationsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    emitUnreadCount(totalUnread);
+  }, [totalUnread]);
+
   const loadMore = async () => {
     if (!nextCursor) return;
     const res = await fetch(`/api/notifications?cursor=${nextCursor}`);
@@ -52,11 +56,7 @@ export default function NotificationsPage() {
     setNotifs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, unread: false } : n)),
     );
-    setTotalUnread((prev) => {
-      const next = Math.max(0, prev - 1);
-      emitUnreadCount(next);
-      return next;
-    });
+    setTotalUnread((prev) => Math.max(0, prev - 1));
     fetch("/api/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -67,7 +67,6 @@ export default function NotificationsPage() {
   const markAllRead = () => {
     setNotifs((prev) => prev.map((n) => ({ ...n, unread: false })));
     setTotalUnread(0);
-    emitUnreadCount(0);
     fetch("/api/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

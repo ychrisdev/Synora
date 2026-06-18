@@ -1,34 +1,98 @@
 "use client";
 
-import { useState } from "react";
-import { X, Search, User, Hash, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { X, Search, User, Hash, Check, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
-import { allContacts } from "@/lib/chat/data";
+import Avatar from "@/components/ui/Avatar";
+import { getColorForUser, getInitialsFromName } from "@/lib/chat/utils";
 import type { NewConvTab } from "@/lib/chat/types";
+
+interface FriendItem {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
 
 interface NewConversationModalProps {
   onClose: () => void;
+  onCreated: (conversationId: string) => void;
 }
 
-export function NewConversationModal({ onClose }: NewConversationModalProps) {
+export function NewConversationModal({
+  onClose,
+  onCreated,
+}: NewConversationModalProps) {
+  const { data: session } = useSession();
   const [tab, setTab] = useState<NewConvTab>("direct");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [friends, setFriends] = useState<FriendItem[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(true);
+  const [selected, setSelected] = useState<FriendItem[]>([]);
   const [groupName, setGroupName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = allContacts.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
+  useEffect(() => {
+    const username = session?.user?.username;
+    if (!username) return;
+    setLoadingFriends(true);
+    fetch(`/api/profile/${username}/friends`)
+      .then((r) => r.json())
+      .then((data) => setFriends(data.friends ?? []))
+      .catch(() => setFriends([]))
+      .finally(() => setLoadingFriends(false));
+  }, [session?.user?.username]);
+
+  const filtered = friends.filter(
+    (f) =>
+      f.displayName.toLowerCase().includes(search.toLowerCase()) ||
+      f.username.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const toggle = (name: string) =>
+  const toggle = (friend: FriendItem) =>
     setSelected((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+      prev.some((f) => f.id === friend.id)
+        ? prev.filter((f) => f.id !== friend.id)
+        : [...prev, friend],
     );
 
   const canCreate =
     tab === "direct"
       ? selected.length === 1
       : selected.length >= 2 && groupName.trim().length > 0;
+
+  const handleCreate = async () => {
+    if (!canCreate || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const body =
+        tab === "direct"
+          ? { targetUsername: selected[0].username }
+          : {
+              isGroup: true,
+              name: groupName.trim(),
+              usernames: selected.map((f) => f.username),
+            };
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Có lỗi xảy ra");
+        return;
+      }
+      onCreated(data.id);
+    } catch {
+      setError("Không thể tạo cuộc trò chuyện");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <>
@@ -59,6 +123,7 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
               onClick={() => {
                 setTab(t.key);
                 setSelected([]);
+                setError(null);
               }}
               className={clsx(
                 "flex items-center gap-1.5 py-3 mr-7 text-xs font-semibold border-b-2 transition-colors",
@@ -91,27 +156,24 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
 
           {selected.length > 0 && (
             <div className="px-5 py-3 flex flex-wrap gap-1.5 border-b border-surface-100">
-              {selected.map((name) => {
-                const c = allContacts.find((x) => x.name === name)!;
-                return (
-                  <button
-                    key={name}
-                    onClick={() => toggle(name)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 text-text-primary border border-surface-200"
+              {selected.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => toggle(f)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 text-text-primary border border-surface-200"
+                >
+                  <span
+                    className={clsx(
+                      "w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0",
+                      getColorForUser(f.id),
+                    )}
                   >
-                    <span
-                      className={clsx(
-                        "w-4 h-4 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0",
-                        c.color,
-                      )}
-                    >
-                      {c.initials[0]}
-                    </span>
-                    {c.name.split(" ").slice(-1)[0]}
-                    <X size={10} className="text-text-muted" />
-                  </button>
-                );
-              })}
+                    {getInitialsFromName(f.displayName)[0]}
+                  </span>
+                  {f.displayName.split(" ").slice(-1)[0]}
+                  <X size={10} className="text-text-muted" />
+                </button>
+              ))}
             </div>
           )}
 
@@ -135,19 +197,26 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
           </div>
 
           <div className="px-3 pb-3">
-            {filtered.length === 0 ? (
+            {loadingFriends ? (
+              <div className="flex items-center justify-center py-8 gap-2 text-text-muted">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-xs">Đang tải...</span>
+              </div>
+            ) : filtered.length === 0 ? (
               <p className="text-xs text-text-muted text-center py-6">
-                Không tìm thấy kết quả
+                {friends.length === 0
+                  ? "Bạn chưa có bạn bè nào"
+                  : "Không tìm thấy kết quả"}
               </p>
             ) : (
-              filtered.map((c) => {
-                const isSelected = selected.includes(c.name);
+              filtered.map((f) => {
+                const isSelected = selected.some((s) => s.id === f.id);
                 const isDisabled =
                   tab === "direct" && selected.length === 1 && !isSelected;
                 return (
                   <button
-                    key={c.name}
-                    onClick={() => !isDisabled && toggle(c.name)}
+                    key={f.id}
+                    onClick={() => !isDisabled && toggle(f)}
                     disabled={isDisabled}
                     className={clsx(
                       "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
@@ -158,26 +227,17 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
                           : "hover:bg-surface-50",
                     )}
                   >
-                    <div className="relative shrink-0">
-                      <div
-                        className={clsx(
-                          "w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold",
-                          c.color,
-                        )}
-                      >
-                        {c.initials}
-                      </div>
-                      {c.active && (
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full" />
-                      )}
-                    </div>
+                    <Avatar
+                      src={f.avatarUrl}
+                      initials={getInitialsFromName(f.displayName)}
+                      color={getColorForUser(f.id)}
+                      size="md"
+                    />
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-semibold text-text-primary truncate">
-                        {c.name}
+                        {f.displayName}
                       </p>
-                      <p className="text-xs text-text-muted">
-                        {c.active ? "Đang hoạt động" : "Không hoạt động"}
-                      </p>
+                      <p className="text-xs text-text-muted">@{f.username}</p>
                     </div>
                     <div
                       className={clsx(
@@ -202,6 +262,12 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
           </div>
         </div>
 
+        {error && (
+          <div className="px-5 pt-2">
+            <p className="text-xs text-red-500">{error}</p>
+          </div>
+        )}
+
         <div className="px-5 py-4 border-t border-surface-100 flex items-center justify-between gap-3">
           <p className="text-xs text-text-muted">
             {selected.length === 0
@@ -218,15 +284,16 @@ export function NewConversationModal({ onClose }: NewConversationModalProps) {
               Huỷ
             </button>
             <button
-              disabled={!canCreate}
-              onClick={onClose}
+              disabled={!canCreate || creating}
+              onClick={handleCreate}
               className={clsx(
-                "px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors",
-                canCreate
+                "px-4 py-2 rounded-xl text-xs font-semibold text-white transition-colors flex items-center gap-1.5",
+                canCreate && !creating
                   ? "bg-primary hover:bg-primary-700"
                   : "bg-primary/40 text-white/70 cursor-not-allowed",
               )}
             >
+              {creating && <Loader2 size={12} className="animate-spin" />}
               {tab === "direct" ? "Nhắn tin" : "Tạo nhóm"}
             </button>
           </div>

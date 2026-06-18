@@ -1,12 +1,12 @@
 export type Conversation = {
-  id: number;
+  id: string;
   name: string;
-  initials: string;
-  color: string;
+  avatarUrl: string | null;
   isGroup: boolean;
+  otherUsername?: string;
   lastMessage: string;
-  time: string;
-  unread: number;
+  lastMessageAt: string | null;
+  unreadCount: number;
 };
 
 export type Member = {
@@ -17,15 +17,42 @@ export type Member = {
   active: boolean;
 };
 
+export type ApiMessage = {
+  id: string;
+  content: string | null;
+  fileUrl: string | null;
+  fileType: string | null;
+  status: "SENT" | "DELIVERED" | "READ";
+  createdAt: string;
+  senderId: string;
+  sender: {
+    id: string;
+    username: string;
+    profile: { displayName: string | null; avatarUrl: string | null } | null;
+  };
+  replyToId: string | null;
+  replyTo: {
+    id: string;
+    content: string | null;
+    senderId: string;
+    sender: {
+      username: string;
+      profile: { displayName: string | null } | null;
+    };
+  } | null;
+};
+
 export type Message = {
-  id: number;
+  id: string;
   sender: string;
   initials: string;
   color: string;
+  avatarUrl: string | null;
   time: string;
   content: string | null;
   isMe: boolean;
   attachment: { name: string; size: string; type: string } | null;
+  replyTo?: { sender: string; content: string } | null;
 };
 
 export type PendingMessage = {

@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import type { Group } from "@/lib/community/data";
 
 type FeaturedGroupsProps = {

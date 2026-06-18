@@ -1,6 +1,6 @@
 import { clsx } from "clsx";
 import { Plus, Check } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import type { Suggestion } from "@/lib/community/data";
 
 type SuggestionsCardProps = {

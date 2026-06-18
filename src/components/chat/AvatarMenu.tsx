@@ -10,7 +10,7 @@ import {
 import { clsx } from "clsx";
 import { useOutsideClick } from "@/lib/chat/hooks";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
-import { Avatar } from "@/components/ui/Avatar";
+import Avatar from "@/components/ui/Avatar";
 import { PillBadge } from "./Badge";
 import { pendingMessages, blockedUsers, ME } from "@/lib/chat/data";
 import type { AvatarMenuPanel } from "@/lib/chat/types";
