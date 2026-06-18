@@ -130,14 +130,16 @@ export function MessageActions({
 
 interface MessageBubbleProps {
   msg: Message;
-  replyTarget: { id: string; sender: string; content: string | null } | null;
   onReply: (m: Message) => void;
+  onJumpToReply: (id: string) => void;
+  highlighted?: boolean;
 }
 
 export function MessageBubble({
   msg,
-  replyTarget,
   onReply,
+  onJumpToReply,
+  highlighted,
 }: MessageBubbleProps) {
   const [reactions, setReactions] = useState<string[]>([]);
 
@@ -148,10 +150,19 @@ export function MessageBubble({
 
   return (
     <div
+      id={`message-${msg.id}`}
       className={clsx(
-        "flex items-end gap-2 group",
+        "flex items-end gap-2 group rounded-2xl transition-all duration-700",
         msg.isMe ? "flex-row-reverse" : "flex-row",
       )}
+      style={
+        highlighted
+          ? {
+              backgroundColor:
+                "color-mix(in srgb, var(--color-primary) 10%, transparent)",
+            }
+          : undefined
+      }
     >
       {!msg.isMe && (
         <Avatar
@@ -175,10 +186,12 @@ export function MessageBubble({
           </p>
         )}
 
-        {replyTarget && (
-          <div
+        {msg.replyTo && (
+          <button
+            type="button"
+            onClick={() => onJumpToReply(msg.replyTo!.id)}
             className={clsx(
-              "flex items-start gap-2 px-3 py-2 rounded-xl mb-0.5 border-l-2 border-primary/40 max-w-full",
+              "flex items-start gap-2 px-3 py-2 rounded-xl mb-0.5 border-l-2 border-primary/40 max-w-full text-left hover:opacity-80 transition-opacity",
               msg.isMe ? "bg-primary/5" : "bg-surface-100",
             )}
           >
@@ -186,13 +199,21 @@ export function MessageBubble({
               size={11}
               className="text-primary/60 shrink-0 mt-0.5"
             />
-            <p className="text-[11px] text-text-muted truncate">
-              <span className="font-semibold text-primary/80">
-                {replyTarget.sender}{" "}
-              </span>
-              {replyTarget.content ?? replyTarget.attachment?.name}
-            </p>
-          </div>
+            <div className="flex flex-col min-w-0">
+              <p className="text-[10px] text-primary/60 font-medium leading-tight mb-0.5">
+                {msg.isMe
+                  ? msg.replyTo.sender === msg.sender
+                    ? "Bạn đã trả lời chính mình"
+                    : `Bạn đã trả lời ${msg.replyTo.sender}`
+                  : msg.replyTo.isMe
+                    ? `${msg.sender} đã trả lời bạn`
+                    : `${msg.sender} đã trả lời ${msg.replyTo.sender}`}
+              </p>
+              <p className="text-[11px] text-text-muted truncate">
+                {msg.replyTo.content}
+              </p>
+            </div>
+          </button>
         )}
 
         {msg.content && (
@@ -211,7 +232,7 @@ export function MessageBubble({
         {msg.attachment && (
           <div className="flex items-center gap-3 p-3 bg-white border border-surface-200 rounded-2xl shadow-sm min-w-[200px]">
             <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-              PDF
+              {msg.attachment.type}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-text-primary truncate">

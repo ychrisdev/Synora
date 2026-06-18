@@ -52,7 +52,7 @@ export type Message = {
   content: string | null;
   isMe: boolean;
   attachment: { name: string; size: string; type: string } | null;
-  replyTo?: { sender: string; content: string } | null;
+  replyTo?: { id: string; sender: string; content: string; isMe?: boolean } | null;
 };
 
 export type PendingMessage = {

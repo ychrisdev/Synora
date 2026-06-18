@@ -33,10 +33,12 @@ export function adaptApiMessage(
 
   const replyTo = msg.replyTo
     ? {
+        id: msg.replyTo.id,
         sender:
           msg.replyTo.sender.profile?.displayName ??
           msg.replyTo.sender.username,
         content: msg.replyTo.content ?? "Đã gửi một file",
+        isMe: msg.replyTo.senderId === currentUserId,
       }
     : null;
 

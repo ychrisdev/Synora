@@ -67,6 +67,26 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingJumpId) return;
+    const el = document.getElementById(`message-${pendingJumpId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedId(pendingJumpId);
+      setPendingJumpId(null);
+      window.setTimeout(() => setHighlightedId(null), 1500);
+    } else if (nextCursor && !loadingMore) {
+      loadMore();
+    } else {
+      setPendingJumpId(null);
+    }
+  }, [pendingJumpId, messages, nextCursor, loadingMore]);
+
+  const handleJumpToReply = (id: string) => setPendingJumpId(id);
+
   const fetchConversations = useCallback(async () => {
     try {
       const res = await fetch("/api/conversations");
@@ -144,7 +164,7 @@ export default function ChatPage() {
     };
   }, [pollMessages]);
 
-  const loadMore = async () => {
+  const loadMore = useCallback(async () => {
     if (!activeId || !nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
@@ -161,7 +181,7 @@ export default function ChatPage() {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [activeId, nextCursor, loadingMore]);
 
   const handleSend = async () => {
     if (!input.trim() || !activeId || sending) return;
@@ -184,7 +204,12 @@ export default function ChatPage() {
       isMe: true,
       attachment: null,
       replyTo: replyingTo
-        ? { sender: replyingTo.sender, content: replyingTo.content ?? "" }
+        ? {
+            id: replyingTo.id,
+            sender: replyingTo.sender,
+            content: replyingTo.content ?? "",
+            isMe: replyingTo.isMe,
+          }
         : null,
     };
     setMessages((prev) => [...prev, optimistic]);
@@ -365,21 +390,9 @@ export default function ChatPage() {
                   <MessageBubble
                     key={msg.id}
                     msg={msg}
-                    replyTarget={
-                      msg.replyTo
-                        ? {
-                            id: msg.id,
-                            sender: msg.replyTo.sender,
-                            content: msg.replyTo.content,
-                            isMe: false,
-                            initials: "",
-                            color: "",
-                            time: "",
-                            attachment: null,
-                          }
-                        : null
-                    }
                     onReply={setReplyingTo}
+                    onJumpToReply={handleJumpToReply}
+                    highlighted={highlightedId === msg.id}
                   />
                 ))
               )}
