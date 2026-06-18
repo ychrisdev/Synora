@@ -22,6 +22,7 @@ import type {
   Message,
   FilterChip,
   ApiMessage,
+  ReactionGroup,
 } from "@/lib/chat/types";
 import { adaptApiMessage } from "@/lib/chat/utils";
 import { groupMembers } from "@/lib/chat/data";
@@ -65,6 +66,7 @@ export default function ChatPage() {
   const [newConvOpen, setNewConvOpen] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -183,6 +185,15 @@ export default function ChatPage() {
     }
   }, [activeId, nextCursor, loadingMore]);
 
+  const handleReactionsUpdated = (
+    messageId: string,
+    reactions: ReactionGroup[],
+  ) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)),
+    );
+  };
+
   const handleSend = async () => {
     if (!input.trim() || !activeId || sending) return;
     const text = input.trim();
@@ -203,6 +214,7 @@ export default function ChatPage() {
       content: text,
       isMe: true,
       attachment: null,
+      reactions: [],
       replyTo: replyingTo
         ? {
             id: replyingTo.id,
@@ -390,9 +402,15 @@ export default function ChatPage() {
                   <MessageBubble
                     key={msg.id}
                     msg={msg}
-                    onReply={setReplyingTo}
+                    conversationId={activeId!}
+                    currentUserId={currentUserId}
+                    onReply={(m) => {
+                      setReplyingTo(m);
+                      setTimeout(() => inputRef.current?.focus(), 0);
+                    }}
                     onJumpToReply={handleJumpToReply}
                     highlighted={highlightedId === msg.id}
+                    onReactionsUpdated={handleReactionsUpdated}
                   />
                 ))
               )}
@@ -430,6 +448,7 @@ export default function ChatPage() {
                 <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
                   <Smile size={16} className="text-text-muted shrink-0" />
                   <input
+                    ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}

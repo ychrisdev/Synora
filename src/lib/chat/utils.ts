@@ -1,4 +1,4 @@
-import type { ApiMessage, Message } from "./types";
+import type { ApiMessage, ApiReaction, Message, ReactionGroup } from "./types";
 
 export function getColorForUser(_userId: string): string {
   return "bg-primary";
@@ -19,6 +19,47 @@ export function formatMessageTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export function groupReactions(
+  reactions: ApiReaction[],
+  currentUserId: string,
+): ReactionGroup[] {
+  const map = new Map<string, ReactionGroup>();
+  for (const r of reactions) {
+    const name = r.user.profile?.displayName ?? r.user.username;
+    const existing = map.get(r.emoji);
+    if (existing) {
+      existing.count += 1;
+      existing.users.push(name);
+      if (r.userId === currentUserId) existing.reactedByMe = true;
+    } else {
+      map.set(r.emoji, {
+        emoji: r.emoji,
+        count: 1,
+        reactedByMe: r.userId === currentUserId,
+        users: [name],
+      });
+    }
+  }
+  return Array.from(map.values());
+}
+
+export async function toggleMessageReaction(
+  conversationId: string,
+  messageId: string,
+  emoji: string,
+): Promise<{ reactions: ApiReaction[] }> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/messages/${messageId}/reactions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    },
+  );
+  if (!res.ok) throw new Error("Failed to toggle reaction");
+  return res.json();
 }
 
 export function adaptApiMessage(
@@ -62,5 +103,6 @@ export function adaptApiMessage(
     isMe,
     attachment,
     replyTo,
+    reactions: groupReactions(msg.reactions, currentUserId),
   };
 }

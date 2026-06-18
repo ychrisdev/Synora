@@ -111,6 +111,7 @@ model User {
 
   sentMessages      Message[]        @relation("sender")
   conversations     ConversationMember[]
+  messageReactions  MessageReaction[]
 
   notifications     Notification[]   @relation("recipient")
   triggeredNotifs   Notification[]   @relation("actor")
@@ -388,12 +389,27 @@ model Message {
   replyToId      String?
   replyTo        Message?      @relation("replies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        Message[]     @relation("replies")
+  reactions      MessageReaction[]
 
   deletedAt      DateTime?
 
   createdAt      DateTime      @default(now())
 
   @@map("messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
 }
 
 model Notification {

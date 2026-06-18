@@ -17,6 +17,16 @@ export type Member = {
   active: boolean;
 };
 
+export type ApiReaction = {
+  id: string;
+  emoji: string;
+  userId: string;
+  user: {
+    username: string;
+    profile: { displayName: string | null } | null;
+  };
+};
+
 export type ApiMessage = {
   id: string;
   content: string | null;
@@ -40,6 +50,14 @@ export type ApiMessage = {
       profile: { displayName: string | null } | null;
     };
   } | null;
+  reactions: ApiReaction[];
+};
+
+export type ReactionGroup = {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  users: string[];
 };
 
 export type Message = {
@@ -52,7 +70,13 @@ export type Message = {
   content: string | null;
   isMe: boolean;
   attachment: { name: string; size: string; type: string } | null;
-  replyTo?: { id: string; sender: string; content: string; isMe?: boolean } | null;
+  replyTo?: {
+    id: string;
+    sender: string;
+    content: string;
+    isMe?: boolean;
+  } | null;
+  reactions: ReactionGroup[];
 };
 
 export type PendingMessage = {

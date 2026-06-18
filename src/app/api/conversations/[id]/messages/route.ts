@@ -57,6 +57,20 @@ export async function GET(req: NextRequest, { params }: Params) {
           },
         },
       },
+      reactions: {
+        select: {
+          id: true,
+          emoji: true,
+          userId: true,
+          user: {
+            select: {
+              username: true,
+              profile: { select: { displayName: true, avatarUrl: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" as const },
+      },
     },
   });
 
@@ -142,6 +156,20 @@ export async function POST(req: NextRequest, { params }: Params) {
               },
             },
           },
+        },
+        reactions: {
+          select: {
+            id: true,
+            emoji: true,
+            userId: true,
+            user: {
+              select: {
+                username: true,
+                profile: { select: { displayName: true, avatarUrl: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" as const },
         },
       },
     }),
