@@ -1,4 +1,110 @@
-function CommentList({
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { clsx } from "clsx";
+import NextLink from "next/link";
+import { ThumbsUp, EyeOff, Trash2, Ban } from "lucide-react";
+import Avatar from "@/components/ui/Avatar";
+import type { Comment, CommentSort } from "@/lib/feed/types";
+import CommentBubbleMenu from "./CommentBubbleMenu";
+import EditCommentInput from "./EditCommentInput";
+import ReplyInput from "./ReplyInput";
+import { CommentMediaThumb, CommentFileBadge } from "./CommentInput";
+
+export function BlockConfirmDialog({
+  name,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <Ban size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Chặn {name}?
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Bạn sẽ không thấy bài viết, bình luận hoặc tin nhắn từ người này
+              nữa.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
+          >
+            Chặn
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function DeleteConfirmDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <Trash2 size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Xóa bình luận?
+            </p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Bình luận sẽ bị xóa vĩnh viễn và không thể khôi phục.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
+          >
+            Xóa
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CommentList({
   comments,
   replyingToId,
   replyingToName,
@@ -46,19 +152,16 @@ function CommentList({
   );
   const [deletingParentId, setDeletingParentId] = useState<string | null>(null);
   const [blockingName, setBlockingName] = useState<string | null>(null);
-  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(() => {
-    if (!targetCommentId) return new Set<string>();
-    return new Set<string>();
-  });
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
+    new Set<string>(),
+  );
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const commentRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const REPLIES_PREVIEW = 2;
 
   useEffect(() => {
     if (!targetCommentId || comments.length === 0) return;
-
     const isTopLevel = comments.some((c) => c.id === targetCommentId);
-
     if (!isTopLevel) {
       const parentComment = comments.find((c) =>
         c.replies.some((r) => r.id === targetCommentId),
@@ -70,12 +173,10 @@ function CommentList({
         return next;
       });
     }
-
     const rafId = requestAnimationFrame(() => {
       const el = commentRefs.current[targetCommentId];
       const container = scrollContainer?.current;
       if (!el) return;
-
       if (container) {
         const containerTop = container.getBoundingClientRect().top;
         const elTop = el.getBoundingClientRect().top;
@@ -84,11 +185,9 @@ function CommentList({
       } else {
         el.scrollIntoView({ block: "center" });
       }
-
       setHighlightedId(targetCommentId);
       setTimeout(() => setHighlightedId(null), 2000);
     });
-
     return () => cancelAnimationFrame(rafId);
   }, [targetCommentId, comments, scrollContainer]);
 
@@ -540,97 +639,5 @@ function CommentList({
         />
       )}
     </>
-  );
-}
-function BlockConfirmDialog({
-  name,
-  onConfirm,
-  onCancel,
-}: {
-  name: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <Ban size={18} className="text-red-500" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-text-primary">
-              Chặn {name}?
-            </p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Bạn sẽ không thấy bài viết, bình luận hoặc tin nhắn từ người này
-              nữa.
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
-          >
-            Chặn
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DeleteConfirmDialog({
-  onConfirm,
-  onCancel,
-}: {
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <Trash2 size={18} className="text-red-500" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-text-primary">
-              Xóa bình luận?
-            </p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Bình luận sẽ bị xóa vĩnh viễn và không thể khôi phục.
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
-          >
-            Xóa
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

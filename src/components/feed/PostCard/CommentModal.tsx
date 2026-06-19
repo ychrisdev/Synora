@@ -1,4 +1,29 @@
-function CommentModal({
+"use client";
+
+import { useState, useRef, useCallback, useEffect } from "react";
+import { clsx } from "clsx";
+import {
+  X,
+  ThumbsUp,
+  MessageCircle,
+  Share2,
+  Globe,
+  Users as UsersIcon,
+  Lock as LockIcon,
+} from "lucide-react";
+import NextLink from "next/link";
+import { useSession } from "next-auth/react";
+import Avatar from "@/components/ui/Avatar";
+import { useComments } from "@/lib/feed/hooks";
+import type { Post, CommentSort, CommentPayload } from "@/lib/feed/types";
+import RichContent from "./RichContent";
+import AttachmentRow from "./AttachmentRow";
+import ImageGrid from "./ImageGrid";
+import MediaLightbox from "./MediaLightbox";
+import CommentList from "@/components/feed/comment/CommentList";
+import CommentInput from "@/components/feed/comment/CommentInput";
+
+export default function CommentModal({
   post,
   liked,
   likeCount,
@@ -24,8 +49,8 @@ function CommentModal({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
   const { data: session, status } = useSession();
-  const commentRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const {
     comments,
     sortedComments,
@@ -43,9 +68,11 @@ function CommentModal({
     editComment,
     hideComment,
   } = useComments(post.id, sort);
+
   useEffect(() => {
     onSyncCount?.(getVisibleCount());
   }, [comments, getVisibleCount, onSyncCount]);
+
   const handleSubmitComment = useCallback(
     async (payload: CommentPayload) => {
       await submitComment(payload);
@@ -59,6 +86,7 @@ function CommentModal({
     },
     [submitReply],
   );
+
   if (lightboxIndex !== null && post.images) {
     return (
       <MediaLightbox
@@ -75,6 +103,7 @@ function CommentModal({
       />
     );
   }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"

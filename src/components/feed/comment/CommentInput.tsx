@@ -1,4 +1,175 @@
-function CommentInput({
+"use client";
+
+import { useState, useRef } from "react";
+import { clsx } from "clsx";
+import {
+  Paperclip,
+  Smile,
+  Send,
+  Loader2,
+  FileText,
+  Eye,
+  X,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
+import { useUploadThing } from "@/lib/uploadthing";
+import Avatar from "@/components/ui/Avatar";
+import {
+  fileTypeColors,
+  getFileExt,
+  isImageFile,
+  isVideoFile,
+  formatFileSize,
+} from "@/lib/feed/utils";
+import type { AttachedFile, CommentPayload } from "@/lib/feed/types";
+
+const MAX_VIDEO_MB = 64;
+const MAX_IMAGE_MB = 8;
+const MAX_DOC_MB = 16;
+
+export function CommentFileBadge({
+  name,
+  size,
+  type,
+  url,
+}: {
+  name: string;
+  size?: string;
+  type?: string;
+  url?: string;
+}) {
+  const ext = type ?? getFileExt(name);
+  return (
+    <div className="flex items-center gap-2 mt-2 p-2 bg-surface-50 rounded-lg border border-surface-200 max-w-[260px]">
+      <div
+        className={clsx(
+          "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+          fileTypeColors[ext] ?? "bg-gray-500",
+        )}
+      >
+        {ext.slice(0, 4)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-text-primary truncate">{name}</p>
+        {size && <p className="text-[11px] text-text-secondary">{size}</p>}
+      </div>
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-1.5 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors shrink-0"
+          title="Xem trước"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Eye size={14} />
+        </a>
+      ) : (
+        <div
+          className="p-1.5 text-text-secondary shrink-0"
+          title="Không có URL tải"
+        >
+          <FileText size={14} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CommentMediaThumb({
+  url,
+  type = "video",
+  fileName,
+}: {
+  url: string;
+  type?: "image" | "video";
+  fileName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const isVideo = type === "video";
+  return (
+    <>
+      <div
+        className="mt-2 rounded-xl overflow-hidden bg-black relative cursor-pointer group max-h-52"
+        onClick={() => setOpen(true)}
+      >
+        {isVideo ? (
+          <video
+            src={url}
+            muted
+            preload="metadata"
+            className="w-full max-h-52 object-cover group-hover:brightness-75 transition"
+          />
+        ) : (
+          <img
+            src={url}
+            alt={fileName ?? "ảnh"}
+            className="w-full max-h-52 object-cover group-hover:brightness-90 transition"
+          />
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center shadow-lg">
+            {isVideo ? (
+              <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 ml-0.5">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                className="w-5 h-5"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+                <path d="M11 8v6M8 11h6" />
+              </svg>
+            )}
+          </div>
+        </div>
+        {fileName && (
+          <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
+            <p className="text-white text-[11px] truncate bg-black/50 px-2 py-0.5 rounded">
+              {fileName}
+            </p>
+          </div>
+        )}
+      </div>
+      {open && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
+          onClick={() => setOpen(false)}
+        >
+          <button
+            onClick={() => setOpen(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
+          >
+            <X size={16} />
+          </button>
+          {isVideo ? (
+            <video
+              src={url}
+              controls
+              autoPlay
+              className="max-w-[90vw] max-h-[85vh] rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={url}
+              alt={fileName ?? "ảnh"}
+              className="max-w-[90vw] max-h-[85vh] rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function CommentInput({
   onSubmit,
 }: {
   onSubmit: (payload: CommentPayload) => Promise<void>;
@@ -12,13 +183,13 @@ function CommentInput({
   const { data: session } = useSession();
   const { startUpload: uploadMedia } = useUploadThing("commentMedia");
   const { startUpload: uploadDoc } = useUploadThing("commentDocument");
+
   const initials = (session?.user?.name ?? "U")
     .split(" ")
     .map((w: string) => w[0])
     .slice(-2)
     .join("")
     .toUpperCase();
-
   const userName = session?.user?.name ?? "U";
   const userImage = session?.user?.image ?? null;
 
@@ -116,6 +287,7 @@ function CommentInput({
     pendingFileRef.current = undefined;
     setUploadError(null);
   };
+
   const canSubmit = (!!text.trim() || !!attachment) && !uploading;
 
   return (
@@ -245,146 +417,5 @@ function CommentInput({
         )}
       </div>
     </div>
-  );
-}
-function CommentFileBadge({
-  name,
-  size,
-  type,
-  url,
-}: {
-  name: string;
-  size?: string;
-  type?: string;
-  url?: string;
-}) {
-  const ext = type ?? getFileExt(name);
-  return (
-    <div className="flex items-center gap-2 mt-2 p-2 bg-surface-50 rounded-lg border border-surface-200 max-w-[260px]">
-      <div
-        className={clsx(
-          "w-8 h-8 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0",
-          fileTypeColors[ext] ?? "bg-gray-500",
-        )}
-      >
-        {ext.slice(0, 4)}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate">{name}</p>
-        {size && <p className="text-[11px] text-text-secondary">{size}</p>}
-      </div>
-      {url ? (
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="p-1.5 rounded-lg hover:bg-surface-200 text-text-secondary transition-colors shrink-0"
-          title="Xem trước"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Eye size={14} />
-        </a>
-      ) : (
-        <div
-          className="p-1.5 text-text-secondary shrink-0"
-          title="Không có URL tải"
-        >
-          <FileText size={14} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CommentMediaThumb({
-  url,
-  type = "video",
-  fileName,
-}: {
-  url: string;
-  type?: "image" | "video";
-  fileName?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const isVideo = type === "video";
-  return (
-    <>
-      <div
-        className="mt-2 rounded-xl overflow-hidden bg-black relative cursor-pointer group max-h-52"
-        onClick={() => setOpen(true)}
-      >
-        {isVideo ? (
-          <video
-            src={url}
-            muted
-            preload="metadata"
-            className="w-full max-h-52 object-cover group-hover:brightness-75 transition"
-          />
-        ) : (
-          <img
-            src={url}
-            alt={fileName ?? "ảnh"}
-            className="w-full max-h-52 object-cover group-hover:brightness-90 transition"
-          />
-        )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
-          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center shadow-lg">
-            {isVideo ? (
-              <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 ml-0.5">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            ) : (
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                className="w-5 h-5"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.35-4.35" />
-                <path d="M11 8v6M8 11h6" />
-              </svg>
-            )}
-          </div>
-        </div>
-        {fileName && (
-          <div className="absolute bottom-2 left-2 right-2 pointer-events-none">
-            <p className="text-white text-[11px] truncate bg-black/50 px-2 py-0.5 rounded">
-              {fileName}
-            </p>
-          </div>
-        )}
-      </div>
-      {open && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
-          onClick={() => setOpen(false)}
-        >
-          <button
-            onClick={() => setOpen(false)}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
-          >
-            <X size={16} />
-          </button>
-          {isVideo ? (
-            <video
-              src={url}
-              controls
-              autoPlay
-              className="max-w-[90vw] max-h-[85vh] rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <img
-              src={url}
-              alt={fileName ?? "ảnh"}
-              className="max-w-[90vw] max-h-[85vh] rounded-lg object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-          )}
-        </div>
-      )}
-    </>
   );
 }

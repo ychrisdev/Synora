@@ -1,5 +1,3 @@
-// src/lib/feed/types.ts
-
 export interface PostAuthor {
   name: string;
   initials: string;
@@ -7,6 +5,14 @@ export interface PostAuthor {
   role: string;
   username?: string;
   avatarUrl?: string | null;
+}
+
+export interface Attachment {
+  name: string;
+  size: string;
+  type: string;
+  url?: string;
+  docId?: string;
 }
 
 export interface Post {
@@ -26,14 +32,6 @@ export interface Post {
   isLikedByMe?: boolean;
   comments: number;
   editedAt?: string | null;
-}
-
-export interface Attachment {
-  name: string;
-  size: string;
-  type: string;
-  url?: string;
-  docId?: string;
 }
 
 export interface AttachedFile {
@@ -101,6 +99,17 @@ export interface CommentPayload {
   fileType?: string;
 }
 
+export interface ExistingMedia {
+  id: string;
+  url: string;
+  type: string;
+  name: string;
+}
+
 export type CommentSort = "default" | "newest" | "oldest";
 export type CommentRole = "own" | "hidden-own" | "post-author" | "viewer";
 export type EditVisibility = "PUBLIC" | "FRIENDS_ONLY" | "PRIVATE";
+export type ModalState =
+  | { type: "none" }
+  | { type: "comment" }
+  | { type: "lightbox"; index: number };

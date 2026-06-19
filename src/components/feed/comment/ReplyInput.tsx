@@ -1,4 +1,12 @@
-function ReplyInput({
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { clsx } from "clsx";
+import { Send } from "lucide-react";
+import { useSession } from "next-auth/react";
+import Avatar from "@/components/ui/Avatar";
+
+export default function ReplyInput({
   replyTo,
   isSelf,
   onSubmit,
@@ -13,6 +21,7 @@ function ReplyInput({
   const [text, setText] = useState(mention);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: session } = useSession();
+
   const initials = (session?.user?.name ?? "U")
     .split(" ")
     .map((w: string) => w[0])
@@ -21,6 +30,7 @@ function ReplyInput({
     .toUpperCase();
   const userName = session?.user?.name ?? "U";
   const userImage = session?.user?.image ?? null;
+
   useEffect(() => {
     const el = inputRef.current;
     if (el) {
@@ -28,13 +38,16 @@ function ReplyInput({
       el.setSelectionRange(mention.length, mention.length);
     }
   }, [mention]);
+
   const hasContent = text.startsWith(mention)
     ? text.slice(mention.length).trim().length > 0
     : text.trim().length > 0;
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.value.startsWith(mention)) setText(mention);
     else setText(e.target.value);
   };
+
   return (
     <div className="flex items-center gap-2 ml-10 mt-2">
       <Avatar

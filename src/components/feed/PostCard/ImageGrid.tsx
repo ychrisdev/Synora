@@ -1,3 +1,8 @@
+"use client";
+
+import { clsx } from "clsx";
+import { isVideoItem } from "@/lib/feed/utils";
+
 function MediaThumb({
   src,
   mediaType,
@@ -48,7 +53,7 @@ function MediaThumb({
   );
 }
 
-function ImageGrid({
+export default function ImageGrid({
   images,
   mediaTypes,
   onImageClick,
@@ -60,6 +65,7 @@ function ImageGrid({
   maxImageHeight?: string;
 }) {
   const extraCount = images.length - 3;
+
   if (images.length === 1) {
     const isVideo = isVideoItem(images[0], mediaTypes?.[0]);
     return (
@@ -86,7 +92,8 @@ function ImageGrid({
       </div>
     );
   }
-  if (images.length === 2)
+
+  if (images.length === 2) {
     return (
       <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
         {images.map((src, i) => (
@@ -100,6 +107,8 @@ function ImageGrid({
         ))}
       </div>
     );
+  }
+
   return (
     <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
       <MediaThumb

@@ -1,4 +1,98 @@
-function EditPostComposer({
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import {
+  X,
+  Paperclip,
+  ImageIcon,
+  Video,
+  FileText,
+  Loader2,
+  Globe,
+  ChevronDown,
+  Users as UsersIcon,
+  Lock as LockIcon,
+} from "lucide-react";
+import { useUploadThing } from "@/lib/uploadthing";
+import {
+  isImageType,
+  isVideoType,
+  formatFileSize as composerFormatFileSize,
+  getFileType,
+  MediaPreview,
+  FileChip,
+  MediaLightboxPreview,
+  ActionButton,
+  type AttachedFile as ComposerAttachedFile,
+} from "@/components/feed/PostComposer";
+import type { Post, EditVisibility, ExistingMedia } from "@/lib/feed/types";
+
+const EDIT_VISIBILITY_OPTIONS: {
+  value: EditVisibility;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  { value: "PUBLIC", label: "Mọi người", icon: <Globe size={13} /> },
+  { value: "FRIENDS_ONLY", label: "Bạn bè", icon: <UsersIcon size={13} /> },
+  { value: "PRIVATE", label: "Chỉ mình tôi", icon: <LockIcon size={13} /> },
+];
+
+function EditVisibilityPicker({
+  value,
+  onChange,
+}: {
+  value: EditVisibility;
+  onChange: (v: EditVisibility) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = EDIT_VISIBILITY_OPTIONS.find((o) => o.value === value)!;
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="flex items-center gap-1.5 text-xs font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 px-2.5 py-1.5 rounded-full transition-colors"
+      >
+        {current.icon}
+        {current.label}
+        <ChevronDown size={11} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-surface-200 rounded-xl shadow-lg z-30 min-w-[160px] overflow-hidden">
+          {EDIT_VISIBILITY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-50 transition-colors ${
+                opt.value === value
+                  ? "text-primary font-semibold"
+                  : "text-text-primary"
+              }`}
+            >
+              {opt.icon}
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function EditPostComposer({
   post,
   attachments,
   onSave,
@@ -10,6 +104,9 @@ function EditPostComposer({
   onClose: () => void;
 }) {
   const [content, setContent] = useState(post.content);
+  const [visibility, setVisibility] = useState<EditVisibility>(
+    (post.visibility as EditVisibility) ?? "PUBLIC",
+  );
   const [existingMedia, setExistingMedia] = useState<ExistingMedia[]>(
     (post.images ?? []).map((url, i) => ({
       id: post.mediaDocIds?.[i] ?? `existing-${i}`,
@@ -129,22 +226,10 @@ function EditPostComposer({
       let uploadedMedia: any[] = [];
       let uploadedDocs: any[] = [];
 
-      console.log("=== handleSave start ===");
-      console.log(
-        "newDocFiles:",
-        newDocFiles.map((f) => ({ name: f.name, type: f.type })),
-      );
-      console.log(
-        "newMediaFiles:",
-        newMediaFiles.map((f) => ({ name: f.name, type: f.type })),
-      );
-
       if (newMediaFiles.length > 0) {
-        console.log("Uploading media...");
         const results = await startMediaUpload(
           newMediaFiles.map((f) => f.file),
         );
-        console.log("Media upload results:", results);
         uploadedMedia = (results ?? []).map((r, i) => ({
           url: r.ufsUrl ?? r.url,
           key: r.key,
@@ -155,10 +240,8 @@ function EditPostComposer({
       }
 
       if (newDocFiles.length > 0) {
-        console.log("Uploading docs...");
         try {
           const results = await startDocUpload(newDocFiles.map((f) => f.file));
-          console.log("Doc upload results:", results);
           if (!results || results.length === 0) {
             throw new Error(
               "Upload tài liệu thất bại — UploadThing trả về rỗng",
@@ -172,7 +255,6 @@ function EditPostComposer({
             size: newDocFiles[i].file.size,
           }));
         } catch (uploadErr) {
-          console.error("Doc upload error:", uploadErr);
           setUploadError(
             "Tải tài liệu thất bại. Định dạng file có thể không được hỗ trợ.",
           );
@@ -180,12 +262,6 @@ function EditPostComposer({
           return;
         }
       }
-
-      console.log("Sending PATCH with:", {
-        uploadedMedia,
-        uploadedDocs,
-        removedDocIds,
-      });
 
       const res = await fetch(`/api/posts/${post.id}`, {
         method: "PATCH",
@@ -199,7 +275,6 @@ function EditPostComposer({
         }),
       });
 
-      console.log("PATCH response status:", res.status);
       if (!res.ok) {
         const errText = await res.text();
         console.error("PATCH error body:", errText);
@@ -214,10 +289,6 @@ function EditPostComposer({
       setSaving(false);
     }
   };
-
-  const [visibility, setVisibility] = useState<EditVisibility>(
-    (post.visibility as EditVisibility) ?? "PUBLIC",
-  );
 
   const allMediaForLightbox: ComposerAttachedFile[] = [
     ...existingMedia.map((m) => ({
@@ -237,6 +308,7 @@ function EditPostComposer({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-sm font-bold text-text-primary">
@@ -252,6 +324,7 @@ function EditPostComposer({
           </button>
         </div>
 
+        {/* Body */}
         <div className="overflow-y-auto flex-1">
           <div className="px-5 pt-4">
             <textarea
@@ -276,6 +349,7 @@ function EditPostComposer({
             )}
           </div>
 
+          {/* Existing + new media */}
           {(existingMedia.length > 0 || newMediaFiles.length > 0) && (
             <div className="px-5 pb-3 flex flex-wrap gap-2">
               {existingMedia.map((m, idx) => (
@@ -324,6 +398,7 @@ function EditPostComposer({
             </div>
           )}
 
+          {/* Existing + new attachments */}
           {(existingAttachments.length > 0 || newDocFiles.length > 0) && (
             <div className="px-5 pb-3 flex flex-wrap gap-2">
               {existingAttachments.map((att) => (
@@ -363,6 +438,7 @@ function EditPostComposer({
           )}
         </div>
 
+        {/* Footer */}
         <div className="border-t border-surface-100 shrink-0">
           {uploadError && (
             <p className="text-xs text-red-500 px-5 pt-3">{uploadError}</p>
@@ -450,60 +526,6 @@ function EditPostComposer({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
         />
-      )}
-    </div>
-  );
-}
-function EditVisibilityPicker({
-  value,
-  onChange,
-}: {
-  value: EditVisibility;
-  onChange: (v: EditVisibility) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const current = EDIT_VISIBILITY_OPTIONS.find((o) => o.value === value)!;
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((p) => !p)}
-        className="flex items-center gap-1.5 text-xs font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 px-2.5 py-1.5 rounded-full transition-colors"
-      >
-        {current.icon}
-        {current.label}
-        <ChevronDown size={11} />
-      </button>
-      {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white border border-surface-200 rounded-xl shadow-lg z-30 min-w-[160px] overflow-hidden">
-          {EDIT_VISIBILITY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface-50 transition-colors ${
-                opt.value === value
-                  ? "text-primary font-semibold"
-                  : "text-text-primary"
-              }`}
-            >
-              {opt.icon}
-              {opt.label}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );

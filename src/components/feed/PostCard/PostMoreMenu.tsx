@@ -1,4 +1,18 @@
-function PostMoreMenu({
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { clsx } from "clsx";
+import {
+  MoreHorizontal,
+  Bookmark,
+  BookmarkCheck,
+  Pencil,
+  Trash2,
+  Ban,
+  Flag,
+} from "lucide-react";
+
+export default function PostMoreMenu({
   isOwner,
   isSaved,
   authorName,

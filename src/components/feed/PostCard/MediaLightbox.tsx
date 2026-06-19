@@ -1,4 +1,31 @@
-function MediaLightbox({
+"use client";
+
+import { useState, useEffect } from "react";
+import { clsx } from "clsx";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ThumbsUp,
+  MessageCircle,
+  Share2,
+  Globe,
+  Users as UsersIcon,
+  Lock as LockIcon,
+} from "lucide-react";
+import NextLink from "next/link";
+import { useSession } from "next-auth/react";
+import Avatar from "@/components/ui/Avatar";
+import AuthGuardModal from "@/components/ui/AuthGuardModal";
+import { useComments } from "@/lib/feed/hooks";
+import { isVideoItem } from "@/lib/feed/utils";
+import type { Post, CommentSort } from "@/lib/feed/types";
+import RichContent from "./RichContent";
+import AttachmentRow from "./AttachmentRow";
+import CommentList from "@/components/feed/comment/CommentList";
+import CommentInput from "@/components/feed/comment/CommentInput";
+
+export default function MediaLightbox({
   images,
   mediaTypes,
   initialIndex,
@@ -26,6 +53,8 @@ function MediaLightbox({
   const [index, setIndex] = useState(initialIndex);
   const { data: session, status } = useSession();
   const [sort, setSort] = useState<CommentSort>("default");
+  const [authModal, setAuthModal] = useState<string | null>(null);
+
   const {
     comments,
     sortedComments,
@@ -43,8 +72,10 @@ function MediaLightbox({
     editComment,
     hideComment,
   } = useComments(post.id, sort);
+
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -54,12 +85,13 @@ function MediaLightbox({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
   useEffect(() => {
     onSyncCount?.(getVisibleCount());
   }, [comments, getVisibleCount, onSyncCount]);
+
   const currentSrc = images[index];
   const isVideo = isVideoItem(currentSrc, mediaTypes?.[index]);
-  const [authModal, setAuthModal] = useState<string | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex" onClick={onClose}>
@@ -74,6 +106,7 @@ function MediaLightbox({
         >
           <X size={16} />
         </button>
+
         {images.length > 1 && (
           <button
             onClick={prev}
@@ -82,9 +115,8 @@ function MediaLightbox({
             <ChevronLeft size={20} />
           </button>
         )}
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-        >
+
+        <div className="absolute inset-0 flex items-center justify-center">
           {isVideo ? (
             <video
               key={currentSrc}
@@ -103,6 +135,7 @@ function MediaLightbox({
             />
           )}
         </div>
+
         {images.length > 1 && (
           <>
             <button
@@ -126,6 +159,7 @@ function MediaLightbox({
           </>
         )}
       </div>
+
       <div
         className="w-[380px] shrink-0 bg-white flex flex-col"
         style={{ height: "100vh" }}
@@ -182,6 +216,7 @@ function MediaLightbox({
           </div>
           {menuSlot}
         </div>
+
         <div className="px-4 pt-3 pb-2 shrink-0">
           <RichContent
             text={post.content}
@@ -191,6 +226,7 @@ function MediaLightbox({
             <AttachmentRow attachment={post.attachment} className="mt-2" />
           )}
         </div>
+
         <div className="flex items-center gap-1 px-3 py-1.5 border-y border-surface-100 shrink-0">
           <button
             onClick={onLike}
@@ -227,6 +263,7 @@ function MediaLightbox({
             <span>Chia sẻ</span>
           </button>
         </div>
+
         <div className="flex items-center gap-1 px-4 py-2 shrink-0">
           {(["default", "newest", "oldest"] as CommentSort[]).map((s) => (
             <button
@@ -247,6 +284,7 @@ function MediaLightbox({
             </button>
           ))}
         </div>
+
         <div className="flex-1 overflow-y-auto overflow-x-visible px-4 pr-12 py-3 flex flex-col gap-3">
           <CommentList
             comments={sortedComments}
@@ -270,6 +308,7 @@ function MediaLightbox({
             onAuthRequired={setAuthModal}
           />
         </div>
+
         <div className="border-t border-surface-100 px-4 py-3 shrink-0">
           {status === "authenticated" ? (
             <CommentInput
@@ -287,6 +326,7 @@ function MediaLightbox({
           )}
         </div>
       </div>
+
       {authModal && (
         <div onClick={(e) => e.stopPropagation()}>
           <AuthGuardModal

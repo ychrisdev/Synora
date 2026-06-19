@@ -1,4 +1,3 @@
-// src/lib/feed/hooks.ts
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
@@ -6,7 +5,10 @@ import { useSession } from "next-auth/react";
 import type { Comment, Reply, CommentPayload, CommentSort } from "./types";
 import { formatCommentTime } from "./utils";
 
-function useComments(postId: number | string, sort: CommentSort = "default") {
+export function useComments(
+  postId: number | string,
+  sort: CommentSort = "default",
+) {
   const { data: session } = useSession();
   const [comments, setComments] = useState<Comment[]>([]);
   const [replyingTo, setReplyingTo] = useState<{
@@ -92,8 +94,8 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
     async (id: string) => {
       let prevLiked = false;
       let prevLikes = 0;
-      setComments((prev) => {
-        return prev.map((c) => {
+      setComments((prev) =>
+        prev.map((c) => {
           if (c.id === id) {
             prevLiked = c.liked;
             prevLikes = c.likes;
@@ -104,13 +106,11 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
             };
           }
           return c;
-        });
-      });
-
+        }),
+      );
       const res = await fetch(`/api/posts/${postId}/comments/${id}/like`, {
         method: "POST",
       });
-
       if (!res.ok) {
         setComments((prev) =>
           prev.map((c) =>
@@ -148,11 +148,9 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
           return c;
         }),
       );
-
       const res = await fetch(`/api/posts/${postId}/comments/${replyId}/like`, {
         method: "POST",
       });
-
       if (!res.ok) {
         setComments((prev) =>
           prev.map((c) =>
@@ -351,6 +349,7 @@ function useComments(postId: number | string, sort: CommentSort = "default") {
     if (sort === "newest") return [...comments].reverse();
     return comments;
   }, [comments, sort]);
+
   const getVisibleCount = useCallback(
     () =>
       comments

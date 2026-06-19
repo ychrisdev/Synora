@@ -1,25 +1,19 @@
-function getViewUrl(url: string, type: string): string {
-  const docTypes = [
-    "PDF",
-    "DOC",
-    "DOCX",
-    "PPT",
-    "PPTX",
-    "XLS",
-    "XLSX",
-    "OTHER",
-  ];
-  if (docTypes.includes(type.toUpperCase())) {
-    return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=false`;
-  }
-  return url;
-}
+"use client";
 
-function AttachmentRow({
+import { Eye, Download } from "lucide-react";
+import { clsx } from "clsx";
+import {
+  fileTypeColors,
+  MEDIA_IMAGE_TYPES,
+  MEDIA_VIDEO_TYPES,
+} from "@/lib/feed/utils";
+import type { Attachment } from "@/lib/feed/types";
+
+export default function AttachmentRow({
   attachment,
   className,
 }: {
-  attachment: NonNullable<Post["attachment"]>;
+  attachment: Attachment;
   className?: string;
 }) {
   const isMedia =

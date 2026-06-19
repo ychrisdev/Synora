@@ -1,4 +1,19 @@
-function CommentBubbleMenu({
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { clsx } from "clsx";
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
+  Ban,
+  Flag,
+} from "lucide-react";
+import type { CommentRole } from "@/lib/feed/types";
+
+export default function CommentBubbleMenu({
   role,
   authorName,
   isHidden,
@@ -19,6 +34,7 @@ function CommentBubbleMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
@@ -34,6 +50,7 @@ function CommentBubbleMenu({
     danger?: boolean;
     onClick: () => void;
   } | null;
+
   const items: MenuItem[] =
     role === "own"
       ? [

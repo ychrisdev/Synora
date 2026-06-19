@@ -1,5 +1,3 @@
-// src/lib/feed/utils.ts
-
 export const fileTypeColors: Record<string, string> = {
   PDF: "bg-red-500",
   DOCX: "bg-blue-600",
@@ -9,11 +7,16 @@ export const fileTypeColors: Record<string, string> = {
 };
 
 export const MEDIA_IMAGE_TYPES = new Set([
-  "JPG", "JPEG", "PNG", "GIF", "WEBP", "BMP", "SVG",
+  "JPG",
+  "JPEG",
+  "PNG",
+  "GIF",
+  "WEBP",
+  "BMP",
+  "SVG",
 ]);
-export const MEDIA_VIDEO_TYPES = new Set([
-  "MP4", "MOV", "AVI", "WEBM", "MKV",
-]);
+
+export const MEDIA_VIDEO_TYPES = new Set(["MP4", "MOV", "AVI", "WEBM", "MKV"]);
 
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

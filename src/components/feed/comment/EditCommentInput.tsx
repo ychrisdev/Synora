@@ -1,4 +1,9 @@
-function EditCommentInput({
+"use client";
+
+import { useState } from "react";
+import { clsx } from "clsx";
+
+export default function EditCommentInput({
   initialText,
   onSave,
   onCancel,
@@ -9,6 +14,7 @@ function EditCommentInput({
 }) {
   const [text, setText] = useState(initialText);
   const canSave = text.trim().length > 0 && text.trim() !== initialText.trim();
+
   return (
     <div className="mt-1">
       <div className="flex items-end gap-2 bg-white border border-primary rounded-2xl px-3 py-2 transition-all">
