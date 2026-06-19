@@ -200,7 +200,9 @@ function MessageActions({ isMe, onEmoji, onReply }: MessageActionsProps) {
             {[
               { icon: <Pin size={14} />, label: "Ghim tin nhắn" },
               { icon: <Forward size={14} />, label: "Chuyển tiếp" },
-              { icon: <Undo2 size={14} />, label: "Thu hồi" },
+              ...(isMe
+                ? [{ icon: <Undo2 size={14} />, label: "Thu hồi" }]
+                : []),
             ].map(({ icon, label }) => (
               <button
                 key={label}
