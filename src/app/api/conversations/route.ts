@@ -37,6 +37,7 @@ export async function GET(_req: NextRequest) {
             orderBy: { createdAt: "desc" },
             take: 1,
             select: {
+              id: true,
               content: true,
               fileType: true,
               senderId: true,
@@ -72,12 +73,50 @@ export async function GET(_req: NextRequest) {
         : (other?.profile?.avatarUrl ?? null);
 
       const lastMsg = conv.messages[0];
-      const lastMessage = !lastMsg
-        ? ""
-        : lastMsg.deletedAt
-          ? "Tin nhắn đã bị xóa"
-          : (lastMsg.content ?? (lastMsg.fileType ? "Đã gửi một tệp" : ""));
 
+      let lastMessage = "";
+      if (lastMsg) {
+        if (lastMsg.deletedAt) {
+          lastMessage = "Tin nhắn đã bị thu hồi";
+        } else if (lastMsg.content) {
+          lastMessage = lastMsg.content;
+        } else if (lastMsg.fileType) {
+          lastMessage = "Đã gửi một tệp";
+        }
+      }
+
+      if (lastMsg && !lastMsg.deletedAt) {
+        const latestReaction = await prisma.messageReaction.findFirst({
+          where: {
+            message: { conversationId: conv.id },
+            NOT: { userId: lastMsg.senderId },
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            emoji: true,
+            createdAt: true,
+            userId: true,
+            message: { select: { senderId: true } },
+            user: {
+              select: {
+                username: true,
+                profile: { select: { displayName: true } },
+              },
+            },
+          },
+        });
+
+        if (
+          latestReaction &&
+          latestReaction.createdAt > new Date(lastMsg.createdAt) &&
+          latestReaction.userId !== latestReaction.message.senderId
+        ) {
+          const reactorName =
+            latestReaction.user.profile?.displayName ??
+            latestReaction.user.username;
+          lastMessage = `${reactorName} đã thả ${latestReaction.emoji}`;
+        }
+      }
       return {
         id: conv.id,
         isGroup: conv.isGroup,

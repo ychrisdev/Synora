@@ -68,9 +68,14 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activeIdRef = useRef<string | null>(null);
 
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
+
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
 
   useEffect(() => {
     if (!pendingJumpId) return;
@@ -95,11 +100,11 @@ export default function ChatPage() {
       if (!res.ok) return;
       const data: Conversation[] = await res.json();
       setConvList(data);
-      if (!activeId && data.length > 0) setActiveId(data[0].id);
+      if (!activeIdRef.current && data.length > 0) setActiveId(data[0].id);
     } finally {
       setConvLoading(false);
     }
-  }, [activeId]);
+  }, []);
 
   useEffect(() => {
     fetchConversations();
@@ -138,26 +143,78 @@ export default function ChatPage() {
   }, [messages.length]);
 
   const pollMessages = useCallback(async () => {
-    if (!activeId || msgLoading) return;
+    const convId = activeIdRef.current;
+    if (!convId) return;
+
     try {
-      const res = await fetch(
-        `/api/conversations/${activeId}/messages?limit=30`,
+      const msgRes = await fetch(
+        `/api/conversations/${convId}/messages?limit=30`,
       );
-      if (!res.ok) return;
-      const data = await res.json();
-      const adapted = (data.messages as ApiMessage[]).map((m) =>
-        adaptApiMessage(m, currentUserId),
-      );
-      setMessages((prev) => {
-        if (
-          adapted.length === prev.length &&
-          adapted[adapted.length - 1]?.id === prev[prev.length - 1]?.id
-        )
-          return prev;
-        return adapted;
-      });
+      if (msgRes.ok) {
+        const data = await msgRes.json();
+        const adapted = (data.messages as ApiMessage[]).map((m) =>
+          adaptApiMessage(m, currentUserId),
+        );
+        setMessages((prev) => {
+          const lastPrev = prev[prev.length - 1];
+          const lastNew = adapted[adapted.length - 1];
+          if (
+            adapted.length === prev.length &&
+            lastPrev?.id === lastNew?.id &&
+            lastPrev?.deletedAt === lastNew?.deletedAt &&
+            prev.every((m, i) => {
+              const a = adapted[i];
+              return (
+                m.id === a.id &&
+                m.deletedAt === a.deletedAt &&
+                m.reactions.length === a.reactions.length &&
+                m.reactions.every(
+                  (r, j) =>
+                    r.emoji === a.reactions[j]?.emoji &&
+                    r.count === a.reactions[j]?.count,
+                )
+              );
+            })
+          )
+            return prev;
+          return adapted;
+        });
+      }
+
+      const convRes = await fetch("/api/conversations");
+      if (convRes.ok) {
+        const serverConvs: Conversation[] = await convRes.json();
+        setConvList((prev) => {
+          return serverConvs.map((serverConv) => {
+            const localConv = prev.find((c) => c.id === serverConv.id);
+            return {
+              ...serverConv,
+              unreadCount:
+                serverConv.id === activeIdRef.current
+                  ? 0
+                  : serverConv.unreadCount,
+              lastMessage:
+                localConv &&
+                localConv.lastMessageAt &&
+                serverConv.lastMessageAt &&
+                new Date(localConv.lastMessageAt) >
+                  new Date(serverConv.lastMessageAt)
+                  ? localConv.lastMessage
+                  : serverConv.lastMessage,
+              lastMessageAt:
+                localConv &&
+                localConv.lastMessageAt &&
+                serverConv.lastMessageAt &&
+                new Date(localConv.lastMessageAt) >
+                  new Date(serverConv.lastMessageAt)
+                  ? localConv.lastMessageAt
+                  : serverConv.lastMessageAt,
+            };
+          });
+        });
+      }
     } catch {}
-  }, [activeId, currentUserId, msgLoading]);
+  }, [currentUserId]);
 
   useEffect(() => {
     pollingRef.current = setInterval(pollMessages, 3000);
@@ -189,9 +246,56 @@ export default function ChatPage() {
     messageId: string,
     reactions: ReactionGroup[],
   ) => {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === messageId ? { ...m, reactions } : m)),
-    );
+    setMessages((prev) => {
+      const isLast = prev[prev.length - 1]?.id === messageId;
+      if (isLast && reactions.length > 0) {
+        const targetMsg = prev.find((m) => m.id === messageId);
+        const latest = reactions[reactions.length - 1];
+
+        const isCrossParty = latest.reactedByMe
+          ? !targetMsg?.isMe
+          : targetMsg?.isMe;
+
+        if (isCrossParty) {
+          const reactorName = latest.reactedByMe
+            ? "Bạn"
+            : (latest.users[latest.users.length - 1] ?? "");
+          setConvList((convs) =>
+            convs.map((c) =>
+              c.id === activeIdRef.current
+                ? { ...c, lastMessage: `${reactorName} đã thả ${latest.emoji}` }
+                : c,
+            ),
+          );
+        }
+      }
+      return prev.map((m) => (m.id === messageId ? { ...m, reactions } : m));
+    });
+  };
+
+  const handleRecall = (messageId: string) => {
+    setMessages((prev) => {
+      const isLast = prev[prev.length - 1]?.id === messageId;
+      if (isLast) {
+        setConvList((convs) =>
+          convs.map((c) =>
+            c.id === activeIdRef.current
+              ? { ...c, lastMessage: "Tin nhắn đã bị thu hồi" }
+              : c,
+          ),
+        );
+      }
+      return prev.map((m) =>
+        m.id === messageId
+          ? {
+              ...m,
+              content: null,
+              attachment: null,
+              deletedAt: new Date().toISOString(),
+            }
+          : m,
+      );
+    });
   };
 
   const handleSend = async () => {
@@ -200,6 +304,7 @@ export default function ChatPage() {
     setInput("");
     setSending(true);
 
+    const now = new Date().toISOString();
     const tempId = `temp-${Date.now()}`;
     const optimistic: Message = {
       id: tempId,
@@ -211,10 +316,12 @@ export default function ChatPage() {
         hour: "2-digit",
         minute: "2-digit",
       }),
+      createdAt: now,
       content: text,
       isMe: true,
       attachment: null,
       reactions: [],
+      deletedAt: null,
       replyTo: replyingTo
         ? {
             id: replyingTo.id,
@@ -225,6 +332,13 @@ export default function ChatPage() {
         : null,
     };
     setMessages((prev) => [...prev, optimistic]);
+
+    setConvList((prev) =>
+      prev.map((c) =>
+        c.id === activeId ? { ...c, lastMessage: text, lastMessageAt: now } : c,
+      ),
+    );
+
     setReplyingTo(null);
 
     try {
@@ -252,6 +366,18 @@ export default function ChatPage() {
         );
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setConvList((prev) =>
+          prev.map((c) =>
+            c.id === activeId
+              ? {
+                  ...c,
+                  lastMessage: messages[messages.length - 1]?.content ?? "",
+                  lastMessageAt:
+                    messages[messages.length - 1]?.createdAt ?? null,
+                }
+              : c,
+          ),
+        );
         setInput(text);
       }
     } catch {
@@ -411,6 +537,7 @@ export default function ChatPage() {
                     onJumpToReply={handleJumpToReply}
                     highlighted={highlightedId === msg.id}
                     onReactionsUpdated={handleReactionsUpdated}
+                    onRecall={handleRecall}
                   />
                 ))
               )}
