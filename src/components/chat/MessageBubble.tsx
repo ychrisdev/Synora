@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+  useEffect,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   Smile,
   CornerUpLeft,
@@ -14,9 +21,15 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
-import { useOutsideClick } from "@/lib/chat/hooks";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import type { Message, ReactionGroup, ApiReaction } from "@/lib/chat/types";
-import { toggleMessageReaction, groupReactions } from "@/lib/chat/utils";
+import {
+  toggleMessageReaction,
+  groupReactions,
+  recallMessage,
+  canRecallMessage,
+} from "@/lib/chat/utils";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
@@ -115,19 +128,108 @@ function ReactionModal({ reactions, onClose }: ReactionModalProps) {
   );
 }
 
-interface MessageActionsProps {
-  isMe: boolean;
-  onEmoji: (e: string) => void;
-  onReply: () => void;
+interface FloatingPanelProps {
+  open: boolean;
+  triggerRef: React.RefObject<HTMLElement | null>;
+  align: "left" | "right";
+  onClose: () => void;
+  children: React.ReactNode;
 }
 
-function MessageActions({ isMe, onEmoji, onReply }: MessageActionsProps) {
+function FloatingPanel({
+  open,
+  triggerRef,
+  align,
+  onClose,
+  children,
+}: FloatingPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<React.CSSProperties>({
+    position: "fixed",
+    top: -9999,
+    left: -9999,
+    visibility: "hidden",
+  });
+
+  const updatePosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const margin = 8;
+
+    const spaceAbove = triggerRect.top;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const placeAbove =
+      spaceAbove >= panelRect.height + margin || spaceAbove > spaceBelow;
+
+    const top = placeAbove
+      ? triggerRect.top - panelRect.height - margin
+      : triggerRect.bottom + margin;
+
+    let left =
+      align === "right"
+        ? triggerRect.right - panelRect.width
+        : triggerRect.left;
+
+    const maxLeft = window.innerWidth - panelRect.width - margin;
+    left = Math.max(margin, Math.min(left, maxLeft));
+
+    setStyle({ position: "fixed", top, left, visibility: "visible" });
+  }, [triggerRef, align]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", onClose, true);
+    window.addEventListener("resize", onClose);
+    return () => {
+      window.removeEventListener("scroll", onClose, true);
+      window.removeEventListener("resize", onClose);
+    };
+  }, [open, onClose]);
+
+  useOutsideClickRefs([triggerRef, panelRef], () => {
+    if (open) onClose();
+  });
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div ref={panelRef} style={style} className="z-[100]">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+interface MessageActionsProps {
+  isMe: boolean;
+  canRecall: boolean;
+  onEmoji: (e: string) => void;
+  onReply: () => void;
+  onRecall: () => void;
+}
+
+function MessageActions({
+  isMe,
+  canRecall,
+  onEmoji,
+  onReply,
+  onRecall,
+}: MessageActionsProps) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const emojiRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useOutsideClick(emojiRef, () => setEmojiOpen(false));
-  useOutsideClick(menuRef, () => setMenuOpen(false));
+  const emojiBtnRef = useRef<HTMLButtonElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
+  const align: "left" | "right" = isMe ? "right" : "left";
 
   return (
     <div
@@ -137,39 +239,38 @@ function MessageActions({ isMe, onEmoji, onReply }: MessageActionsProps) {
         isMe ? "flex-row-reverse mr-1" : "ml-1",
       )}
     >
-      <div ref={emojiRef} className="relative">
-        <button
-          onClick={() => {
-            setEmojiOpen((v) => !v);
-            setMenuOpen(false);
-          }}
-          className="w-7 h-7 rounded-full hover:bg-surface-200 flex items-center justify-center text-text-muted transition-colors"
-          title="Cảm xúc"
-        >
-          <Smile size={15} />
-        </button>
-        {emojiOpen && (
-          <div
-            className={clsx(
-              "absolute bottom-9 bg-white rounded-2xl shadow-xl border border-surface-100 px-2 py-1.5 flex gap-1 z-30",
-              isMe ? "right-0" : "left-0",
-            )}
-          >
-            {QUICK_EMOJIS.map((e) => (
-              <button
-                key={e}
-                onClick={() => {
-                  onEmoji(e);
-                  setEmojiOpen(false);
-                }}
-                className="text-lg hover:scale-125 transition-transform leading-none p-0.5"
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <button
+        ref={emojiBtnRef}
+        onClick={() => {
+          setEmojiOpen((v) => !v);
+          setMenuOpen(false);
+        }}
+        className="w-7 h-7 rounded-full hover:bg-surface-200 flex items-center justify-center text-text-muted transition-colors"
+        title="Cảm xúc"
+      >
+        <Smile size={15} />
+      </button>
+      <FloatingPanel
+        open={emojiOpen}
+        triggerRef={emojiBtnRef}
+        align={align}
+        onClose={() => setEmojiOpen(false)}
+      >
+        <div className="bg-white rounded-2xl shadow-xl border border-surface-100 px-2 py-1.5 flex gap-1">
+          {QUICK_EMOJIS.map((e) => (
+            <button
+              key={e}
+              onClick={() => {
+                onEmoji(e);
+                setEmojiOpen(false);
+              }}
+              className="text-lg hover:scale-125 transition-transform leading-none p-0.5"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </FloatingPanel>
 
       <button
         onClick={onReply}
@@ -179,47 +280,85 @@ function MessageActions({ isMe, onEmoji, onReply }: MessageActionsProps) {
         <CornerUpLeft size={14} />
       </button>
 
-      <div ref={menuRef} className="relative">
-        <button
-          onClick={() => {
-            setMenuOpen((v) => !v);
-            setEmojiOpen(false);
-          }}
-          className="w-7 h-7 rounded-full hover:bg-surface-200 flex items-center justify-center text-text-muted transition-colors"
-          title="Thêm"
-        >
-          <MoreVertical size={14} />
-        </button>
-        {menuOpen && (
-          <div
-            className={clsx(
-              "absolute bottom-9 w-44 bg-white rounded-xl shadow-xl border border-surface-100 py-1 z-30 overflow-hidden",
-              isMe ? "right-0" : "left-0",
-            )}
-          >
-            {[
-              { icon: <Pin size={14} />, label: "Ghim tin nhắn" },
-              { icon: <Forward size={14} />, label: "Chuyển tiếp" },
-              ...(isMe
-                ? [{ icon: <Undo2 size={14} />, label: "Thu hồi" }]
-                : []),
-            ].map(({ icon, label }) => (
-              <button
-                key={label}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
-              >
-                <span className="text-text-muted shrink-0">{icon}</span>
-                {label}
-              </button>
-            ))}
-            <div className="h-px bg-surface-100 my-0.5" />
-            <button className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
-              <Flag size={14} className="shrink-0" />
-              Báo cáo
+      <button
+        ref={menuBtnRef}
+        onClick={() => {
+          setMenuOpen((v) => !v);
+          setEmojiOpen(false);
+        }}
+        className="w-7 h-7 rounded-full hover:bg-surface-200 flex items-center justify-center text-text-muted transition-colors"
+        title="Thêm"
+      >
+        <MoreVertical size={14} />
+      </button>
+      <FloatingPanel
+        open={menuOpen}
+        triggerRef={menuBtnRef}
+        align={align}
+        onClose={() => setMenuOpen(false)}
+      >
+        <div className="w-48 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden">
+          {[
+            { icon: <Pin size={14} />, label: "Ghim tin nhắn" },
+            { icon: <Forward size={14} />, label: "Chuyển tiếp" },
+          ].map(({ icon, label }) => (
+            <button
+              key={label}
+              onClick={() => setMenuOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
+            >
+              <span className="text-text-muted shrink-0">{icon}</span>
+              {label}
             </button>
-          </div>
-        )}
-      </div>
+          ))}
+
+          {isMe && (
+            <button
+              onClick={() => {
+                if (!canRecall) return;
+                onRecall();
+                setMenuOpen(false);
+              }}
+              disabled={!canRecall}
+              title={
+                canRecall
+                  ? undefined
+                  : "Chỉ có thể thu hồi tin nhắn trong vòng 24 giờ"
+              }
+              className={clsx(
+                "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition-colors",
+                canRecall
+                  ? "text-text-primary hover:bg-surface-50"
+                  : "text-text-muted/50 cursor-not-allowed",
+              )}
+            >
+              <span
+                className={clsx(
+                  "shrink-0",
+                  canRecall ? "text-text-muted" : "text-text-muted/50",
+                )}
+              >
+                <Undo2 size={14} />
+              </span>
+              Thu hồi
+              {!canRecall && (
+                <span className="ml-auto text-[10px] text-text-muted/60">
+                  Hết hạn
+                </span>
+              )}
+            </button>
+          )}
+
+          <div className="h-px bg-surface-100 my-0.5" />
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Flag size={14} className="shrink-0" />
+            Báo cáo
+          </button>
+        </div>
+      </FloatingPanel>
     </div>
   );
 }
@@ -306,6 +445,7 @@ interface MessageBubbleProps {
   onJumpToReply: (id: string) => void;
   highlighted?: boolean;
   onReactionsUpdated: (messageId: string, reactions: ReactionGroup[]) => void;
+  onRecall: (messageId: string) => void;
 }
 
 export function MessageBubble({
@@ -316,9 +456,12 @@ export function MessageBubble({
   onJumpToReply,
   highlighted,
   onReactionsUpdated,
+  onRecall,
 }: MessageBubbleProps) {
   const [reacting, setReacting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [recalling, setRecalling] = useState(false);
+  const [recallDialogOpen, setRecallDialogOpen] = useState(false);
 
   const handleEmoji = async (emoji: string) => {
     if (reacting) return;
@@ -392,6 +535,78 @@ export function MessageBubble({
       setReacting(false);
     }
   };
+
+  const handleRecallClick = () => {
+    if (recalling || msg.deletedAt) return;
+    setRecallDialogOpen(true);
+  };
+
+  const executeRecall = async () => {
+    if (recalling) return;
+    setRecalling(true);
+    try {
+      await recallMessage(conversationId, msg.id);
+      onRecall(msg.id);
+      setRecallDialogOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Có lỗi xảy ra, vui lòng thử lại");
+    } finally {
+      setRecalling(false);
+    }
+  };
+
+  if (msg.deletedAt) {
+    return (
+      <div
+        id={`message-${msg.id}`}
+        className={clsx(
+          "flex items-end gap-2 group rounded-2xl transition-all duration-700",
+          msg.isMe ? "flex-row-reverse" : "flex-row",
+        )}
+        style={
+          highlighted
+            ? {
+                backgroundColor:
+                  "color-mix(in srgb, var(--color-primary) 10%, transparent)",
+              }
+            : undefined
+        }
+      >
+        {!msg.isMe && (
+          <Avatar
+            src={msg.avatarUrl}
+            initials={msg.initials}
+            color={msg.color}
+            size="sm"
+            shape="circle"
+          />
+        )}
+        <div
+          className={clsx(
+            "flex flex-col gap-0.5",
+            msg.isMe ? "items-end" : "items-start",
+          )}
+        >
+          {!msg.isMe && (
+            <p className="text-xs text-text-muted px-1 mb-0.5 font-medium">
+              {msg.sender}
+            </p>
+          )}
+          <div className="px-4 py-2.5 rounded-2xl text-xs italic bg-surface-100 text-text-muted">
+            Tin nhắn đã bị thu hồi
+          </div>
+          <p
+            className={clsx(
+              "text-[11px] text-text-muted px-1 mt-0.5",
+              msg.isMe ? "text-right" : "text-left",
+            )}
+          >
+            {msg.isMe ? `Bạn · ${msg.time}` : msg.time}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -517,8 +732,10 @@ export function MessageBubble({
 
             <MessageActions
               isMe={msg.isMe}
+              canRecall={canRecallMessage(msg)}
               onEmoji={handleEmoji}
               onReply={() => onReply(msg)}
+              onRecall={handleRecallClick}
             />
           </div>
 
@@ -544,6 +761,19 @@ export function MessageBubble({
         <ReactionModal
           reactions={msg.reactions}
           onClose={() => setModalOpen(false)}
+        />
+      )}
+
+      {recallDialogOpen && (
+        <ConfirmDialog
+          icon={<Undo2 size={20} className="text-red-500" />}
+          title="Thu hồi tin nhắn?"
+          description="Mọi người trong cuộc trò chuyện sẽ không còn thấy nội dung gốc."
+          confirmLabel="Thu hồi"
+          confirmVariant="danger"
+          loading={recalling}
+          onConfirm={executeRecall}
+          onCancel={() => !recalling && setRecallDialogOpen(false)}
         />
       )}
     </>

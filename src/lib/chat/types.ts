@@ -34,6 +34,7 @@ export type ApiMessage = {
   fileType: string | null;
   status: "SENT" | "DELIVERED" | "READ";
   createdAt: string;
+  deletedAt: string | null;
   senderId: string;
   sender: {
     id: string;
@@ -67,6 +68,7 @@ export type Message = {
   color: string;
   avatarUrl: string | null;
   time: string;
+  createdAt: string;
   content: string | null;
   isMe: boolean;
   attachment: { name: string; size: string; type: string } | null;
@@ -77,6 +79,7 @@ export type Message = {
     isMe?: boolean;
   } | null;
   reactions: ReactionGroup[];
+  deletedAt: string | null;
 };
 
 export type PendingMessage = {

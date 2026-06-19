@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const limit = Math.min(Number(searchParams.get("limit") ?? 30), 50);
 
   const messages = await prisma.message.findMany({
-    where: { conversationId, deletedAt: null },
+    where: { conversationId },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       fileType: true,
       status: true,
       createdAt: true,
+      deletedAt: true,
       senderId: true,
       sender: {
         select: {
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         fileType: true,
         status: true,
         createdAt: true,
+        deletedAt: true,
         senderId: true,
         sender: {
           select: {

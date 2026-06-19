@@ -1,5 +1,7 @@
 import type { ApiMessage, ApiReaction, Message, ReactionGroup } from "./types";
 
+export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export function getColorForUser(_userId: string): string {
   return "bg-primary";
 }
@@ -19,6 +21,11 @@ export function formatMessageTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+export function canRecallMessage(msg: Message): boolean {
+  if (!msg.isMe || msg.deletedAt) return false;
+  return Date.now() - new Date(msg.createdAt).getTime() <= RECALL_WINDOW_MS;
 }
 
 export function groupReactions(
@@ -62,6 +69,21 @@ export async function toggleMessageReaction(
   return res.json();
 }
 
+export async function recallMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<{ id: string; deletedAt: string }> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/messages/${messageId}`,
+    { method: "DELETE" },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error ?? "Không thể thu hồi tin nhắn");
+  }
+  return data;
+}
+
 export function adaptApiMessage(
   msg: ApiMessage,
   currentUserId: string,
@@ -83,6 +105,24 @@ export function adaptApiMessage(
       }
     : null;
 
+  if (msg.deletedAt) {
+    return {
+      id: msg.id,
+      sender: displayName,
+      initials,
+      color,
+      avatarUrl,
+      time: formatMessageTime(msg.createdAt),
+      createdAt: msg.createdAt,
+      content: null,
+      isMe,
+      attachment: null,
+      replyTo,
+      reactions: [],
+      deletedAt: msg.deletedAt,
+    };
+  }
+
   const attachment =
     msg.fileUrl && msg.fileType
       ? {
@@ -99,10 +139,12 @@ export function adaptApiMessage(
     color,
     avatarUrl,
     time: formatMessageTime(msg.createdAt),
+    createdAt: msg.createdAt,
     content: msg.content,
     isMe,
     attachment,
     replyTo,
     reactions: groupReactions(msg.reactions, currentUserId),
+    deletedAt: null,
   };
 }
