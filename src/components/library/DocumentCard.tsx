@@ -15,6 +15,7 @@ import clsx from "clsx";
 import { FILE_TYPE_COLORS } from "@/lib/library/data";
 import type { Document } from "@/lib/library/types";
 import EditDocumentModal from "@/components/library/EditDocumentModal";
+import { useToast } from "@/components/ui/Toast";
 
 interface DocumentCardProps {
   doc: Document;
@@ -47,10 +48,7 @@ export default function DocumentCard({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [toast, setToast] = useState<{
-    msg: string;
-    type: "save" | "unsave" | "delete";
-  } | null>(null);
+  const { showToast } = useToast();
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwner = !!currentUserId && currentUserId === doc.uploader?.id;
 
@@ -62,11 +60,6 @@ export default function DocumentCard({
     if (menuOpen) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
-
-  const showToast = (msg: string, type: "save" | "unsave" | "delete") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const handleToggleSaveWithToast = () => {
     onToggleSave(doc.id);
@@ -89,10 +82,10 @@ export default function DocumentCard({
         setTimeout(() => onDeleted?.(doc.id), 500);
       } else {
         const data = await res.json();
-        alert(data.error ?? "Xóa thất bại");
+        showToast(data.error ?? "Xóa thất bại", "error");
       }
     } catch {
-      alert("Lỗi kết nối, vui lòng thử lại");
+      showToast("Lỗi kết nối, vui lòng thử lại", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -295,19 +288,6 @@ export default function DocumentCard({
           </div>
         </div>
       </div>
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
-          {toast.type === "save" ? (
-            <Bookmark size={13} />
-          ) : toast.type === "unsave" ? (
-            <BookmarkCheck size={13} />
-          ) : (
-            <Trash2 size={13} />
-          )}
-          {toast.msg}
-        </div>
-      )}
 
       {showEditModal && (
         <EditDocumentModal

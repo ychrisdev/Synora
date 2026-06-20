@@ -6,7 +6,6 @@ import {
   ThumbsUp,
   MessageCircle,
   Share2,
-  Bookmark,
   Globe,
   Users as UsersIcon,
   Lock as LockIcon,
@@ -14,6 +13,7 @@ import {
 import NextLink from "next/link";
 import { useSession } from "next-auth/react";
 import Avatar from "@/components/ui/Avatar";
+import { useToast } from "@/components/ui/Toast";
 import AuthGuardModal from "@/components/ui/AuthGuardModal";
 import { notifyTagsChanged } from "@/lib/feed/utils";
 import type { Post, ModalState } from "@/lib/feed/types";
@@ -44,7 +44,9 @@ export default function PostCard({
   targetCommentId?: string | null;
 }) {
   const { data: session } = useSession();
-  const [sessionAvatarUrl, setSessionAvatarUrl] = useState<string | null | undefined>(undefined);
+  const [sessionAvatarUrl, setSessionAvatarUrl] = useState<
+    string | null | undefined
+  >(undefined);
 
   const [liked, setLiked] = useState(post.isLikedByMe ?? false);
   const [likeCount, setLikeCount] = useState(post.likes);
@@ -53,18 +55,20 @@ export default function PostCard({
   const [content, setContent] = useState(post.content);
   const [currentImages, setCurrentImages] = useState(post.images);
   const [currentMediaTypes, setCurrentMediaTypes] = useState(post.mediaTypes);
-  const [currentMediaDocIds, setCurrentMediaDocIds] = useState(post.mediaDocIds);
-  const [currentAttachment, setCurrentAttachment] = useState(post.attachment);
-  const [currentAttachments, setCurrentAttachments] = useState<NonNullable<Post["attachment"]>[]>(
-    post.attachments ?? (post.attachment ? [post.attachment] : []),
+  const [currentMediaDocIds, setCurrentMediaDocIds] = useState(
+    post.mediaDocIds,
   );
+  const [currentAttachment, setCurrentAttachment] = useState(post.attachment);
+  const [currentAttachments, setCurrentAttachments] = useState<
+    NonNullable<Post["attachment"]>[]
+  >(post.attachments ?? (post.attachment ? [post.attachment] : []));
   const [editedAt, setEditedAt] = useState(post.editedAt ?? null);
   const [currentVisibility, setCurrentVisibility] = useState(post.visibility);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [saved, setSaved] = useState(isSavedInitially);
-  const [toast, setToast] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [deleted, setDeleted] = useState(false);
   const [blockingName, setBlockingName] = useState<string | null>(null);
   const [authModal, setAuthModal] = useState<string | null>(null);
@@ -72,7 +76,10 @@ export default function PostCard({
   const isOwner = session?.user?.id === post.authorId;
 
   const handleLike = async () => {
-    if (!session?.user) { setAuthModal("thích bài viết"); return; }
+    if (!session?.user) {
+      setAuthModal("thích bài viết");
+      return;
+    }
     const nextLiked = !liked;
     setLiked(nextLiked);
     setLikeCount((c) => (nextLiked ? c + 1 : c - 1));
@@ -84,13 +91,18 @@ export default function PostCard({
   };
 
   const handleSave = async () => {
-    if (!session?.user) { setAuthModal("lưu bài viết"); return; }
+    if (!session?.user) {
+      setAuthModal("lưu bài viết");
+      return;
+    }
     const res = await fetch(`/api/posts/${post.id}/save`, { method: "POST" });
     if (res.ok) {
       const data = await res.json();
       setSaved(data.saved);
-      setToast(data.saved ? "Đã lưu bài viết" : "Đã bỏ lưu bài viết");
-      setTimeout(() => setToast(null), 2500);
+      showToast(
+        data.saved ? "Đã lưu bài viết" : "Đã bỏ lưu bài viết",
+        data.saved ? "save" : "unsave",
+      );
       onSaveToggle?.(post.id, data.saved);
     }
   };
@@ -106,11 +118,17 @@ export default function PostCard({
     const docFiles = (updated.documents ?? []).filter(
       (d: any) => d.type !== "IMAGE" && d.type !== "VIDEO",
     );
-    setCurrentImages(mediaDocs.length ? mediaDocs.map((d: any) => d.fileUrl) : undefined);
-    setCurrentMediaTypes(
-      mediaDocs.length ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image")) : undefined,
+    setCurrentImages(
+      mediaDocs.length ? mediaDocs.map((d: any) => d.fileUrl) : undefined,
     );
-    setCurrentMediaDocIds(mediaDocs.length ? mediaDocs.map((d: any) => d.id) : undefined);
+    setCurrentMediaTypes(
+      mediaDocs.length
+        ? mediaDocs.map((d: any) => (d.type === "VIDEO" ? "video" : "image"))
+        : undefined,
+    );
+    setCurrentMediaDocIds(
+      mediaDocs.length ? mediaDocs.map((d: any) => d.id) : undefined,
+    );
     setCurrentAttachments(
       docFiles.map((d: any) => ({
         name: d.title,
@@ -124,8 +142,12 @@ export default function PostCard({
       docFiles.length
         ? {
             name: docFiles[0].title,
-            size: docFiles[0].fileSize ? `${(docFiles[0].fileSize / 1024).toFixed(1)} KB` : "",
-            type: docFiles[0].title.split(".").pop()?.toUpperCase() ?? docFiles[0].type,
+            size: docFiles[0].fileSize
+              ? `${(docFiles[0].fileSize / 1024).toFixed(1)} KB`
+              : "",
+            type:
+              docFiles[0].title.split(".").pop()?.toUpperCase() ??
+              docFiles[0].type,
             url: docFiles[0].fileUrl,
             docId: docFiles[0].id,
           }
@@ -148,7 +170,8 @@ export default function PostCard({
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (session?.user?.id === post.authorId) setSessionAvatarUrl(detail.avatarUrl);
+      if (session?.user?.id === post.authorId)
+        setSessionAvatarUrl(detail.avatarUrl);
     };
     window.addEventListener("profile:updated", handler);
     return () => window.removeEventListener("profile:updated", handler);
@@ -169,7 +192,10 @@ export default function PostCard({
     attachment: currentAttachment,
     author: {
       ...post.author,
-      avatarUrl: sessionAvatarUrl !== undefined ? sessionAvatarUrl : post.author.avatarUrl,
+      avatarUrl:
+        sessionAvatarUrl !== undefined
+          ? sessionAvatarUrl
+          : post.author.avatarUrl,
     },
     visibility: currentVisibility,
   };
@@ -188,7 +214,9 @@ export default function PostCard({
       <div className="bg-white rounded-xl border border-surface-200 shadow-card card-hover p-4">
         <div className="flex items-start justify-between mb-3">
           <NextLink
-            href={post.author.username ? `/profile/${post.author.username}` : "#"}
+            href={
+              post.author.username ? `/profile/${post.author.username}` : "#"
+            }
             className="flex items-center gap-3 hover:opacity-90 transition-opacity"
           >
             <Avatar
@@ -209,11 +237,17 @@ export default function PostCard({
                     <span className="text-text-muted text-xs">·</span>
                     <span className="text-[10px] text-text-secondary flex items-center gap-0.5">
                       {currentVisibility === "PRIVATE" ? (
-                        <><LockIcon size={10} /> Riêng tư</>
+                        <>
+                          <LockIcon size={10} /> Riêng tư
+                        </>
                       ) : currentVisibility === "FRIENDS_ONLY" ? (
-                        <><UsersIcon size={10} /> Bạn bè</>
+                        <>
+                          <UsersIcon size={10} /> Bạn bè
+                        </>
                       ) : (
-                        <><Globe size={10} /> Công khai</>
+                        <>
+                          <Globe size={10} /> Công khai
+                        </>
                       )}
                     </span>
                   </>
@@ -228,7 +262,10 @@ export default function PostCard({
           />
         </div>
 
-        <RichContent text={content} className="text-sm text-text-primary leading-relaxed mb-3" />
+        <RichContent
+          text={content}
+          className="text-sm text-text-primary leading-relaxed mb-3"
+        />
 
         {currentImages && currentImages.length > 0 && (
           <ImageGrid
@@ -239,7 +276,11 @@ export default function PostCard({
         )}
 
         {currentAttachments.map((att) => (
-          <AttachmentRow key={att.docId ?? att.name} attachment={att} className="mb-3" />
+          <AttachmentRow
+            key={att.docId ?? att.name}
+            attachment={att}
+            className="mb-3"
+          />
         ))}
 
         <div className="flex items-center justify-between pt-2 border-t border-surface-100">
@@ -248,12 +289,17 @@ export default function PostCard({
               onClick={handleLike}
               className={clsx(
                 "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all duration-150 select-none",
-                liked ? "bg-primary-50 text-primary font-semibold" : "text-text-secondary hover:bg-surface-100",
+                liked
+                  ? "bg-primary-50 text-primary font-semibold"
+                  : "text-text-secondary hover:bg-surface-100",
               )}
             >
               <ThumbsUp
                 size={15}
-                className={clsx("transition-transform duration-150", liked ? "scale-110 fill-primary" : "")}
+                className={clsx(
+                  "transition-transform duration-150",
+                  liked ? "scale-110 fill-primary" : "",
+                )}
               />
               <span>{likeCount}</span>
             </button>
@@ -283,12 +329,20 @@ export default function PostCard({
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
           onSyncCount={setCommentCount}
-          onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+          onCountChange={(delta) =>
+            setCommentCount((c) => Math.max(0, c + delta))
+          }
           menuSlot={
             <PostMoreMenu
               {...menuSlotProps}
-              onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
-              onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+              onEdit={() => {
+                setModal({ type: "none" });
+                setShowEditModal(true);
+              }}
+              onDelete={() => {
+                setModal({ type: "none" });
+                setShowDeleteConfirm(true);
+              }}
             />
           }
         />
@@ -302,14 +356,22 @@ export default function PostCard({
           onClose={() => setModal({ type: "none" })}
           onLike={handleLike}
           onSyncCount={setCommentCount}
-          onCountChange={(delta) => setCommentCount((c) => Math.max(0, c + delta))}
+          onCountChange={(delta) =>
+            setCommentCount((c) => Math.max(0, c + delta))
+          }
           onAuthRequired={setAuthModal}
           targetCommentId={targetCommentId}
           menuSlot={
             <PostMoreMenu
               {...menuSlotProps}
-              onEdit={() => { setModal({ type: "none" }); setShowEditModal(true); }}
-              onDelete={() => { setModal({ type: "none" }); setShowDeleteConfirm(true); }}
+              onEdit={() => {
+                setModal({ type: "none" });
+                setShowEditModal(true);
+              }}
+              onDelete={() => {
+                setModal({ type: "none" });
+                setShowDeleteConfirm(true);
+              }}
             />
           }
         />
@@ -332,18 +394,14 @@ export default function PostCard({
       )}
 
       {showReportModal && (
-        <ReportPostModal postId={post.id} onClose={() => setShowReportModal(false)} />
+        <ReportPostModal
+          postId={post.id}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
 
       {authModal && (
         <AuthGuardModal onClose={() => setAuthModal(null)} action={authModal} />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
-          <Bookmark size={13} />
-          {toast}
-        </div>
       )}
     </>
   );

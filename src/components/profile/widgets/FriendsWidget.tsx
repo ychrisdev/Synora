@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
-import { UserCheck, Trash2 } from "lucide-react";
+import { UserCheck } from "lucide-react";
 import NextLink from "next/link";
 import { useSession } from "next-auth/react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface Friend {
   id: string;
@@ -33,16 +34,6 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function Toast({ msg }: { msg: string | null }) {
-  if (!msg) return null;
-  return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
-      <Trash2 size={13} />
-      {msg}
-    </div>
-  );
-}
-
 export function FriendsWidget({
   username,
   refreshKey,
@@ -56,7 +47,7 @@ export function FriendsWidget({
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmFriend, setConfirmFriend] = useState<Friend | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const { showToast } = useToast();
   const actionInProgress = useRef<Set<string>>(new Set());
   const isOwner = session?.user?.username === username;
 
@@ -85,7 +76,7 @@ export function FriendsWidget({
     try {
       await fetch(`/api/profile/${friend.username}/follow`, { method: "POST" });
       setFriends((prev) => prev.filter((f) => f.id !== friend.id));
-      showToast("Đã hủy kết bạn");
+      showToast("Đã hủy kết bạn", "delete");
       onUnfriend?.();
     } finally {
       actionInProgress.current.delete(friend.id);
@@ -111,8 +102,6 @@ export function FriendsWidget({
 
   return (
     <>
-      <Toast msg={toastMsg} />
-
       {confirmFriend && (
         <ConfirmDialog
           displayName={confirmFriend.displayName}

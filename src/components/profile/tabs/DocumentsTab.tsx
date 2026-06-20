@@ -13,6 +13,7 @@ import {
 import { clsx } from "clsx";
 import { useSession } from "next-auth/react";
 import { FILE_TYPE_COLORS } from "@/lib/library/data";
+import { useToast } from "@/components/ui/Toast";
 
 interface DocItem {
   id: string;
@@ -90,10 +91,7 @@ function DocCard({
   const [isSaved, setIsSaved] = useState(initialSaved);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [toast, setToast] = useState<{
-    msg: string;
-    type: "save" | "unsave";
-  } | null>(null);
+  const { showToast } = useToast();
   const menuRef = useRef<HTMLDivElement>(null);
   const type = resolveType(doc);
   const typeColor = FILE_TYPE_COLORS[type] ?? "bg-gray-500";
@@ -106,11 +104,6 @@ function DocCard({
     if (menuOpen) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
-
-  const showToast = (msg: string, type: "save" | "unsave") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 2500);
-  };
 
   const handleToggleSave = async () => {
     setMenuOpen(false);
@@ -137,10 +130,10 @@ function DocCard({
         setTimeout(() => onRemove?.(doc.id), 500);
       } else {
         const data = await res.json();
-        alert(data.error ?? "Xóa thất bại");
+        showToast(data.error ?? "Xóa thất bại", "error");
       }
     } catch {
-      alert("Lỗi kết nối, vui lòng thử lại");
+      showToast("Lỗi kết nối, vui lòng thử lại", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -258,18 +251,6 @@ function DocCard({
           </div>
         </div>
       </div>
-
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-2 bg-text-primary text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
-          {toast.type === "save" ? (
-            <Bookmark size={13} />
-          ) : (
-            <BookmarkCheck size={13} />
-          )}
-          {toast.msg}
-        </div>
-      )}
-
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80 mx-4 animate-in fade-in zoom-in-95 duration-150">
@@ -365,7 +346,9 @@ function MyDocsTab({
             initialSaved={false}
             onDownload={onDownload}
             isOwner={true}
-            onRemove={(id) => setDocs((prev) => prev.filter((d) => d.id !== id))}
+            onRemove={(id) =>
+              setDocs((prev) => prev.filter((d) => d.id !== id))
+            }
           />
         ))}
       </div>

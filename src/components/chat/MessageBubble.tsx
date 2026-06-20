@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
+import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import type { Message, ReactionGroup, ApiReaction } from "@/lib/chat/types";
@@ -501,6 +502,7 @@ export function MessageBubble({
   const [modalOpen, setModalOpen] = useState(false);
   const [recalling, setRecalling] = useState(false);
   const [recallDialogOpen, setRecallDialogOpen] = useState(false);
+  const { showToast } = useToast();
 
   const handleEmoji = async (emoji: string) => {
     if (reacting) return;
@@ -588,7 +590,10 @@ export function MessageBubble({
       onRecall(msg.id);
       setRecallDialogOpen(false);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Có lỗi xảy ra, vui lòng thử lại");
+      showToast(
+        e instanceof Error ? e.message : "Có lỗi xảy ra, vui lòng thử lại",
+        "error",
+      );
     } finally {
       setRecalling(false);
     }
