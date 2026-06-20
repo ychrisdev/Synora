@@ -36,6 +36,7 @@ export type ApiMessage = {
   createdAt: string;
   deletedAt: string | null;
   senderId: string;
+  forwardedFromSender: string | null;
   sender: {
     id: string;
     username: string;
@@ -78,6 +79,7 @@ export type Message = {
     content: string;
     isMe?: boolean;
   } | null;
+  forwardedFromSender: string | null;
   reactions: ReactionGroup[];
   deletedAt: string | null;
 };

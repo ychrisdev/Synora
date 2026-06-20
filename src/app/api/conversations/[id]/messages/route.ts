@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       createdAt: true,
       deletedAt: true,
       senderId: true,
+      forwardedFromSender: true,
       sender: {
         select: {
           id: true,
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           id: true,
           content: true,
           senderId: true,
+          forwardedFromSender: true,
           sender: {
             select: {
               profile: { select: { displayName: true } },

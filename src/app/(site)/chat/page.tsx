@@ -32,6 +32,8 @@ import { Badge } from "@/components/chat/Badge";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
 import { ConversationList } from "@/components/chat/sidebar/ConversationList";
+import { ForwardMessageModal } from "@/components/chat/ForwardMessageModal";
+import { forwardMessage } from "@/lib/chat/utils";
 import { InfoSidebar } from "@/components/chat/sidebar/InfoSidebar";
 import Avatar from "@/components/ui/Avatar";
 
@@ -73,6 +75,8 @@ export default function ChatPage() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
 
+  const [forwardingMsg, setForwardingMsg] = useState<Message | null>(null);
+
   useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
@@ -91,6 +95,13 @@ export default function ChatPage() {
       setPendingJumpId(null);
     }
   }, [pendingJumpId, messages, nextCursor, loadingMore]);
+
+  const handleForwardConfirm = async (targetConversationId: string) => {
+    if (!forwardingMsg || !activeId) return;
+    await forwardMessage(activeId, forwardingMsg.id, targetConversationId);
+    setForwardingMsg(null);
+    fetchConversations();
+  };
 
   const handleJumpToReply = (id: string) => setPendingJumpId(id);
 
@@ -538,6 +549,7 @@ export default function ChatPage() {
                     highlighted={highlightedId === msg.id}
                     onReactionsUpdated={handleReactionsUpdated}
                     onRecall={handleRecall}
+                    onForward={(m) => setForwardingMsg(m)}
                   />
                 ))
               )}
@@ -609,6 +621,15 @@ export default function ChatPage() {
         <NewConversationModal
           onClose={() => setNewConvOpen(false)}
           onCreated={handleConvCreated}
+        />
+      )}
+
+      {forwardingMsg && (
+        <ForwardMessageModal
+          conversations={convList}
+          excludeConversationId={activeId!}
+          onClose={() => setForwardingMsg(null)}
+          onConfirm={handleForwardConfirm}
         />
       )}
     </div>

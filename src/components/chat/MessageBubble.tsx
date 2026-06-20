@@ -215,6 +215,7 @@ interface MessageActionsProps {
   onEmoji: (e: string) => void;
   onReply: () => void;
   onRecall: () => void;
+  onForward: () => void;
 }
 
 function MessageActions({
@@ -223,6 +224,7 @@ function MessageActions({
   onEmoji,
   onReply,
   onRecall,
+  onForward,
 }: MessageActionsProps) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -298,19 +300,27 @@ function MessageActions({
         onClose={() => setMenuOpen(false)}
       >
         <div className="w-48 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden">
-          {[
-            { icon: <Pin size={14} />, label: "Ghim tin nhắn" },
-            { icon: <Forward size={14} />, label: "Chuyển tiếp" },
-          ].map(({ icon, label }) => (
-            <button
-              key={label}
-              onClick={() => setMenuOpen(false)}
-              className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
-            >
-              <span className="text-text-muted shrink-0">{icon}</span>
-              {label}
-            </button>
-          ))}
+          <button
+            onClick={() => setMenuOpen(false)}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
+          >
+            <span className="text-text-muted shrink-0">
+              <Pin size={14} />
+            </span>
+            Ghim tin nhắn
+          </button>
+          <button
+            onClick={() => {
+              onForward();
+              setMenuOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
+          >
+            <span className="text-text-muted shrink-0">
+              <Forward size={14} />
+            </span>
+            Chuyển tiếp
+          </button>
 
           {isMe && (
             <button
@@ -446,6 +456,7 @@ interface MessageBubbleProps {
   highlighted?: boolean;
   onReactionsUpdated: (messageId: string, reactions: ReactionGroup[]) => void;
   onRecall: (messageId: string) => void;
+  onForward: (m: Message) => void;
 }
 
 export function MessageBubble({
@@ -457,6 +468,7 @@ export function MessageBubble({
   highlighted,
   onReactionsUpdated,
   onRecall,
+  onForward,
 }: MessageBubbleProps) {
   const [reacting, setReacting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -641,10 +653,24 @@ export function MessageBubble({
             msg.isMe ? "items-end" : "items-start",
           )}
         >
-          {!msg.isMe && (
-            <p className="text-xs text-text-muted px-1 mb-0.5 font-medium">
-              {msg.sender}
+          {msg.forwardedFromSender ? (
+            <p
+              className={clsx(
+                "flex items-center gap-1 text-xs text-text-muted px-1 mb-0.5 font-medium",
+                msg.isMe ? "justify-end" : "justify-start",
+              )}
+            >
+              <Forward size={10} />
+              {msg.isMe
+                ? "Bạn đã chuyển tiếp một tin nhắn"
+                : `${msg.sender} đã chuyển tiếp một tin nhắn`}
             </p>
+          ) : (
+            !msg.isMe && (
+              <p className="text-xs text-text-muted px-1 mb-0.5 font-medium">
+                {msg.sender}
+              </p>
+            )
           )}
 
           {msg.replyTo && (
@@ -736,6 +762,7 @@ export function MessageBubble({
               onEmoji={handleEmoji}
               onReply={() => onReply(msg)}
               onRecall={handleRecallClick}
+              onForward={() => onForward(msg)}
             />
           </div>
 

@@ -118,6 +118,7 @@ export function adaptApiMessage(
       isMe,
       attachment: null,
       replyTo,
+      forwardedFromSender: msg.forwardedFromSender,
       reactions: [],
       deletedAt: msg.deletedAt,
     };
@@ -144,7 +145,26 @@ export function adaptApiMessage(
     isMe,
     attachment,
     replyTo,
+    forwardedFromSender: msg.forwardedFromSender,
     reactions: groupReactions(msg.reactions, currentUserId),
     deletedAt: null,
   };
+}
+
+export async function forwardMessage(
+  sourceConversationId: string,
+  messageId: string,
+  targetConversationId: string,
+): Promise<ApiMessage> {
+  const res = await fetch(
+    `/api/conversations/${sourceConversationId}/messages/${messageId}/forward`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetConversationId }),
+    },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Không thể chuyển tiếp tin nhắn");
+  return data;
 }

@@ -391,6 +391,8 @@ model Message {
   replies        Message[]     @relation("replies")
   reactions      MessageReaction[]
 
+  forwardedFromSender String?
+
   deletedAt      DateTime?
 
   createdAt      DateTime      @default(now())
