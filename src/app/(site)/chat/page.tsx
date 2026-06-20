@@ -30,8 +30,17 @@ import type {
   FilterChip,
   ApiMessage,
   ReactionGroup,
+  PinnedMessage,
 } from "@/lib/chat/types";
-import { adaptApiMessage } from "@/lib/chat/utils";
+import {
+  adaptApiMessage,
+  forwardMessage,
+  formatDateDivider,
+  DIVIDER_GAP_MS,
+  pinMessage,
+  unpinMessage,
+  fetchPinnedMessages,
+} from "@/lib/chat/utils";
 import { groupMembers } from "@/lib/chat/data";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
@@ -39,17 +48,11 @@ import { Badge } from "@/components/chat/Badge";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
 import { ConversationList } from "@/components/chat/sidebar/ConversationList";
-import { ForwardMessageModal } from "@/components/chat/ForwardMessageModal";
-import { forwardMessage } from "@/lib/chat/utils";
-import { PinnedMessagesBar } from "@/components/chat/PinnedMessagesBar";
-import {
-  pinMessage,
-  unpinMessage,
-  fetchPinnedMessages,
-} from "@/lib/chat/utils";
-import type { PinnedMessage } from "@/lib/chat/types";
 import { InfoSidebar } from "@/components/chat/sidebar/InfoSidebar";
+import { ForwardMessageModal } from "@/components/chat/ForwardMessageModal";
+import { PinnedMessagesBar } from "@/components/chat/PinnedMessagesBar";
 import Avatar from "@/components/ui/Avatar";
+import { useToast } from "@/components/ui/Toast";
 
 function getInitials(name: string) {
   return name
@@ -92,6 +95,8 @@ export default function ChatPage() {
 
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
+
+  const { showToast } = useToast();
 
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const pinnedRef = useRef<PinnedMessage[]>([]);
@@ -206,7 +211,7 @@ export default function ChatPage() {
       }
       loadPinned(activeId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Có lỗi xảy ra");
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
     }
   };
 
@@ -250,7 +255,7 @@ export default function ChatPage() {
       );
       loadPinned(activeId);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Có lỗi xảy ra");
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
     }
   };
 
@@ -881,7 +886,32 @@ export default function ChatPage() {
 
                   items.sort((a, b) => a.ts - b.ts);
 
-                  return items.map((item) =>
+                  const withDividers: TimelineItem[] = [];
+                  let lastMessageTs: number | null = null;
+
+                  items.forEach((item) => {
+                    if (item.kind === "message") {
+                      if (
+                        lastMessageTs === null ||
+                        item.ts - lastMessageTs >= DIVIDER_GAP_MS
+                      ) {
+                        withDividers.push({
+                          kind: "notice",
+                          ts: item.ts,
+                          key: `divider-${item.msg.id}`,
+                          render: () => (
+                            <p className="text-center text-[11px] text-text-muted font-medium py-1">
+                              {formatDateDivider(item.msg.createdAt)}
+                            </p>
+                          ),
+                        });
+                      }
+                      lastMessageTs = item.ts;
+                    }
+                    withDividers.push(item);
+                  });
+
+                  return withDividers.map((item) =>
                     item.kind === "message" ? (
                       <MessageBubble
                         key={item.msg.id}

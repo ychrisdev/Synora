@@ -8,6 +8,25 @@ import type {
 
 export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+const VN_MONTHS = [
+  "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+  "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+];
+
+export function formatDateDivider(iso: string): string {
+  const d = new Date(iso);
+  const day = d.getDate();
+  const month = VN_MONTHS[d.getMonth()];
+  const year = d.getFullYear();
+  const time = d.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${day} ${month} ${year}, ${time}`;
+}
+
+export const DIVIDER_GAP_MS = 30 * 60 * 1000;
+
 export function getColorForUser(_userId: string): string {
   return "bg-primary";
 }
