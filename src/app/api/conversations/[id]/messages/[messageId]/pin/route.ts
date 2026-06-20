@@ -51,17 +51,26 @@ export async function POST(req: NextRequest, { params }: Params) {
       { status: 400 },
     );
 
-  const updated = await prisma.message.update({
-    where: { id: messageId },
-    data: { pinnedAt: new Date(), pinnedById: userId },
-    select: {
-      id: true,
-      pinnedAt: true,
-      pinnedBy: {
-        select: { profile: { select: { displayName: true } }, username: true },
+  const [updated] = await prisma.$transaction([
+    prisma.message.update({
+      where: { id: messageId },
+      data: { pinnedAt: new Date(), pinnedById: userId },
+      select: {
+        id: true,
+        pinnedAt: true,
+        pinnedBy: {
+          select: {
+            profile: { select: { displayName: true } },
+            username: true,
+          },
+        },
       },
-    },
-  });
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   return NextResponse.json(updated);
 }
@@ -89,10 +98,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       { status: 404 },
     );
 
-  await prisma.message.update({
-    where: { id: messageId },
-    data: { pinnedAt: null, pinnedById: null },
-  });
+  await prisma.$transaction([
+    prisma.message.update({
+      where: { id: messageId },
+      data: { pinnedAt: null, pinnedById: null },
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   return NextResponse.json({ id: messageId, unpinned: true });
 }

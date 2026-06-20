@@ -126,6 +126,7 @@ export async function GET(_req: NextRequest) {
         orderBy: { pinnedAt: "desc" },
         select: {
           pinnedAt: true,
+          pinnedById: true,
           pinnedBy: {
             select: {
               username: true,
@@ -135,15 +136,46 @@ export async function GET(_req: NextRequest) {
         },
       });
 
-      if (
-        latestPin?.pinnedAt &&
-        (!lastEventAt || latestPin.pinnedAt > lastEventAt)
-      ) {
-        const pinnerName =
-          latestPin.pinnedBy?.profile?.displayName ??
-          latestPin.pinnedBy?.username;
-        lastMessage = `${pinnerName} đã ghim tin nhắn`;
+      const convLastMessageAt = conv.lastMessageAt
+        ? new Date(conv.lastMessageAt)
+        : null;
+      const pinAt = latestPin?.pinnedAt ? new Date(latestPin.pinnedAt) : null;
+
+      const candidates: { ts: number; label: string }[] = [];
+
+      if (lastEventAt) {
+        candidates.push({ ts: lastEventAt.getTime(), label: lastMessage });
       }
+
+      if (pinAt) {
+        const isCurrentUser = latestPin!.pinnedById === userId;
+        const pinnerName = isCurrentUser
+          ? "Bạn"
+          : (latestPin!.pinnedBy?.profile?.displayName ??
+            latestPin!.pinnedBy?.username);
+        candidates.push({
+          ts: pinAt.getTime(),
+          label: `${pinnerName} đã ghim tin nhắn`,
+        });
+      }
+
+      if (convLastMessageAt) {
+        const maxKnownTs = candidates.length
+          ? Math.max(...candidates.map((c) => c.ts))
+          : 0;
+        if (convLastMessageAt.getTime() > maxKnownTs) {
+          candidates.push({
+            ts: convLastMessageAt.getTime(),
+            label: "Đã bỏ ghim một tin nhắn",
+          });
+        }
+      }
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.ts - a.ts);
+        lastMessage = candidates[0].label;
+      }
+
       return {
         id: conv.id,
         isGroup: conv.isGroup,

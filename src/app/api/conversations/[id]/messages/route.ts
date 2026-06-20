@@ -38,6 +38,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       deletedAt: true,
       senderId: true,
       pinnedAt: true,
+      pinnedById: true,
       pinnedBy: {
         select: { username: true, profile: { select: { displayName: true } } },
       },
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           content: true,
           senderId: true,
           pinnedAt: true,
+          pinnedById: true,
           pinnedBy: {
             select: {
               username: true,
