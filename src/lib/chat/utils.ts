@@ -128,6 +128,8 @@ export function adaptApiMessage(
       attachment: null,
       replyTo,
       pinnedAt: msg.pinnedAt,
+      pinnedByName: null,
+      pinnedById: null,
       forwardedFromSender: msg.forwardedFromSender,
       reactions: [],
       deletedAt: msg.deletedAt,
@@ -157,6 +159,7 @@ export function adaptApiMessage(
     replyTo,
     pinnedAt: msg.pinnedAt,
     pinnedByName,
+    pinnedById: msg.pinnedById ?? null,
     forwardedFromSender: msg.forwardedFromSender,
     reactions: groupReactions(msg.reactions, currentUserId),
     deletedAt: null,
@@ -169,7 +172,10 @@ export async function pinMessage(
 ): Promise<{
   id: string;
   pinnedAt: string;
-  pinnedBy: { username: string; profile: { displayName: string | null } | null };
+  pinnedBy: {
+    username: string;
+    profile: { displayName: string | null } | null;
+  };
 }> {
   const res = await fetch(
     `/api/conversations/${conversationId}/messages/${messageId}/pin`,

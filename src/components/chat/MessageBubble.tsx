@@ -457,6 +457,21 @@ function ReactionBar({
   );
 }
 
+interface PinSystemNoticeProps {
+  pinnedByName: string;
+}
+
+function PinSystemNotice({ pinnedByName }: PinSystemNoticeProps) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 py-1.5">
+      <Pin size={11} className="text-text-muted fill-current shrink-0" />
+      <p className="text-xs text-text-muted text-center">
+        {pinnedByName} đã ghim một tin nhắn
+      </p>
+    </div>
+  );
+}
+
 interface MessageBubbleProps {
   msg: Message;
   conversationId: string;
@@ -721,18 +736,6 @@ export function MessageBubble({
                 </p>
               </div>
             </button>
-          )}
-
-          {msg.pinnedAt && msg.pinnedByName && (
-            <p
-              className={clsx(
-                "flex items-center gap-1 text-[10px] text-primary/70 px-1 font-medium",
-                msg.isMe ? "justify-end" : "justify-start",
-              )}
-            >
-              <Pin size={9} className="fill-current" />
-              {msg.pinnedByName} đã ghim tin nhắn
-            </p>
           )}
 
           <div

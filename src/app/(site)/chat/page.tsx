@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -54,6 +60,8 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+type ScrollMode = "instant" | "smooth" | null;
+
 export default function ChatPage() {
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ?? "";
@@ -75,7 +83,9 @@ export default function ChatPage() {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [newConvOpen, setNewConvOpen] = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollModeRef = useRef<ScrollMode>("instant");
+  const prevScrollHeightRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -85,15 +95,19 @@ export default function ChatPage() {
 
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const pinnedRef = useRef<PinnedMessage[]>([]);
-  const [pinToast, setPinToast] = useState<string | null>(null);
-  const pinToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showPinToast = useCallback((text: string) => {
-    setPinToast(text);
-    if (pinToastTimeoutRef.current) clearTimeout(pinToastTimeoutRef.current);
-    pinToastTimeoutRef.current = setTimeout(() => setPinToast(null), 3000);
-  }, []);
   const [forwardingMsg, setForwardingMsg] = useState<Message | null>(null);
+
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const isAtBottomRef = useRef(true);
+  const [pinNotices, setPinNotices] = useState<
+    {
+      messageId: string;
+      actorName: string;
+      preview: string;
+      action: "pin" | "unpin";
+      createdAt: string;
+    }[]
+  >([]);
 
   const loadPinned = useCallback(async (convId: string) => {
     try {
@@ -123,14 +137,34 @@ export default function ChatPage() {
               : msg,
           ),
         );
+        const actorName = "Bạn";
+        const preview = m.content
+          ? m.content.length > 30
+            ? m.content.slice(0, 30) + "..."
+            : m.content
+          : (m.attachment?.name ?? "");
+        setPinNotices((prev) => [
+          ...prev,
+          {
+            messageId: m.id,
+            actorName,
+            preview,
+            action: "unpin",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+
         setConvList((prev) =>
           prev.map((c) =>
             c.id === activeId
-              ? { ...c, lastMessage: "Bạn đã bỏ ghim tin nhắn" }
+              ? {
+                  ...c,
+                  lastMessage: "Bạn đã bỏ ghim tin nhắn",
+                  lastMessageAt: new Date().toISOString(),
+                }
               : c,
           ),
         );
-        showPinToast("Bạn đã bỏ ghim tin nhắn");
       } else {
         const result = await pinMessage(activeId, m.id);
         setMessages((prev) =>
@@ -146,6 +180,22 @@ export default function ChatPage() {
               : msg,
           ),
         );
+        const actorNamePin = "Bạn";
+        const previewPin = m.content
+          ? m.content.length > 30
+            ? m.content.slice(0, 30) + "..."
+            : m.content
+          : (m.attachment?.name ?? "");
+        setPinNotices((prev) => [
+          ...prev,
+          {
+            messageId: m.id,
+            actorName: actorNamePin,
+            preview: previewPin,
+            action: "pin",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
         setConvList((prev) =>
           prev.map((c) =>
             c.id === activeId
@@ -153,7 +203,6 @@ export default function ChatPage() {
               : c,
           ),
         );
-        showPinToast("Bạn đã ghim tin nhắn");
       }
       loadPinned(activeId);
     } catch (e) {
@@ -164,22 +213,41 @@ export default function ChatPage() {
   const handleUnpinFromBar = async (messageId: string) => {
     if (!activeId) return;
     try {
+      const msg = messages.find((m) => m.id === messageId);
       await unpinMessage(activeId, messageId);
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId
-            ? { ...msg, pinnedAt: null, pinnedByName: null }
-            : msg,
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, pinnedAt: null, pinnedByName: null, pinnedById: null }
+            : m,
         ),
       );
+      const preview = msg?.content
+        ? msg.content.length > 30
+          ? msg.content.slice(0, 30) + "..."
+          : msg.content
+        : (msg?.attachment?.name ?? "");
+      setPinNotices((prev) => [
+        ...prev,
+        {
+          messageId,
+          actorName: "Bạn",
+          preview,
+          action: "unpin",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
       setConvList((prev) =>
         prev.map((c) =>
           c.id === activeId
-            ? { ...c, lastMessage: "Bạn đã bỏ ghim tin nhắn" }
+            ? {
+                ...c,
+                lastMessage: "Bạn đã bỏ ghim tin nhắn",
+                lastMessageAt: new Date().toISOString(),
+              }
             : c,
         ),
       );
-      showPinToast("Bạn đã bỏ ghim tin nhắn");
       loadPinned(activeId);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Có lỗi xảy ra");
@@ -244,6 +312,7 @@ export default function ChatPage() {
         const adapted = (data.messages as ApiMessage[]).map((m) =>
           adaptApiMessage(m, currentUserId),
         );
+        scrollModeRef.current = "instant";
         setMessages(adapted);
         setNextCursor(data.nextCursor);
       } finally {
@@ -258,11 +327,58 @@ export default function ChatPage() {
     fetchMessages(activeId);
   }, [activeId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (prevScrollHeightRef.current !== null) {
+      container.scrollTop =
+        container.scrollHeight - prevScrollHeightRef.current;
+      prevScrollHeightRef.current = null;
+      return;
+    }
+
+    if (scrollModeRef.current === "instant") {
+      container.scrollTop = container.scrollHeight;
+      scrollModeRef.current = null;
+    } else if (scrollModeRef.current === "smooth") {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      scrollModeRef.current = null;
+    }
+  }, [messages]);
 
   const pollMessages = useCallback(async () => {
+    try {
+      const convRes = await fetch("/api/conversations");
+      if (convRes.ok) {
+        const serverConvs: Conversation[] = await convRes.json();
+        setConvList((prev) => {
+          return serverConvs.map((serverConv) => {
+            const localConv = prev.find((c) => c.id === serverConv.id);
+            const localIsNewer =
+              !!localConv &&
+              !!localConv.lastMessageAt &&
+              !!serverConv.lastMessageAt &&
+              new Date(localConv.lastMessageAt) >=
+                new Date(serverConv.lastMessageAt);
+            return {
+              ...serverConv,
+              unreadCount:
+                serverConv.id === activeIdRef.current
+                  ? 0
+                  : serverConv.unreadCount,
+              lastMessage: localIsNewer
+                ? localConv!.lastMessage
+                : serverConv.lastMessage,
+              lastMessageAt: localIsNewer
+                ? localConv!.lastMessageAt
+                : serverConv.lastMessageAt,
+            };
+          });
+        });
+      }
+    } catch {}
+
     const convId = activeIdRef.current;
     if (!convId) return;
 
@@ -298,62 +414,22 @@ export default function ChatPage() {
             })
           )
             return prev;
+          if (adapted.length > prev.length) {
+            if (isAtBottomRef.current) {
+              scrollModeRef.current = "smooth";
+            } else {
+              setHasNewMessage(true);
+            }
+          }
           return adapted;
         });
       }
 
       try {
         const pinnedData = await fetchPinnedMessages(convId);
-        const prevPinned = pinnedRef.current;
-        if (pinnedData.length > prevPinned.length) {
-          const newPin = pinnedData.find(
-            (p) => !prevPinned.some((pp) => pp.id === p.id),
-          );
-          if (newPin) {
-            const pinnerName =
-              newPin.pinnedBy?.profile?.displayName ??
-              newPin.pinnedBy?.username;
-            showPinToast(`${pinnerName} đã ghim tin nhắn`);
-          }
-        } else if (pinnedData.length < prevPinned.length) {
-          showPinToast("Đã bỏ ghim tin nhắn");
-        }
         pinnedRef.current = pinnedData;
         setPinnedMessages(pinnedData);
       } catch {}
-
-      const convRes = await fetch("/api/conversations");
-      if (convRes.ok) {
-        const serverConvs: Conversation[] = await convRes.json();
-        setConvList((prev) => {
-          return serverConvs.map((serverConv) => {
-            const localConv = prev.find((c) => c.id === serverConv.id);
-            return {
-              ...serverConv,
-              unreadCount:
-                serverConv.id === activeIdRef.current
-                  ? 0
-                  : serverConv.unreadCount,
-              lastMessage:
-                localConv &&
-                localConv.lastMessageAt &&
-                serverConv.lastMessageAt &&
-                new Date(localConv.lastMessageAt) >
-                  new Date(serverConv.lastMessageAt)
-                  ? localConv.lastMessage
-                  : serverConv.lastMessage,
-              lastMessageAt:
-                localConv &&
-                localConv.lastMessageAt &&
-                serverConv.lastMessageAt &&
-                new Date(localConv.lastMessageAt) >
-                  new Date(serverConv.lastMessageAt)
-                  ? localConv.lastMessageAt
-                  : serverConv.lastMessageAt,
-            };
-          });
-        });
-      }
     } catch {}
   }, [currentUserId]);
 
@@ -364,8 +440,25 @@ export default function ChatPage() {
     };
   }, [pollMessages]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchConversations();
+      pollMessages();
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
+  }, [fetchConversations, pollMessages]);
+
   const loadMore = useCallback(async () => {
     if (!activeId || !nextCursor || loadingMore) return;
+    const container = scrollContainerRef.current;
+    if (container) {
+      prevScrollHeightRef.current = container.scrollHeight;
+    }
     setLoadingMore(true);
     try {
       const res = await fetch(
@@ -381,7 +474,7 @@ export default function ChatPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [activeId, nextCursor, loadingMore]);
+  }, [activeId, nextCursor, loadingMore, currentUserId]);
 
   const handleReactionsUpdated = (
     messageId: string,
@@ -463,6 +556,10 @@ export default function ChatPage() {
       attachment: null,
       reactions: [],
       deletedAt: null,
+      pinnedAt: null,
+      pinnedByName: null,
+      pinnedById: null,
+      forwardedFromSender: null,
       replyTo: replyingTo
         ? {
             id: replyingTo.id,
@@ -472,6 +569,7 @@ export default function ChatPage() {
           }
         : null,
     };
+    scrollModeRef.current = "smooth";
     setMessages((prev) => [...prev, optimistic]);
 
     setConvList((prev) =>
@@ -533,6 +631,8 @@ export default function ChatPage() {
     setActiveId(id);
     setInfoOpen(false);
     setReplyingTo(null);
+    setPinNotices([]);
+    setHasNewMessage(false);
     setConvList((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
     );
@@ -657,7 +757,17 @@ export default function ChatPage() {
               onUnpin={handleUnpinFromBar}
             />
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 bg-surface-50">
+            <div
+              ref={scrollContainerRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const atBottom =
+                  el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+                isAtBottomRef.current = atBottom;
+                if (atBottom) setHasNewMessage(false);
+              }}
+              className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 bg-surface-50"
+            >
               {nextCursor && (
                 <button
                   onClick={loadMore}
@@ -667,7 +777,6 @@ export default function ChatPage() {
                   {loadingMore ? "Đang tải..." : "Tải tin cũ hơn"}
                 </button>
               )}
-
               {msgLoading ? (
                 <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
                   Đang tải tin nhắn...
@@ -677,26 +786,125 @@ export default function ChatPage() {
                   Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    msg={msg}
-                    conversationId={activeId!}
-                    currentUserId={currentUserId}
-                    onReply={(m) => {
-                      setReplyingTo(m);
-                      setTimeout(() => inputRef.current?.focus(), 0);
-                    }}
-                    onJumpToReply={handleJumpToReply}
-                    highlighted={highlightedId === msg.id}
-                    onReactionsUpdated={handleReactionsUpdated}
-                    onRecall={handleRecall}
-                    onTogglePin={handleTogglePin}
-                    onForward={(m) => setForwardingMsg(m)}
-                  />
-                ))
+                (() => {
+                  type TimelineItem =
+                    | { kind: "message"; ts: number; msg: Message }
+                    | {
+                        kind: "notice";
+                        ts: number;
+                        key: string;
+                        render: () => React.ReactNode;
+                      };
+
+                  const items: TimelineItem[] = [];
+
+                  messages.forEach((msg) => {
+                    items.push({
+                      kind: "message",
+                      ts: new Date(msg.createdAt).getTime(),
+                      msg,
+                    });
+                  });
+
+                  pinNotices.forEach((n, idx) => {
+                    items.push({
+                      kind: "notice",
+                      ts: new Date(n.createdAt).getTime(),
+                      key: `local-${n.messageId}-${n.action}-${idx}`,
+                      render: () => (
+                        <div className="flex items-center justify-center gap-1.5 py-1.5">
+                          <Pin
+                            size={11}
+                            className="text-text-muted fill-current shrink-0"
+                          />
+                          <p className="text-xs text-text-muted text-center">
+                            {n.actorName}{" "}
+                            {n.action === "pin"
+                              ? "đã ghim tin nhắn"
+                              : "đã bỏ ghim tin nhắn"}{" "}
+                            <span className="font-semibold text-text-secondary">
+                              "{n.preview}"
+                            </span>{" "}
+                            {n.action === "pin" && (
+                              <button
+                                onClick={() => handleJumpToReply(n.messageId)}
+                                className="text-primary font-semibold hover:underline"
+                              >
+                                Xem
+                              </button>
+                            )}
+                          </p>
+                        </div>
+                      ),
+                    });
+                  });
+
+                  messages.forEach((msg) => {
+                    const hasLocalNotice = pinNotices.some(
+                      (n) => n.messageId === msg.id,
+                    );
+                    if (!hasLocalNotice && msg.pinnedAt && msg.pinnedByName) {
+                      const isMe = msg.pinnedById === currentUserId;
+                      const actorName = isMe ? "Bạn" : msg.pinnedByName!;
+                      const preview = msg.content
+                        ? msg.content.length > 30
+                          ? msg.content.slice(0, 30) + "..."
+                          : msg.content
+                        : (msg.attachment?.name ?? "");
+                      items.push({
+                        kind: "notice",
+                        ts: new Date(msg.pinnedAt).getTime(),
+                        key: `server-${msg.id}`,
+                        render: () => (
+                          <div className="flex items-center justify-center gap-1.5 py-1.5">
+                            <Pin
+                              size={11}
+                              className="text-text-muted fill-current shrink-0"
+                            />
+                            <p className="text-xs text-text-muted text-center">
+                              {actorName} đã ghim tin nhắn{" "}
+                              <span className="font-semibold text-text-secondary">
+                                "{preview}"
+                              </span>{" "}
+                              <button
+                                onClick={() => handleJumpToReply(msg.id)}
+                                className="text-primary font-semibold hover:underline"
+                              >
+                                Xem
+                              </button>
+                            </p>
+                          </div>
+                        ),
+                      });
+                    }
+                  });
+
+                  items.sort((a, b) => a.ts - b.ts);
+
+                  return items.map((item) =>
+                    item.kind === "message" ? (
+                      <MessageBubble
+                        key={item.msg.id}
+                        msg={item.msg}
+                        conversationId={activeId!}
+                        currentUserId={currentUserId}
+                        onReply={(m) => {
+                          setReplyingTo(m);
+                          setTimeout(() => inputRef.current?.focus(), 0);
+                        }}
+                        onJumpToReply={handleJumpToReply}
+                        highlighted={highlightedId === item.msg.id}
+                        onReactionsUpdated={handleReactionsUpdated}
+                        onRecall={handleRecall}
+                        onTogglePin={handleTogglePin}
+                        onForward={(m) => setForwardingMsg(m)}
+                      />
+                    ) : (
+                      <div key={item.key}>{item.render()}</div>
+                    ),
+                  );
+                })()
               )}
-              <div ref={bottomRef} />
             </div>
 
             {replyingTo && (
@@ -719,10 +927,32 @@ export default function ChatPage() {
               </div>
             )}
 
-            {pinToast && (
-              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full bg-text-primary text-white text-xs font-medium shadow-lg flex items-center gap-1.5 pointer-events-none">
-                <Pin size={12} className="fill-current" />
-                {pinToast}
+            {hasNewMessage && (
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+                <button
+                  onClick={() => {
+                    const container = scrollContainerRef.current;
+                    if (container) {
+                      container.scrollTo({
+                        top: container.scrollHeight,
+                        behavior: "smooth",
+                      });
+                    }
+                    setHasNewMessage(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-full shadow-lg hover:bg-primary-700 transition-colors"
+                >
+                  Tin nhắn mới
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M6 2v8M2 7l4 4 4-4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
             )}
 

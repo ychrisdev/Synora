@@ -36,7 +36,8 @@ export type ApiMessage = {
   createdAt: string;
   deletedAt: string | null;
   senderId: string;
-  pinnedAt: string | null;
+  pinnedAt: string | null
+  pinnedById: string | null;
   pinnedBy: {
     username: string;
     profile: { displayName: string | null } | null;
@@ -89,6 +90,7 @@ export type Message = {
   deletedAt: string | null;
   pinnedAt: string | null;
   pinnedByName: string | null;
+  pinnedById: string | null;
 };
 
 export type PendingMessage = {
