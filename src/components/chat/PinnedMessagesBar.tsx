@@ -1,13 +1,82 @@
 "use client";
 
-import { useState } from "react";
-import { Pin, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef } from "react";
+import {
+  Pin,
+  MoreVertical,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  PinOff,
+} from "lucide-react";
+import { clsx } from "clsx";
+import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import type { PinnedMessage } from "@/lib/chat/types";
 
 interface PinnedMessagesBarProps {
   pinned: PinnedMessage[];
   onJump: (id: string) => void;
   onUnpin: (id: string) => void;
+}
+
+function PinnedItemMenu({
+  onUnpin,
+  onJump,
+}: {
+  onUnpin: () => void;
+  onJump: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useOutsideClickRefs([btnRef, menuRef], () => setOpen(false));
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={btnRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        title="Tùy chọn"
+        className="p-1 hover:bg-primary/10 rounded-lg text-primary/70 transition-colors cursor-pointer"
+      >
+        <MoreVertical size={15} />
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden z-30"
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onJump();
+              setOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-text-primary hover:bg-surface-50 transition-colors"
+          >
+            <ArrowRight size={14} className="text-text-muted shrink-0" />
+            Chuyển đến
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUnpin();
+              setOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-text-primary hover:bg-surface-50 transition-colors"
+          >
+            <PinOff size={14} className="text-text-muted shrink-0" />
+            Bỏ ghim
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PinnedMessagesBar({
@@ -49,20 +118,17 @@ export function PinnedMessagesBar({
               {getPreview(m)}
             </p>
           </button>
-          <button
-            onClick={() => onUnpin(m.id)}
-            title="Bỏ ghim"
-            className="p-1 hover:bg-primary/10 rounded-lg text-primary/70 transition-colors shrink-0 cursor-pointer"
-          >
-            <X size={13} />
-          </button>
+          <PinnedItemMenu
+            onJump={() => onJump(m.id)}
+            onUnpin={() => onUnpin(m.id)}
+          />
         </div>
       ))}
 
       {pinned.length > 1 && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-center gap-1 py-1 text-[11px] text-primary font-medium hover:bg-primary/[0.06] transition-colors"
+          className="w-full flex items-center justify-center gap-1 py-1 text-[11px] text-primary font-medium hover:bg-primary/[0.06] transition-colors cursor-pointer"
         >
           {expanded ? (
             <>
