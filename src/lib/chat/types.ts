@@ -36,6 +36,11 @@ export type ApiMessage = {
   createdAt: string;
   deletedAt: string | null;
   senderId: string;
+  pinnedAt: string | null;
+  pinnedBy: {
+    username: string;
+    profile: { displayName: string | null } | null;
+  } | null;
   forwardedFromSender: string | null;
   sender: {
     id: string;
@@ -82,6 +87,8 @@ export type Message = {
   forwardedFromSender: string | null;
   reactions: ReactionGroup[];
   deletedAt: string | null;
+  pinnedAt: string | null;
+  pinnedByName: string | null;
 };
 
 export type PendingMessage = {
@@ -91,6 +98,21 @@ export type PendingMessage = {
   color: string;
   content: string;
   time: string;
+};
+
+export type PinnedMessage = {
+  id: string;
+  content: string | null;
+  fileType: string | null;
+  fileUrl: string | null;
+  deletedAt: string | null;
+  pinnedAt: string;
+  senderId: string;
+  sender: { username: string; profile: { displayName: string | null } | null };
+  pinnedBy: {
+    username: string;
+    profile: { displayName: string | null } | null;
+  };
 };
 
 export type BlockedUser = {

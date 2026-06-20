@@ -212,19 +212,23 @@ function FloatingPanel({
 interface MessageActionsProps {
   isMe: boolean;
   canRecall: boolean;
+  isPinned: boolean;
   onEmoji: (e: string) => void;
   onReply: () => void;
   onRecall: () => void;
   onForward: () => void;
+  onTogglePin: () => void;
 }
 
 function MessageActions({
   isMe,
   canRecall,
+  isPinned,
   onEmoji,
   onReply,
   onRecall,
   onForward,
+  onTogglePin,
 }: MessageActionsProps) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -301,13 +305,19 @@ function MessageActions({
       >
         <div className="w-48 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden">
           <button
-            onClick={() => setMenuOpen(false)}
+            onClick={() => {
+              onTogglePin();
+              setMenuOpen(false);
+            }}
             className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-text-primary hover:bg-surface-50 transition-colors"
           >
             <span className="text-text-muted shrink-0">
-              <Pin size={14} />
+              <Pin
+                size={14}
+                className={isPinned ? "fill-current text-primary" : ""}
+              />
             </span>
-            Ghim tin nhắn
+            {isPinned ? "Bỏ ghim" : "Ghim tin nhắn"}
           </button>
           <button
             onClick={() => {
@@ -457,6 +467,7 @@ interface MessageBubbleProps {
   onReactionsUpdated: (messageId: string, reactions: ReactionGroup[]) => void;
   onRecall: (messageId: string) => void;
   onForward: (m: Message) => void;
+  onTogglePin: (m: Message) => void;
 }
 
 export function MessageBubble({
@@ -469,6 +480,7 @@ export function MessageBubble({
   onReactionsUpdated,
   onRecall,
   onForward,
+  onTogglePin,
 }: MessageBubbleProps) {
   const [reacting, setReacting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -711,6 +723,18 @@ export function MessageBubble({
             </button>
           )}
 
+          {msg.pinnedAt && msg.pinnedByName && (
+            <p
+              className={clsx(
+                "flex items-center gap-1 text-[10px] text-primary/70 px-1 font-medium",
+                msg.isMe ? "justify-end" : "justify-start",
+              )}
+            >
+              <Pin size={9} className="fill-current" />
+              {msg.pinnedByName} đã ghim tin nhắn
+            </p>
+          )}
+
           <div
             className={clsx(
               "flex items-end gap-1",
@@ -759,10 +783,12 @@ export function MessageBubble({
             <MessageActions
               isMe={msg.isMe}
               canRecall={canRecallMessage(msg)}
+              isPinned={!!msg.pinnedAt}
               onEmoji={handleEmoji}
               onReply={() => onReply(msg)}
               onRecall={handleRecallClick}
               onForward={() => onForward(msg)}
+              onTogglePin={() => onTogglePin(msg)}
             />
           </div>
 

@@ -14,6 +14,7 @@ import {
   ImageIcon,
   Smile,
   X,
+  Pin,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -34,6 +35,13 @@ import { NewConversationModal } from "@/components/chat/NewConversationModal";
 import { ConversationList } from "@/components/chat/sidebar/ConversationList";
 import { ForwardMessageModal } from "@/components/chat/ForwardMessageModal";
 import { forwardMessage } from "@/lib/chat/utils";
+import { PinnedMessagesBar } from "@/components/chat/PinnedMessagesBar";
+import {
+  pinMessage,
+  unpinMessage,
+  fetchPinnedMessages,
+} from "@/lib/chat/utils";
+import type { PinnedMessage } from "@/lib/chat/types";
 import { InfoSidebar } from "@/components/chat/sidebar/InfoSidebar";
 import Avatar from "@/components/ui/Avatar";
 
@@ -75,7 +83,108 @@ export default function ChatPage() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [pendingJumpId, setPendingJumpId] = useState<string | null>(null);
 
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
+  const pinnedRef = useRef<PinnedMessage[]>([]);
+  const [pinToast, setPinToast] = useState<string | null>(null);
+  const pinToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPinToast = useCallback((text: string) => {
+    setPinToast(text);
+    if (pinToastTimeoutRef.current) clearTimeout(pinToastTimeoutRef.current);
+    pinToastTimeoutRef.current = setTimeout(() => setPinToast(null), 3000);
+  }, []);
   const [forwardingMsg, setForwardingMsg] = useState<Message | null>(null);
+
+  const loadPinned = useCallback(async (convId: string) => {
+    try {
+      const data = await fetchPinnedMessages(convId);
+      pinnedRef.current = data;
+      setPinnedMessages(data);
+    } catch {
+      pinnedRef.current = [];
+      setPinnedMessages([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeId) return;
+    loadPinned(activeId);
+  }, [activeId, loadPinned]);
+
+  const handleTogglePin = async (m: Message) => {
+    if (!activeId) return;
+    try {
+      if (m.pinnedAt) {
+        await unpinMessage(activeId, m.id);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === m.id
+              ? { ...msg, pinnedAt: null, pinnedByName: null }
+              : msg,
+          ),
+        );
+        setConvList((prev) =>
+          prev.map((c) =>
+            c.id === activeId
+              ? { ...c, lastMessage: "Bạn đã bỏ ghim tin nhắn" }
+              : c,
+          ),
+        );
+        showPinToast("Bạn đã bỏ ghim tin nhắn");
+      } else {
+        const result = await pinMessage(activeId, m.id);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === m.id
+              ? {
+                  ...msg,
+                  pinnedAt: result.pinnedAt,
+                  pinnedByName:
+                    result.pinnedBy.profile?.displayName ??
+                    result.pinnedBy.username,
+                }
+              : msg,
+          ),
+        );
+        setConvList((prev) =>
+          prev.map((c) =>
+            c.id === activeId
+              ? { ...c, lastMessage: "Bạn đã ghim tin nhắn" }
+              : c,
+          ),
+        );
+        showPinToast("Bạn đã ghim tin nhắn");
+      }
+      loadPinned(activeId);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Có lỗi xảy ra");
+    }
+  };
+
+  const handleUnpinFromBar = async (messageId: string) => {
+    if (!activeId) return;
+    try {
+      await unpinMessage(activeId, messageId);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, pinnedAt: null, pinnedByName: null }
+            : msg,
+        ),
+      );
+      setConvList((prev) =>
+        prev.map((c) =>
+          c.id === activeId
+            ? { ...c, lastMessage: "Bạn đã bỏ ghim tin nhắn" }
+            : c,
+        ),
+      );
+      showPinToast("Bạn đã bỏ ghim tin nhắn");
+      loadPinned(activeId);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Có lỗi xảy ra");
+    }
+  };
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -178,6 +287,7 @@ export default function ChatPage() {
               return (
                 m.id === a.id &&
                 m.deletedAt === a.deletedAt &&
+                m.pinnedAt === a.pinnedAt &&
                 m.reactions.length === a.reactions.length &&
                 m.reactions.every(
                   (r, j) =>
@@ -191,6 +301,26 @@ export default function ChatPage() {
           return adapted;
         });
       }
+
+      try {
+        const pinnedData = await fetchPinnedMessages(convId);
+        const prevPinned = pinnedRef.current;
+        if (pinnedData.length > prevPinned.length) {
+          const newPin = pinnedData.find(
+            (p) => !prevPinned.some((pp) => pp.id === p.id),
+          );
+          if (newPin) {
+            const pinnerName =
+              newPin.pinnedBy?.profile?.displayName ??
+              newPin.pinnedBy?.username;
+            showPinToast(`${pinnerName} đã ghim tin nhắn`);
+          }
+        } else if (pinnedData.length < prevPinned.length) {
+          showPinToast("Đã bỏ ghim tin nhắn");
+        }
+        pinnedRef.current = pinnedData;
+        setPinnedMessages(pinnedData);
+      } catch {}
 
       const convRes = await fetch("/api/conversations");
       if (convRes.ok) {
@@ -414,7 +544,13 @@ export default function ChatPage() {
     setNewConvOpen(false);
   };
 
-  const filtered = convList.filter((c) => {
+  const sortedConvList = [...convList].sort((a, b) => {
+    const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return bt - at;
+  });
+
+  const filtered = sortedConvList.filter((c) => {
     if (!c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (activeFilter === "unread") return c.unreadCount > 0;
     if (activeFilter === "group") return c.isGroup;
@@ -466,7 +602,7 @@ export default function ChatPage() {
         loading={convLoading}
       />
 
-      <div className="flex-1 flex flex-col bg-white min-w-0">
+      <div className="flex-1 flex flex-col bg-white min-w-0 relative">
         {!currentConv ? (
           <div className="flex-1 flex items-center justify-center text-text-muted text-sm">
             {convLoading ? "Đang tải..." : "Chọn một cuộc trò chuyện"}
@@ -515,6 +651,12 @@ export default function ChatPage() {
               </div>
             </div>
 
+            <PinnedMessagesBar
+              pinned={pinnedMessages}
+              onJump={handleJumpToReply}
+              onUnpin={handleUnpinFromBar}
+            />
+
             <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 bg-surface-50">
               {nextCursor && (
                 <button
@@ -549,6 +691,7 @@ export default function ChatPage() {
                     highlighted={highlightedId === msg.id}
                     onReactionsUpdated={handleReactionsUpdated}
                     onRecall={handleRecall}
+                    onTogglePin={handleTogglePin}
                     onForward={(m) => setForwardingMsg(m)}
                   />
                 ))
@@ -573,6 +716,13 @@ export default function ChatPage() {
                 >
                   <X size={14} />
                 </button>
+              </div>
+            )}
+
+            {pinToast && (
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full bg-text-primary text-white text-xs font-medium shadow-lg flex items-center gap-1.5 pointer-events-none">
+                <Pin size={12} className="fill-current" />
+                {pinToast}
               </div>
             )}
 

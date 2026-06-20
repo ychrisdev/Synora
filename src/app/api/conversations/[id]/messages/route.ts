@@ -37,6 +37,10 @@ export async function GET(req: NextRequest, { params }: Params) {
       createdAt: true,
       deletedAt: true,
       senderId: true,
+      pinnedAt: true,
+      pinnedBy: {
+        select: { username: true, profile: { select: { displayName: true } } },
+      },
       forwardedFromSender: true,
       sender: {
         select: {
@@ -51,6 +55,13 @@ export async function GET(req: NextRequest, { params }: Params) {
           id: true,
           content: true,
           senderId: true,
+          pinnedAt: true,
+          pinnedBy: {
+            select: {
+              username: true,
+              profile: { select: { displayName: true } },
+            },
+          },
           forwardedFromSender: true,
           sender: {
             select: {
@@ -140,6 +151,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         createdAt: true,
         deletedAt: true,
         senderId: true,
+        pinnedAt: true,
+        forwardedFromSender: true,
         sender: {
           select: {
             id: true,

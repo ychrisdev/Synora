@@ -75,7 +75,9 @@ export async function GET(_req: NextRequest) {
       const lastMsg = conv.messages[0];
 
       let lastMessage = "";
+      let lastEventAt: Date | null = null;
       if (lastMsg) {
+        lastEventAt = new Date(lastMsg.createdAt);
         if (lastMsg.deletedAt) {
           lastMessage = "Tin nhắn đã bị thu hồi";
         } else if (lastMsg.content) {
@@ -115,7 +117,32 @@ export async function GET(_req: NextRequest) {
             latestReaction.user.profile?.displayName ??
             latestReaction.user.username;
           lastMessage = `${reactorName} đã thả ${latestReaction.emoji}`;
+          lastEventAt = latestReaction.createdAt;
         }
+      }
+
+      const latestPin = await prisma.message.findFirst({
+        where: { conversationId: conv.id, pinnedAt: { not: null } },
+        orderBy: { pinnedAt: "desc" },
+        select: {
+          pinnedAt: true,
+          pinnedBy: {
+            select: {
+              username: true,
+              profile: { select: { displayName: true } },
+            },
+          },
+        },
+      });
+
+      if (
+        latestPin?.pinnedAt &&
+        (!lastEventAt || latestPin.pinnedAt > lastEventAt)
+      ) {
+        const pinnerName =
+          latestPin.pinnedBy?.profile?.displayName ??
+          latestPin.pinnedBy?.username;
+        lastMessage = `${pinnerName} đã ghim tin nhắn`;
       }
       return {
         id: conv.id,

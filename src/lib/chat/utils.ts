@@ -1,4 +1,10 @@
-import type { ApiMessage, ApiReaction, Message, ReactionGroup } from "./types";
+import type {
+  ApiMessage,
+  ApiReaction,
+  Message,
+  ReactionGroup,
+  PinnedMessage,
+} from "./types";
 
 export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -89,6 +95,9 @@ export function adaptApiMessage(
   currentUserId: string,
 ): Message {
   const isMe = msg.senderId === currentUserId;
+  const pinnedByName = msg.pinnedBy
+    ? (msg.pinnedBy.profile?.displayName ?? msg.pinnedBy.username)
+    : null;
   const displayName = msg.sender.profile?.displayName ?? msg.sender.username;
   const initials = getInitialsFromName(displayName);
   const color = getColorForUser(msg.senderId);
@@ -118,6 +127,7 @@ export function adaptApiMessage(
       isMe,
       attachment: null,
       replyTo,
+      pinnedAt: msg.pinnedAt,
       forwardedFromSender: msg.forwardedFromSender,
       reactions: [],
       deletedAt: msg.deletedAt,
@@ -145,10 +155,53 @@ export function adaptApiMessage(
     isMe,
     attachment,
     replyTo,
+    pinnedAt: msg.pinnedAt,
+    pinnedByName,
     forwardedFromSender: msg.forwardedFromSender,
     reactions: groupReactions(msg.reactions, currentUserId),
     deletedAt: null,
   };
+}
+
+export async function pinMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<{
+  id: string;
+  pinnedAt: string;
+  pinnedBy: { username: string; profile: { displayName: string | null } | null };
+}> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/messages/${messageId}/pin`,
+    { method: "POST" },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Không thể ghim tin nhắn");
+  return data;
+}
+
+export async function unpinMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/messages/${messageId}/pin`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Không thể bỏ ghim tin nhắn");
+  }
+}
+
+export async function fetchPinnedMessages(
+  conversationId: string,
+): Promise<PinnedMessage[]> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/pinned-messages`,
+  );
+  if (!res.ok) throw new Error("Không thể tải tin nhắn ghim");
+  return res.json();
 }
 
 export async function forwardMessage(

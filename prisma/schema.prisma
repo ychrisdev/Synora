@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -105,6 +106,8 @@ model User {
 
   sentRequests     FriendRequest[] @relation("sentRequests")
   receivedRequests FriendRequest[] @relation("receivedRequests")
+
+  pinnedMessages Message[] @relation("pinnedMessages")
 
   followers     Follow[]  @relation("following")
   following     Follow[]  @relation("follower")
@@ -392,6 +395,10 @@ model Message {
   reactions      MessageReaction[]
 
   forwardedFromSender String?
+
+  pinnedAt       DateTime?
+  pinnedById     String?
+  pinnedBy       User?         @relation("pinnedMessages", fields: [pinnedById], references: [id], onDelete: SetNull)
 
   deletedAt      DateTime?
 
