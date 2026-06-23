@@ -48,6 +48,12 @@ enum MessageStatus {
   READ
 }
 
+enum AttachmentType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
 enum PostVisibility {
   PUBLIC
   FRIENDS_ONLY
@@ -385,9 +391,9 @@ model Message {
   sender         User          @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
 
   content        String?
-  fileUrl        String?
-  fileType       String?
   status         MessageStatus @default(SENT)
+
+  attachments    MessageAttachment[]
 
   replyToId      String?
   replyTo        Message?      @relation("replies", fields: [replyToId], references: [id], onDelete: SetNull)
@@ -405,6 +411,23 @@ model Message {
   createdAt      DateTime      @default(now())
 
   @@map("messages")
+}
+
+model MessageAttachment {
+  id        String         @id @default(cuid())
+  messageId String
+  message   Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  url       String
+  key       String
+  name      String
+  size      Int
+  type      AttachmentType
+  mimeType  String?
+
+  createdAt DateTime       @default(now())
+
+  @@map("message_attachments")
 }
 
 model MessageReaction {
