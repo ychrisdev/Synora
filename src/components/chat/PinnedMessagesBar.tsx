@@ -12,12 +12,20 @@ import {
 import { clsx } from "clsx";
 import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import type { PinnedMessage } from "@/lib/chat/types";
+import { buildAttachmentLabel } from "@/lib/chat/utils";
 
 interface PinnedMessagesBarProps {
   pinned: PinnedMessage[];
   onJump: (id: string) => void;
   onUnpin: (id: string) => void;
 }
+
+const getPreview = (m: PinnedMessage) => {
+  if (m.deletedAt) return "Tin nhắn đã bị thu hồi";
+  if (m.content) return m.content;
+  if (m.attachments.length > 0) return buildAttachmentLabel(m.attachments);
+  return "";
+};
 
 function PinnedItemMenu({
   onUnpin,
@@ -92,7 +100,7 @@ export function PinnedMessagesBar({
   const getPreview = (m: PinnedMessage) => {
     if (m.deletedAt) return "Tin nhắn đã bị thu hồi";
     if (m.content) return m.content;
-    if (m.fileType) return "Đã gửi một tệp";
+    if (m.attachments.length > 0) return "Đã gửi một tệp";
     return "";
   };
 

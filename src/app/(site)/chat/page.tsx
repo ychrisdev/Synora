@@ -28,6 +28,8 @@ import type {
   Conversation,
   Message,
   FilterChip,
+  Attachment,
+  AttachmentType,
   ApiMessage,
   ReactionGroup,
   PinnedMessage,
@@ -40,9 +42,10 @@ import {
   pinMessage,
   unpinMessage,
   fetchPinnedMessages,
+  buildAttachmentLabel,
 } from "@/lib/chat/utils";
 import { groupMembers } from "@/lib/chat/data";
-
+import { useUploadThing } from "@/lib/uploadthing";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { Badge } from "@/components/chat/Badge";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
@@ -113,6 +116,20 @@ export default function ChatPage() {
       createdAt: string;
     }[]
   >([]);
+  const { startUpload: startChatMediaUpload } = useUploadThing("chatMedia");
+  const { startUpload: startChatDocUpload } = useUploadThing("chatDocument");
+
+  const [pendingFiles, setPendingFiles] = useState<
+    {
+      id: string;
+      file: File;
+      previewUrl?: string;
+      kind: AttachmentType;
+    }[]
+  >([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const loadPinned = useCallback(async (convId: string) => {
     try {
@@ -147,7 +164,7 @@ export default function ChatPage() {
           ? m.content.length > 30
             ? m.content.slice(0, 30) + "..."
             : m.content
-          : (m.attachment?.name ?? "");
+          : buildAttachmentLabel(m.attachments);
         setPinNotices((prev) => [
           ...prev,
           {
@@ -190,7 +207,7 @@ export default function ChatPage() {
           ? m.content.length > 30
             ? m.content.slice(0, 30) + "..."
             : m.content
-          : (m.attachment?.name ?? "");
+          : (m.attachments[0]?.name ?? "Đã gửi một tệp");
         setPinNotices((prev) => [
           ...prev,
           {
@@ -231,7 +248,7 @@ export default function ChatPage() {
         ? msg.content.length > 30
           ? msg.content.slice(0, 30) + "..."
           : msg.content
-        : (msg?.attachment?.name ?? "");
+        : (msg?.attachments[0]?.name ?? "");
       setPinNotices((prev) => [
         ...prev,
         {
@@ -529,7 +546,7 @@ export default function ChatPage() {
           ? {
               ...m,
               content: null,
-              attachment: null,
+              attachments: [],
               deletedAt: new Date().toISOString(),
             }
           : m,
@@ -537,11 +554,109 @@ export default function ChatPage() {
     });
   };
 
+  function detectKind(file: File): AttachmentType {
+    if (file.type.startsWith("image/")) return "IMAGE";
+    if (file.type.startsWith("video/")) return "VIDEO";
+    return "DOCUMENT";
+  }
+
+  const handlePickMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    setPendingFiles((prev) => [
+      ...prev,
+      ...files.map((f) => ({
+        id: `${Date.now()}-${Math.random()}`,
+        file: f,
+        kind: detectKind(f),
+        previewUrl: URL.createObjectURL(f),
+      })),
+    ]);
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
+  };
+
+  const handlePickDoc = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    setPendingFiles((prev) => [
+      ...prev,
+      ...files.map((f) => ({
+        id: `${Date.now()}-${Math.random()}`,
+        file: f,
+        kind: "DOCUMENT" as const,
+      })),
+    ]);
+    if (docInputRef.current) docInputRef.current.value = "";
+  };
+
+  const removePendingFile = (id: string) => {
+    setPendingFiles((prev) => {
+      const target = prev.find((f) => f.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
   const handleSend = async () => {
-    if (!input.trim() || !activeId || sending) return;
+    if ((!input.trim() && pendingFiles.length === 0) || !activeId || sending)
+      return;
+    let uploadedAttachments: {
+      url: string;
+      key: string;
+      name: string;
+      size: number;
+      type: AttachmentType;
+      mimeType: string;
+    }[] = [];
     const text = input.trim();
+    const filesToUpload = pendingFiles;
     setInput("");
+    setPendingFiles([]);
     setSending(true);
+    setUploadingFiles(filesToUpload.length > 0);
+    const attachmentLabel = buildAttachmentLabel(uploadedAttachments);
+
+    try {
+      const mediaToUpload = filesToUpload.filter((f) => f.kind !== "DOCUMENT");
+      const docsToUpload = filesToUpload.filter((f) => f.kind === "DOCUMENT");
+
+      if (mediaToUpload.length > 0) {
+        const results = await startChatMediaUpload(
+          mediaToUpload.map((f) => f.file),
+        );
+        uploadedAttachments.push(
+          ...(results ?? []).map((r, i) => ({
+            url: r.ufsUrl ?? r.url,
+            key: r.key,
+            name: mediaToUpload[i].file.name,
+            size: mediaToUpload[i].file.size,
+            type: mediaToUpload[i].kind,
+            mimeType: mediaToUpload[i].file.type,
+          })),
+        );
+      }
+      if (docsToUpload.length > 0) {
+        const results = await startChatDocUpload(
+          docsToUpload.map((f) => f.file),
+        );
+        uploadedAttachments.push(
+          ...(results ?? []).map((r, i) => ({
+            url: r.ufsUrl ?? r.url,
+            key: r.key,
+            name: docsToUpload[i].file.name,
+            size: docsToUpload[i].file.size,
+            type: "DOCUMENT" as const,
+            mimeType: docsToUpload[i].file.type,
+          })),
+        );
+      }
+    } catch {
+      showToast("Tải file lên thất bại", "error");
+      setSending(false);
+      setUploadingFiles(false);
+      setInput(text);
+      setPendingFiles(filesToUpload);
+      return;
+    }
+    setUploadingFiles(false);
 
     const now = new Date().toISOString();
     const tempId = `temp-${Date.now()}`;
@@ -556,9 +671,16 @@ export default function ChatPage() {
         minute: "2-digit",
       }),
       createdAt: now,
-      content: text,
+      content: text || null,
       isMe: true,
-      attachment: null,
+      attachments: uploadedAttachments.map((a, i) => ({
+        id: `temp-att-${i}`,
+        url: a.url,
+        name: a.name,
+        size: `${(a.size / 1024).toFixed(1)} KB`,
+        type: a.type,
+        mimeType: a.mimeType,
+      })),
       reactions: [],
       deletedAt: null,
       pinnedAt: null,
@@ -579,10 +701,11 @@ export default function ChatPage() {
 
     setConvList((prev) =>
       prev.map((c) =>
-        c.id === activeId ? { ...c, lastMessage: text, lastMessageAt: now } : c,
+        c.id === activeId
+          ? { ...c, lastMessage: text || attachmentLabel, lastMessageAt: now }
+          : c,
       ),
     );
-
     setReplyingTo(null);
 
     try {
@@ -590,8 +713,9 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: text,
+          content: text || undefined,
           replyToId: replyingTo?.id,
+          attachments: uploadedAttachments,
         }),
       });
       if (res.ok) {
@@ -604,24 +728,16 @@ export default function ChatPage() {
         setConvList((prev) =>
           prev.map((c) =>
             c.id === activeId
-              ? { ...c, lastMessage: text, lastMessageAt: real.createdAt }
+              ? {
+                  ...c,
+                  lastMessage: text || attachmentLabel,
+                  lastMessageAt: real.createdAt,
+                }
               : c,
           ),
         );
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
-        setConvList((prev) =>
-          prev.map((c) =>
-            c.id === activeId
-              ? {
-                  ...c,
-                  lastMessage: messages[messages.length - 1]?.content ?? "",
-                  lastMessageAt:
-                    messages[messages.length - 1]?.createdAt ?? null,
-                }
-              : c,
-          ),
-        );
         setInput(text);
       }
     } catch {
@@ -855,7 +971,7 @@ export default function ChatPage() {
                         ? msg.content.length > 30
                           ? msg.content.slice(0, 30) + "..."
                           : msg.content
-                        : (msg.attachment?.name ?? "");
+                        : (msg.attachments[0]?.name ?? "Đã gửi một tệp");
                       items.push({
                         kind: "notice",
                         ts: new Date(msg.pinnedAt).getTime(),
@@ -945,7 +1061,7 @@ export default function ChatPage() {
                     Trả lời {replyingTo.isMe ? "chính mình" : replyingTo.sender}
                   </p>
                   <p className="text-[11px] text-text-muted truncate">
-                    {replyingTo.content ?? replyingTo.attachment?.name}
+                    {replyingTo.content || "Đã gửi một tệp"}
                   </p>
                 </div>
                 <button
@@ -986,12 +1102,78 @@ export default function ChatPage() {
               </div>
             )}
 
+            <input
+              ref={mediaInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={handlePickMedia}
+            />
+            <input
+              ref={docInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+              className="hidden"
+              onChange={handlePickDoc}
+            />
+
+            {pendingFiles.length > 0 && (
+              <div className="px-4 pt-2 flex flex-wrap gap-2 border-t border-surface-100">
+                {pendingFiles.map((f) => (
+                  <div key={f.id} className="relative">
+                    {f.kind === "DOCUMENT" ? (
+                      <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-xs">
+                        <span className="truncate max-w-[120px]">
+                          {f.file.name}
+                        </span>
+                        <button onClick={() => removePendingFile(f.id)}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-surface-200">
+                        {f.kind === "VIDEO" ? (
+                          <video
+                            src={f.previewUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                          />
+                        ) : (
+                          <img
+                            src={f.previewUrl}
+                            className="w-full h-full object-cover"
+                            alt={f.file.name}
+                          />
+                        )}
+                        <button
+                          onClick={() => removePendingFile(f.id)}
+                          className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="px-4 py-3 border-t border-surface-200 bg-white shrink-0">
               <div className="flex items-center gap-2">
-                <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
+                <button
+                  onClick={() => docInputRef.current?.click()}
+                  disabled={uploadingFiles}
+                  className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Paperclip size={17} />
                 </button>
-                <button className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors">
+                <button
+                  onClick={() => mediaInputRef.current?.click()}
+                  disabled={uploadingFiles}
+                  className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <ImageIcon size={17} />
                 </button>
                 <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
@@ -1013,12 +1195,19 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim() || sending}
+                  disabled={
+                    (!input.trim() && pendingFiles.length === 0) || sending
+                  }
                   className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send size={16} />
                 </button>
               </div>
+              {uploadingFiles && (
+                <p className="text-xs text-text-muted mt-1.5 px-1">
+                  Đang tải file lên...
+                </p>
+              )}
             </div>
           </>
         )}

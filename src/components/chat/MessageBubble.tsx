@@ -18,18 +18,27 @@ import {
   Flag,
   Download,
   X,
+  Play,
 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useOutsideClickRefs } from "@/lib/chat/hooks";
-import type { Message, ReactionGroup, ApiReaction } from "@/lib/chat/types";
+import type {
+  Message,
+  Attachment,
+  ReactionGroup,
+  ApiReaction,
+} from "@/lib/chat/types";
 import {
   toggleMessageReaction,
   groupReactions,
   recallMessage,
   canRecallMessage,
+  getFileExt,
+  getFileColor,
+  downloadFile,
 } from "@/lib/chat/utils";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
@@ -219,6 +228,169 @@ interface MessageActionsProps {
   onRecall: () => void;
   onForward: () => void;
   onTogglePin: () => void;
+}
+
+function isPreviewable(type: Attachment["type"]) {
+  return type === "IMAGE" || type === "VIDEO";
+}
+
+function AttachmentGrid({
+  attachments,
+  onOpenLightbox,
+}: {
+  attachments: Attachment[];
+  onOpenLightbox: (index: number) => void;
+}) {
+  const media = attachments.filter((a) => isPreviewable(a.type));
+  const docs = attachments.filter((a) => a.type === "DOCUMENT");
+
+  return (
+    <div className="flex flex-col gap-2">
+      {media.length > 0 && (
+        <div
+          className={clsx(
+            "grid gap-1",
+            media.length === 1 ? "grid-cols-1" : "grid-cols-2",
+          )}
+        >
+          {media.map((m, i) => (
+            <button
+              key={m.id}
+              onClick={() => onOpenLightbox(i)}
+              className="relative rounded-xl overflow-hidden border border-surface-200 bg-surface-100"
+              style={{ width: 180, height: media.length === 1 ? 180 : 100 }}
+            >
+              {m.type === "VIDEO" ? (
+                <>
+                  <video
+                    src={m.url}
+                    className="w-full h-full object-cover"
+                    muted
+                    preload="metadata"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                    <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+                      <Play size={14} className="text-white ml-0.5" />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <img
+                  src={m.url}
+                  alt={m.name}
+                  className="w-full h-full object-cover"
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {docs.map((d) => {
+        const ext = getFileExt(d.name);
+        return (
+          <button
+            key={d.id}
+            onClick={() => downloadFile(d.url, d.name)}
+            className="flex items-center gap-3 p-3 bg-white border border-surface-200 rounded-2xl shadow-sm min-w-[200px] hover:bg-surface-50 transition-colors text-left"
+          >
+            <div
+              className={clsx(
+                "w-10 h-10 rounded-xl flex items-center justify-center text-white text-[9px] font-bold shrink-0",
+                getFileColor(ext),
+              )}
+            >
+              {ext}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-text-primary truncate">
+                {d.name}
+              </p>
+              <p className="text-xs text-text-muted">{d.size}</p>
+            </div>
+            <Download size={14} className="text-text-secondary shrink-0" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MediaLightbox({
+  media,
+  initialIndex,
+  onClose,
+}: {
+  media: Attachment[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [index, setIndex] = useState(initialIndex);
+  const current = media[index];
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            downloadFile(current.url, current.name);
+          }}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+          title="Tải xuống"
+        >
+          <Download size={16} />
+        </button>
+        <button
+          onClick={onClose}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+        >
+          <X size={18} />
+        </button>
+      </div>
+      {media.length > 1 && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIndex((i) => (i > 0 ? i - 1 : media.length - 1));
+            }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
+          >
+            ‹
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIndex((i) => (i < media.length - 1 ? i + 1 : 0));
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
+          >
+            ›
+          </button>
+        </>
+      )}
+      <div onClick={(e) => e.stopPropagation()}>
+        {current.type === "VIDEO" ? (
+          <video
+            src={current.url}
+            controls
+            autoPlay
+            className="max-w-[90vw] max-h-[85vh] rounded-lg"
+          />
+        ) : (
+          <img
+            src={current.url}
+            alt={current.name}
+            className="max-w-[90vw] max-h-[85vh] rounded-lg"
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 function MessageActions({
@@ -502,6 +674,10 @@ export function MessageBubble({
   const [modalOpen, setModalOpen] = useState(false);
   const [recalling, setRecalling] = useState(false);
   const [recallDialogOpen, setRecallDialogOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const mediaAttachments = msg.attachments.filter(
+    (a) => a.type === "IMAGE" || a.type === "VIDEO",
+  );
   const { showToast } = useToast();
 
   const handleEmoji = async (emoji: string) => {
@@ -768,23 +944,11 @@ export function MessageBubble({
                 </div>
               )}
 
-              {msg.attachment && (
-                <div className="flex items-center gap-3 p-3 bg-white border border-surface-200 rounded-2xl shadow-sm min-w-[200px]">
-                  <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-                    {msg.attachment.type}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">
-                      {msg.attachment.name}
-                    </p>
-                    <p className="text-xs text-text-muted">
-                      {msg.attachment.size}
-                    </p>
-                  </div>
-                  <button className="p-1.5 hover:bg-surface-100 rounded-lg text-text-secondary transition-colors">
-                    <Download size={14} />
-                  </button>
-                </div>
+              {msg.attachments.length > 0 && (
+                <AttachmentGrid
+                  attachments={msg.attachments}
+                  onOpenLightbox={(i) => setLightboxIndex(i)}
+                />
               )}
             </div>
 
@@ -835,6 +999,13 @@ export function MessageBubble({
           loading={recalling}
           onConfirm={executeRecall}
           onCancel={() => !recalling && setRecallDialogOpen(false)}
+        />
+      )}
+      {lightboxIndex !== null && (
+        <MediaLightbox
+          media={mediaAttachments}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
       )}
     </>
