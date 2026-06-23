@@ -19,34 +19,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!membership)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const pinned = await prisma.message.findMany({
-    where: { conversationId, pinnedAt: { not: null } },
-    orderBy: { pinnedAt: "asc" },
+  const attachments = await prisma.messageAttachment.findMany({
+    where: {
+      message: { conversationId, deletedAt: null },
+    },
+    orderBy: { createdAt: "desc" },
     select: {
       id: true,
-      content: true,
-      deletedAt: true,
-      pinnedAt: true,
-      senderId: true,
-      attachments: {
-        select: {
-          id: true,
-          url: true,
-          key: true,
-          name: true,
-          size: true,
-          type: true,
-          mimeType: true,
-        },
-      },
-      sender: {
-        select: { username: true, profile: { select: { displayName: true } } },
-      },
-      pinnedBy: {
-        select: { username: true, profile: { select: { displayName: true } } },
-      },
+      url: true,
+      name: true,
+      size: true,
+      type: true,
+      mimeType: true,
+      createdAt: true,
+      messageId: true,
     },
   });
 
-  return NextResponse.json(pinned);
+  return NextResponse.json(attachments);
 }

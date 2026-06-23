@@ -1,6 +1,9 @@
 import type {
   ApiMessage,
   ApiReaction,
+  ApiAttachment,
+  Attachment,
+  SharedAttachment,
   Message,
   ReactionGroup,
   PinnedMessage,
@@ -9,8 +12,18 @@ import type {
 export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const VN_MONTHS = [
-  "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
-  "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+  "Tháng 1",
+  "Tháng 2",
+  "Tháng 3",
+  "Tháng 4",
+  "Tháng 5",
+  "Tháng 6",
+  "Tháng 7",
+  "Tháng 8",
+  "Tháng 9",
+  "Tháng 10",
+  "Tháng 11",
+  "Tháng 12",
 ];
 
 export function formatDateDivider(iso: string): string {
@@ -109,6 +122,68 @@ export async function recallMessage(
   return data;
 }
 
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function getFileExt(name: string): string {
+  return name.split(".").pop()?.toUpperCase() ?? "FILE";
+}
+
+export function getFileColor(ext: string): string {
+  switch (ext) {
+    case "PDF":
+      return "bg-red-500";
+    case "DOC":
+    case "DOCX":
+      return "bg-blue-500";
+    case "PPT":
+    case "PPTX":
+      return "bg-orange-500";
+    case "XLS":
+    case "XLSX":
+      return "bg-green-600";
+    case "ZIP":
+    case "RAR":
+      return "bg-purple-500";
+    default:
+      return "bg-gray-400";
+  }
+}
+
+export function buildAttachmentLabel(
+  attachments: { type: "IMAGE" | "VIDEO" | "DOCUMENT" }[],
+): string {
+  if (attachments.length === 0) return "";
+
+  const imageCount = attachments.filter((a) => a.type === "IMAGE").length;
+  const videoCount = attachments.filter((a) => a.type === "VIDEO").length;
+  const docCount = attachments.filter((a) => a.type === "DOCUMENT").length;
+  const typeCount = [imageCount > 0, videoCount > 0, docCount > 0].filter(
+    Boolean,
+  ).length;
+
+  if (typeCount > 1) return `Đã gửi ${attachments.length} tệp`;
+  if (imageCount > 0)
+    return imageCount === 1 ? "Đã gửi một ảnh" : `Đã gửi ${imageCount} ảnh`;
+  if (videoCount > 0)
+    return videoCount === 1 ? "Đã gửi một video" : `Đã gửi ${videoCount} video`;
+  return docCount === 1 ? "Đã gửi một tệp" : `Đã gửi ${docCount} tệp`;
+}
+
+function mapAttachments(list: ApiAttachment[]): Attachment[] {
+  return list.map((a) => ({
+    id: a.id,
+    url: a.url,
+    name: a.name,
+    size: formatBytes(a.size),
+    type: a.type,
+    mimeType: a.mimeType,
+  }));
+}
+
 export function adaptApiMessage(
   msg: ApiMessage,
   currentUserId: string,
@@ -128,7 +203,9 @@ export function adaptApiMessage(
         sender:
           msg.replyTo.sender.profile?.displayName ??
           msg.replyTo.sender.username,
-        content: msg.replyTo.content ?? "Đã gửi một file",
+        content:
+          msg.replyTo.content ??
+          (msg.replyTo.attachments.length > 0 ? "Đã gửi một file" : ""),
         isMe: msg.replyTo.senderId === currentUserId,
       }
     : null;
@@ -144,7 +221,7 @@ export function adaptApiMessage(
       createdAt: msg.createdAt,
       content: null,
       isMe,
-      attachment: null,
+      attachments: [],
       replyTo,
       pinnedAt: msg.pinnedAt,
       pinnedByName: null,
@@ -154,15 +231,6 @@ export function adaptApiMessage(
       deletedAt: msg.deletedAt,
     };
   }
-
-  const attachment =
-    msg.fileUrl && msg.fileType
-      ? {
-          name: msg.fileUrl.split("/").pop() ?? "file",
-          size: "",
-          type: msg.fileType.toUpperCase(),
-        }
-      : null;
 
   return {
     id: msg.id,
@@ -174,7 +242,7 @@ export function adaptApiMessage(
     createdAt: msg.createdAt,
     content: msg.content,
     isMe,
-    attachment,
+    attachments: mapAttachments(msg.attachments),
     replyTo,
     pinnedAt: msg.pinnedAt,
     pinnedByName,
@@ -245,4 +313,22 @@ export async function forwardMessage(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? "Không thể chuyển tiếp tin nhắn");
   return data;
+}
+
+export async function fetchConversationAttachments(
+  conversationId: string,
+): Promise<SharedAttachment[]> {
+  const res = await fetch(`/api/conversations/${conversationId}/attachments`);
+  if (!res.ok) throw new Error("Không thể tải dữ liệu file");
+  return res.json();
+}
+
+export function downloadFile(url: string, filename: string): void {
+  const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(filename)}`;
+  const a = document.createElement("a");
+  a.href = proxyUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }

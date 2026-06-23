@@ -27,22 +27,42 @@ export type ApiReaction = {
   };
 };
 
+export type AttachmentType = "IMAGE" | "VIDEO" | "DOCUMENT";
+
+export type ApiAttachment = {
+  id: string;
+  url: string;
+  key: string;
+  name: string;
+  size: number;
+  type: AttachmentType;
+  mimeType: string | null;
+};
+
+export type Attachment = {
+  id: string;
+  url: string;
+  name: string;
+  size: string;
+  type: AttachmentType;
+  mimeType: string | null;
+};
+
 export type ApiMessage = {
   id: string;
   content: string | null;
-  fileUrl: string | null;
-  fileType: string | null;
   status: "SENT" | "DELIVERED" | "READ";
   createdAt: string;
   deletedAt: string | null;
   senderId: string;
-  pinnedAt: string | null
+  pinnedAt: string | null;
   pinnedById: string | null;
   pinnedBy: {
     username: string;
     profile: { displayName: string | null } | null;
   } | null;
   forwardedFromSender: string | null;
+  attachments: ApiAttachment[];
   sender: {
     id: string;
     username: string;
@@ -53,6 +73,7 @@ export type ApiMessage = {
     id: string;
     content: string | null;
     senderId: string;
+    attachments: ApiAttachment[];
     sender: {
       username: string;
       profile: { displayName: string | null } | null;
@@ -78,7 +99,7 @@ export type Message = {
   createdAt: string;
   content: string | null;
   isMe: boolean;
-  attachment: { name: string; size: string; type: string } | null;
+  attachments: Attachment[];
   replyTo?: {
     id: string;
     sender: string;
@@ -105,8 +126,7 @@ export type PendingMessage = {
 export type PinnedMessage = {
   id: string;
   content: string | null;
-  fileType: string | null;
-  fileUrl: string | null;
+  attachments: ApiAttachment[];
   deletedAt: string | null;
   pinnedAt: string;
   senderId: string;
@@ -136,6 +156,11 @@ export type SharedFile = {
 export type SharedImage = {
   id: number;
   bg: string;
+};
+
+export type SharedAttachment = ApiAttachment & {
+  createdAt: string;
+  messageId: string;
 };
 
 export type Contact = {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { buildAttachmentLabel } from "@/lib/chat/utils";
 
 export async function GET(_req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -39,10 +40,10 @@ export async function GET(_req: NextRequest) {
             select: {
               id: true,
               content: true,
-              fileType: true,
               senderId: true,
               createdAt: true,
               deletedAt: true,
+              attachments: { select: { type: true } },
             },
           },
         },
@@ -82,8 +83,8 @@ export async function GET(_req: NextRequest) {
           lastMessage = "Tin nhắn đã bị thu hồi";
         } else if (lastMsg.content) {
           lastMessage = lastMsg.content;
-        } else if (lastMsg.fileType) {
-          lastMessage = "Đã gửi một tệp";
+        } else if (lastMsg.attachments.length > 0) {
+          lastMessage = buildAttachmentLabel(lastMsg.attachments);
         }
       }
 

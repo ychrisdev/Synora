@@ -5,6 +5,78 @@ import { prisma } from "@/lib/prisma";
 
 type Params = { params: Promise<{ id: string }> };
 
+const messageSelect = {
+  id: true,
+  content: true,
+  status: true,
+  createdAt: true,
+  deletedAt: true,
+  senderId: true,
+  pinnedAt: true,
+  pinnedById: true,
+  pinnedBy: {
+    select: { username: true, profile: { select: { displayName: true } } },
+  },
+  forwardedFromSender: true,
+  attachments: {
+    select: {
+      id: true,
+      url: true,
+      key: true,
+      name: true,
+      size: true,
+      type: true,
+      mimeType: true,
+    },
+  },
+  sender: {
+    select: {
+      id: true,
+      username: true,
+      profile: { select: { displayName: true, avatarUrl: true } },
+    },
+  },
+  replyToId: true,
+  replyTo: {
+    select: {
+      id: true,
+      content: true,
+      senderId: true,
+      attachments: {
+        select: {
+          id: true,
+          url: true,
+          key: true,
+          name: true,
+          size: true,
+          type: true,
+          mimeType: true,
+        },
+      },
+      sender: {
+        select: {
+          profile: { select: { displayName: true } },
+          username: true,
+        },
+      },
+    },
+  },
+  reactions: {
+    select: {
+      id: true,
+      emoji: true,
+      userId: true,
+      user: {
+        select: {
+          username: true,
+          profile: { select: { displayName: true, avatarUrl: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" as const },
+  },
+} as const;
+
 export async function GET(req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id)
@@ -28,66 +100,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    select: {
-      id: true,
-      content: true,
-      fileUrl: true,
-      fileType: true,
-      status: true,
-      createdAt: true,
-      deletedAt: true,
-      senderId: true,
-      pinnedAt: true,
-      pinnedById: true,
-      pinnedBy: {
-        select: { username: true, profile: { select: { displayName: true } } },
-      },
-      forwardedFromSender: true,
-      sender: {
-        select: {
-          id: true,
-          username: true,
-          profile: { select: { displayName: true, avatarUrl: true } },
-        },
-      },
-      replyToId: true,
-      replyTo: {
-        select: {
-          id: true,
-          content: true,
-          senderId: true,
-          pinnedAt: true,
-          pinnedById: true,
-          pinnedBy: {
-            select: {
-              username: true,
-              profile: { select: { displayName: true } },
-            },
-          },
-          forwardedFromSender: true,
-          sender: {
-            select: {
-              profile: { select: { displayName: true } },
-              username: true,
-            },
-          },
-        },
-      },
-      reactions: {
-        select: {
-          id: true,
-          emoji: true,
-          userId: true,
-          user: {
-            select: {
-              username: true,
-              profile: { select: { displayName: true, avatarUrl: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "asc" as const },
-      },
-    },
+    select: messageSelect,
   });
 
   const hasMore = messages.length > limit;
@@ -120,14 +133,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { content, fileUrl, fileType, replyToId } = body as {
+  const { content, replyToId, attachments } = body as {
     content?: string;
-    fileUrl?: string;
-    fileType?: string;
     replyToId?: string;
+    attachments?: {
+      url: string;
+      key: string;
+      name: string;
+      size: number;
+      type: "IMAGE" | "VIDEO" | "DOCUMENT";
+      mimeType?: string;
+    }[];
   };
 
-  if (!content?.trim() && !fileUrl)
+  if (!content?.trim() && (!attachments || attachments.length === 0))
     return NextResponse.json(
       { error: "Tin nhắn không được rỗng" },
       { status: 400 },
@@ -139,58 +158,22 @@ export async function POST(req: NextRequest, { params }: Params) {
         conversationId,
         senderId: userId,
         content: content?.trim() ?? null,
-        fileUrl: fileUrl ?? null,
-        fileType: fileType ?? null,
         replyToId: replyToId ?? null,
         status: "SENT",
+        attachments: attachments?.length
+          ? {
+              create: attachments.map((a) => ({
+                url: a.url,
+                key: a.key,
+                name: a.name,
+                size: a.size,
+                type: a.type,
+                mimeType: a.mimeType ?? null,
+              })),
+            }
+          : undefined,
       },
-      select: {
-        id: true,
-        content: true,
-        fileUrl: true,
-        fileType: true,
-        status: true,
-        createdAt: true,
-        deletedAt: true,
-        senderId: true,
-        pinnedAt: true,
-        forwardedFromSender: true,
-        sender: {
-          select: {
-            id: true,
-            username: true,
-            profile: { select: { displayName: true, avatarUrl: true } },
-          },
-        },
-        replyToId: true,
-        replyTo: {
-          select: {
-            id: true,
-            content: true,
-            senderId: true,
-            sender: {
-              select: {
-                profile: { select: { displayName: true } },
-                username: true,
-              },
-            },
-          },
-        },
-        reactions: {
-          select: {
-            id: true,
-            emoji: true,
-            userId: true,
-            user: {
-              select: {
-                username: true,
-                profile: { select: { displayName: true, avatarUrl: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: "asc" as const },
-        },
-      },
+      select: messageSelect,
     }),
     prisma.conversation.update({
       where: { id: conversationId },

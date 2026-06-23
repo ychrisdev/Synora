@@ -8,13 +8,22 @@ type Params = { params: Promise<{ id: string; messageId: string }> };
 const MESSAGE_SELECT = {
   id: true,
   content: true,
-  fileUrl: true,
-  fileType: true,
   status: true,
   createdAt: true,
   deletedAt: true,
   senderId: true,
   forwardedFromSender: true,
+  attachments: {
+    select: {
+      id: true,
+      url: true,
+      key: true,
+      name: true,
+      size: true,
+      type: true,
+      mimeType: true,
+    },
+  },
   sender: {
     select: {
       id: true,
@@ -28,6 +37,17 @@ const MESSAGE_SELECT = {
       id: true,
       content: true,
       senderId: true,
+      attachments: {
+        select: {
+          id: true,
+          url: true,
+          key: true,
+          name: true,
+          size: true,
+          type: true,
+          mimeType: true,
+        },
+      },
       sender: {
         select: {
           profile: { select: { displayName: true } },
@@ -91,10 +111,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: { id: messageId, conversationId: sourceConversationId },
     select: {
       content: true,
-      fileUrl: true,
-      fileType: true,
       deletedAt: true,
       senderId: true,
+      attachments: {
+        select: {
+          url: true,
+          key: true,
+          name: true,
+          size: true,
+          type: true,
+          mimeType: true,
+        },
+      },
       sender: {
         select: {
           username: true,
@@ -104,13 +132,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
   if (!original)
-    return NextResponse.json({ error: "Tin nhắn không tồn tại" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Tin nhắn không tồn tại" },
+      { status: 404 },
+    );
   if (original.deletedAt)
     return NextResponse.json(
       { error: "Không thể chuyển tiếp tin nhắn đã bị thu hồi" },
       { status: 400 },
     );
-  if (!original.content && !original.fileUrl)
+  if (!original.content && original.attachments.length === 0)
     return NextResponse.json(
       { error: "Không có nội dung để chuyển tiếp" },
       { status: 400 },
@@ -125,10 +156,20 @@ export async function POST(req: NextRequest, { params }: Params) {
         conversationId: targetConversationId,
         senderId: userId,
         content: original.content,
-        fileUrl: original.fileUrl,
-        fileType: original.fileType,
         forwardedFromSender: originalSenderName,
         status: "SENT",
+        attachments: original.attachments.length
+          ? {
+              create: original.attachments.map((a) => ({
+                url: a.url,
+                key: a.key,
+                name: a.name,
+                size: a.size,
+                type: a.type,
+                mimeType: a.mimeType,
+              })),
+            }
+          : undefined,
       },
       select: MESSAGE_SELECT,
     }),
