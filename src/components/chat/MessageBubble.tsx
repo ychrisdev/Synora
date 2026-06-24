@@ -19,6 +19,9 @@ import {
   Download,
   X,
   Play,
+  User,
+  BanIcon,
+  MessageSquare,
 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
@@ -656,6 +659,56 @@ interface MessageBubbleProps {
   onRecall: (messageId: string) => void;
   onForward: (m: Message) => void;
   onTogglePin: (m: Message) => void;
+  onStartDM?: (userId: string, username: string) => void;
+}
+
+function AvatarPopup({
+  username,
+  userId,
+  onClose,
+  onStartDM,
+}: {
+  username: string;
+  userId: string;
+  onClose: () => void;
+  onStartDM: (userId: string, username: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useOutsideClickRefs([ref], onClose);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full mb-1 left-0 z-50 w-44 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden"
+    >
+      <Link
+        href={`/profile/${username}`}
+        onClick={onClose}
+        className="flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+      >
+        <User size={13} className="text-text-muted shrink-0" />
+        Trang cá nhân
+      </Link>
+      <button
+        onClick={() => {
+          onStartDM(userId, username);
+          onClose();
+        }}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+      >
+        <MessageSquare size={13} className="text-text-muted shrink-0" />
+        Nhắn tin
+      </button>
+      <div className="h-px bg-surface-100 my-0.5" />
+      <button
+        onClick={onClose}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-500 hover:bg-red-50 transition-colors"
+      >
+        <BanIcon size={13} className="shrink-0" />
+        Chặn
+      </button>
+    </div>
+  );
 }
 
 export function MessageBubble({
@@ -669,12 +722,14 @@ export function MessageBubble({
   onRecall,
   onForward,
   onTogglePin,
+  onStartDM,
 }: MessageBubbleProps) {
   const [reacting, setReacting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [recalling, setRecalling] = useState(false);
   const [recallDialogOpen, setRecallDialogOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [avatarPopupOpen, setAvatarPopupOpen] = useState(false);
   const mediaAttachments = msg.attachments.filter(
     (a) => a.type === "IMAGE" || a.type === "VIDEO",
   );
@@ -793,13 +848,28 @@ export function MessageBubble({
         }
       >
         {!msg.isMe && (
-          <Avatar
-            src={msg.avatarUrl}
-            initials={msg.initials}
-            color={msg.color}
-            size="sm"
-            shape="circle"
-          />
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setAvatarPopupOpen((v) => !v)}
+              className="block"
+            >
+              <Avatar
+                src={msg.avatarUrl}
+                initials={msg.initials}
+                color={msg.color}
+                size="sm"
+                shape="circle"
+              />
+            </button>
+            {avatarPopupOpen && (
+              <AvatarPopup
+                username={msg.sender}
+                userId={msg.senderId}
+                onClose={() => setAvatarPopupOpen(false)}
+                onStartDM={onStartDM ?? (() => {})}
+              />
+            )}
+          </div>
         )}
         <div
           className={clsx(
@@ -846,13 +916,28 @@ export function MessageBubble({
         }
       >
         {!msg.isMe && (
-          <Avatar
-            src={msg.avatarUrl}
-            initials={msg.initials}
-            color={msg.color}
-            size="sm"
-            shape="circle"
-          />
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setAvatarPopupOpen((v) => !v)}
+              className="block"
+            >
+              <Avatar
+                src={msg.avatarUrl}
+                initials={msg.initials}
+                color={msg.color}
+                size="sm"
+                shape="circle"
+              />
+            </button>
+            {avatarPopupOpen && (
+              <AvatarPopup
+                username={msg.sender}
+                userId={msg.senderId}
+                onClose={() => setAvatarPopupOpen(false)}
+                onStartDM={onStartDM ?? (() => {})}
+              />
+            )}
+          </div>
         )}
 
         <div

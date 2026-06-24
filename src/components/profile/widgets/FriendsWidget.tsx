@@ -64,11 +64,6 @@ export function FriendsWidget({
       .catch(() => setLoading(false));
   }, [username, refreshKey]);
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 2500);
-  };
-
   const doUnfriend = async (friend: Friend) => {
     setConfirmFriend(null);
     if (actionInProgress.current.has(friend.id)) return;

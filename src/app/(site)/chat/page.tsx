@@ -765,6 +765,26 @@ export default function ChatPage() {
     setNewConvOpen(false);
   };
 
+  const handleStartDM = useCallback(
+    async (userId: string, _username: string) => {
+      try {
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participantIds: [userId] }),
+        });
+        if (!res.ok) throw new Error();
+        const conv = await res.json();
+        await fetchConversations();
+        setActiveId(conv.id);
+        setInfoOpen(false);
+      } catch {
+        showToast("Không thể mở cuộc trò chuyện", "error");
+      }
+    },
+    [fetchConversations, showToast],
+  );
+
   const sortedConvList = [...convList].sort((a, b) => {
     const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
     const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
@@ -844,7 +864,7 @@ export default function ChatPage() {
                   </p>
                   <p className="text-xs text-text-muted">
                     {currentConv.isGroup
-                      ? `${groupMembers.length} thành viên`
+                      ? `${currentConv.memberCount ?? 0} thành viên`
                       : "Đang hoạt động"}
                   </p>
                 </div>
@@ -1044,6 +1064,7 @@ export default function ChatPage() {
                         onRecall={handleRecall}
                         onTogglePin={handleTogglePin}
                         onForward={(m) => setForwardingMsg(m)}
+                        onStartDM={handleStartDM}
                       />
                     ) : (
                       <div key={item.key}>{item.render()}</div>
@@ -1214,7 +1235,19 @@ export default function ChatPage() {
       </div>
 
       {infoOpen && currentConv && (
-        <InfoSidebar conv={currentConv} onClose={() => setInfoOpen(false)} />
+        <InfoSidebar
+          conv={currentConv}
+          currentUserId={currentUserId}
+          onClose={() => setInfoOpen(false)}
+          onConvUpdated={(patch) =>
+            setConvList((prev) =>
+              prev.map((c) =>
+                c.id === currentConv.id ? { ...c, ...patch } : c,
+              ),
+            )
+          }
+          onStartDM={handleStartDM}
+        />
       )}
       {newConvOpen && (
         <NewConversationModal
