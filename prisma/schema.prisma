@@ -375,6 +375,7 @@ model ConversationMember {
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  isLeader       Boolean      @default(false)
   lastReadAt     DateTime?
 
   joinedAt       DateTime     @default(now())
