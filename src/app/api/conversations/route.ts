@@ -46,6 +46,7 @@ export async function GET(_req: NextRequest) {
               attachments: { select: { type: true } },
             },
           },
+          _count: { select: { members: true } },
         },
       },
     },
@@ -186,6 +187,7 @@ export async function GET(_req: NextRequest) {
         lastMessage,
         lastMessageAt: conv.lastMessageAt,
         unreadCount,
+        memberCount: conv._count.members,
       };
     }),
   );
@@ -238,7 +240,12 @@ export async function POST(req: NextRequest) {
       data: {
         isGroup: true,
         name: name.trim(),
-        members: { create: memberIds.map((id) => ({ userId: id })) },
+        members: {
+          create: memberIds.map((id) => ({
+            userId: id,
+            isLeader: id === userId,
+          })),
+        },
       },
       select: { id: true, isGroup: true, name: true, avatarUrl: true },
     });

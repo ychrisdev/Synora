@@ -7,6 +7,7 @@ import type {
   Message,
   ReactionGroup,
   PinnedMessage,
+  GroupMember,
 } from "./types";
 
 export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -213,6 +214,7 @@ export function adaptApiMessage(
   if (msg.deletedAt) {
     return {
       id: msg.id,
+      senderId: msg.senderId,
       sender: displayName,
       initials,
       color,
@@ -234,6 +236,7 @@ export function adaptApiMessage(
 
   return {
     id: msg.id,
+    senderId: msg.senderId,
     sender: displayName,
     initials,
     color,
@@ -331,4 +334,90 @@ export function downloadFile(url: string, filename: string): void {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+export async function fetchGroupMembers(
+  conversationId: string,
+): Promise<GroupMember[]> {
+  const res = await fetch(`/api/conversations/${conversationId}/members`);
+  if (!res.ok) throw new Error("Không thể tải danh sách thành viên");
+  const data = await res.json();
+  return data.map(
+    (m: {
+      isLeader: boolean;
+      joinedAt: string;
+      user: {
+        id: string;
+        username: string;
+        profile: { displayName: string | null; avatarUrl: string | null } | null;
+      };
+    }) => ({
+      userId: m.user.id,
+      username: m.user.username,
+      displayName: m.user.profile?.displayName ?? m.user.username,
+      avatarUrl: m.user.profile?.avatarUrl ?? null,
+      isLeader: m.isLeader,
+      joinedAt: m.joinedAt,
+    }),
+  );
+}
+
+export async function inviteMembers(
+  conversationId: string,
+  usernames: string[],
+): Promise<{ added: number }> {
+  const res = await fetch(`/api/conversations/${conversationId}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Không thể thêm thành viên");
+  return data;
+}
+
+export async function removeMember(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/members/${userId}`,
+    { method: "DELETE" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Không thể xóa thành viên");
+  }
+}
+
+export async function transferLeader(
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  const res = await fetch(
+    `/api/conversations/${conversationId}/members/${userId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "transfer_leader" }),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Không thể chuyển quyền trưởng nhóm");
+  }
+}
+
+export async function updateConversationInfo(
+  conversationId: string,
+  payload: { avatarUrl?: string; name?: string },
+): Promise<{ id: string; name: string | null; avatarUrl: string | null }> {
+  const res = await fetch(`/api/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Không thể cập nhật nhóm");
+  return data;
 }

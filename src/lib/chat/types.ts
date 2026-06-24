@@ -7,14 +7,16 @@ export type Conversation = {
   lastMessage: string;
   lastMessageAt: string | null;
   unreadCount: number;
+  memberCount?: number;
 };
 
-export type Member = {
-  initials: string;
-  color: string;
-  name: string;
-  role: "admin" | "mod" | "member";
-  active: boolean;
+export type GroupMember = {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isLeader: boolean;
+  joinedAt: string;
 };
 
 export type ApiReaction = {
@@ -91,6 +93,7 @@ export type ReactionGroup = {
 
 export type Message = {
   id: string;
+  senderId: string;
   sender: string;
   initials: string;
   color: string;
