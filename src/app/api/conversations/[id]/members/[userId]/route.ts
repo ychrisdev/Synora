@@ -42,6 +42,42 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     where: { conversationId_userId: { conversationId, userId: targetUserId } },
   });
 
+  const [actor, targetUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { username: true, profile: { select: { displayName: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { username: true, profile: { select: { displayName: true } } },
+    }),
+  ]);
+  const actorName =
+    actor?.profile?.displayName ?? actor?.username ?? "Trưởng nhóm";
+  const targetName =
+    targetUser?.profile?.displayName ?? targetUser?.username ?? "Thành viên";
+
+  await prisma.$transaction([
+    prisma.conversationMember.delete({
+      where: {
+        conversationId_userId: { conversationId, userId: targetUserId },
+      },
+    }),
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId: requesterId,
+        content: `${actorName} đã xóa ${targetName} khỏi nhóm`,
+        status: "SENT",
+        isSystemMessage: true,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
+
   return NextResponse.json({ removed: true });
 }
 
@@ -85,6 +121,47 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       { error: "Thành viên không tồn tại trong nhóm" },
       { status: 404 },
     );
+
+  const [actor, targetUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { username: true, profile: { select: { displayName: true } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { username: true, profile: { select: { displayName: true } } },
+    }),
+  ]);
+  const actorName =
+    actor?.profile?.displayName ?? actor?.username ?? "Trưởng nhóm";
+  const targetName =
+    targetUser?.profile?.displayName ?? targetUser?.username ?? "Thành viên";
+
+  await prisma.$transaction([
+    prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: requesterId } },
+      data: { isLeader: false },
+    }),
+    prisma.conversationMember.update({
+      where: {
+        conversationId_userId: { conversationId, userId: targetUserId },
+      },
+      data: { isLeader: true },
+    }),
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId: requesterId,
+        content: `${actorName} đã chuyển quyền trưởng nhóm cho ${targetName}`,
+        status: "SENT",
+        isSystemMessage: true,
+      },
+    }),
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: new Date() },
+    }),
+  ]);
 
   await prisma.$transaction([
     prisma.conversationMember.update({
