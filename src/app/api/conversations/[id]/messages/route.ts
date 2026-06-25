@@ -75,6 +75,7 @@ const messageSelect = {
     },
     orderBy: { createdAt: "asc" as const },
   },
+  isSystemMessage: true,
 } as const;
 
 export async function GET(req: NextRequest, { params }: Params) {

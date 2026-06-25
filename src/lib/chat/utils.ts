@@ -231,6 +231,7 @@ export function adaptApiMessage(
       forwardedFromSender: msg.forwardedFromSender,
       reactions: [],
       deletedAt: msg.deletedAt,
+      isSystemMessage: msg.isSystemMessage ?? false,
     };
   }
 
@@ -253,6 +254,7 @@ export function adaptApiMessage(
     forwardedFromSender: msg.forwardedFromSender,
     reactions: groupReactions(msg.reactions, currentUserId),
     deletedAt: null,
+    isSystemMessage: msg.isSystemMessage ?? false,
   };
 }
 

@@ -82,6 +82,7 @@ export type ApiMessage = {
     };
   } | null;
   reactions: ApiReaction[];
+  isSystemMessage: boolean;
 };
 
 export type ReactionGroup = {
@@ -115,6 +116,7 @@ export type Message = {
   pinnedAt: string | null;
   pinnedByName: string | null;
   pinnedById: string | null;
+  isSystemMessage: boolean;
 };
 
 export type PendingMessage = {

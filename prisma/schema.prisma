@@ -409,6 +409,8 @@ model Message {
 
   deletedAt      DateTime?
 
+  isSystemMessage Boolean   @default(false)
+
   createdAt      DateTime      @default(now())
 
   @@map("messages")

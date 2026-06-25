@@ -35,14 +35,41 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json();
   const { avatarUrl, name } = body as { avatarUrl?: string; name?: string };
 
-  const updated = await prisma.conversation.update({
-    where: { id: conversationId },
-    data: {
-      ...(avatarUrl !== undefined ? { avatarUrl } : {}),
-      ...(name !== undefined ? { name: name.trim() } : {}),
-    },
-    select: { id: true, name: true, avatarUrl: true },
+  if (avatarUrl === undefined && name === undefined)
+    return NextResponse.json({ error: "Không có dữ liệu cập nhật" }, { status: 400 });
+
+  const actor = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { username: true, profile: { select: { displayName: true } } },
   });
+  const actorName = actor?.profile?.displayName ?? actor?.username ?? "Ai đó";
+
+  const systemContent = name !== undefined
+    ? `${actorName} đã đổi tên nhóm thành "${name.trim()}"`
+    : `${actorName} đã đổi ảnh nhóm`;
+
+  const now = new Date();
+
+  const [updated] = await prisma.$transaction([
+    prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        ...(name !== undefined ? { name: name.trim() } : {}),
+        lastMessageAt: now,
+      },
+      select: { id: true, name: true, avatarUrl: true },
+    }),
+    prisma.message.create({
+      data: {
+        conversationId,
+        senderId: userId,
+        content: systemContent,
+        status: "SENT",
+        isSystemMessage: true,
+      },
+    }),
+  ]);
 
   return NextResponse.json(updated);
 }

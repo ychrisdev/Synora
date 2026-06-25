@@ -62,6 +62,7 @@ export async function GET(_req: NextRequest) {
           conversationId: conv.id,
           senderId: { not: userId },
           deletedAt: null,
+          isSystemMessage: false,
           ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
         },
       });

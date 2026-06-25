@@ -830,6 +830,19 @@ export function MessageBubble({
     }
   };
 
+  if (msg.isSystemMessage) {
+    return (
+      <div
+        id={`message-${msg.id}`}
+        className="flex items-center justify-center py-1.5"
+      >
+        <p className="text-[11px] text-text-muted text-center bg-surface-100 px-3 py-1 rounded-full">
+          {msg.content}
+        </p>
+      </div>
+    );
+  }
+
   if (msg.deletedAt) {
     return (
       <div
