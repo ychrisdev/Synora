@@ -351,7 +351,10 @@ export async function fetchGroupMembers(
       user: {
         id: string;
         username: string;
-        profile: { displayName: string | null; avatarUrl: string | null } | null;
+        profile: {
+          displayName: string | null;
+          avatarUrl: string | null;
+        } | null;
       };
     }) => ({
       userId: m.user.id,
@@ -422,4 +425,28 @@ export async function updateConversationInfo(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? "Không thể cập nhật nhóm");
   return data;
+}
+
+export async function leaveGroup(
+  conversationId: string,
+  transferToUserId?: string,
+): Promise<{ left: boolean; newLeaderId?: string }> {
+  const res = await fetch(`/api/conversations/${conversationId}/leave`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transferToUserId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error ?? "Không thể rời nhóm");
+  return data;
+}
+
+export async function disbandGroup(conversationId: string): Promise<void> {
+  const res = await fetch(`/api/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Không thể giải tán nhóm");
+  }
 }
