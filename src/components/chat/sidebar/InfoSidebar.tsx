@@ -25,6 +25,7 @@ import {
   Repeat,
   Camera,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
@@ -680,6 +681,74 @@ function MembersModal({
   );
 }
 
+function RenameGroupModal({
+  currentName,
+  onClose,
+  onSave,
+}: {
+  currentName: string;
+  onClose: () => void;
+  onSave: (name: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(currentName);
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+
+  const handleSave = async () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === currentName || saving) return;
+    setSaving(true);
+    try {
+      await onSave(trimmed);
+      onClose();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-[70]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] bg-white rounded-2xl shadow-2xl z-[70] p-6">
+        <p className="text-sm font-bold text-text-primary mb-4">Đổi tên nhóm</p>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") onClose();
+          }}
+          maxLength={50}
+          className="w-full px-3 py-2.5 border border-surface-200 rounded-xl text-sm text-text-primary focus:outline-none focus:border-primary transition-colors mb-1"
+          placeholder="Tên nhóm..."
+        />
+        <p className="text-[10px] text-text-muted text-right mb-4">
+          {value.trim().length}/50
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
+          >
+            Huỷ
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !value.trim() || value.trim() === currentName}
+            className="flex-1 py-2 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 transition-colors"
+          >
+            {saving && <Loader2 size={12} className="animate-spin" />}
+            Lưu
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 interface InfoSidebarProps {
   conv: Conversation;
   currentUserId: string;
@@ -713,6 +782,11 @@ export function InfoSidebar({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { startUpload: startAvatarUpload } = useUploadThing("groupAvatar");
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [groupAvatarLightbox, setGroupAvatarLightbox] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
+  useOutsideClick(avatarMenuRef, () => setAvatarMenuOpen(false));
 
   useEffect(() => {
     setLoadingAttachments(true);
@@ -751,6 +825,11 @@ export function InfoSidebar({
     }
   };
 
+  const handleSaveName = async (trimmed: string) => {
+    await updateConversationInfo(conv.id, { name: trimmed });
+    onConvUpdated?.({ name: trimmed });
+  };
+
   const mediaAttachments = attachments.filter(
     (a) => a.type === "IMAGE" || a.type === "VIDEO",
   );
@@ -772,44 +851,82 @@ export function InfoSidebar({
         </div>
 
         <div className="flex flex-col items-center pt-5 pb-4 px-4 border-b border-surface-100">
-          <div className="relative mb-3">
-            <Avatar
-              src={conv.avatarUrl}
-              initials={initials}
-              size="xl"
-              shape="circle"
-            />
-            {conv.isGroup && isLeader && (
-              <>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarChange}
+          <div className="relative mb-3" ref={avatarMenuRef}>
+            <button
+              onClick={() => {
+                if (conv.isGroup && isLeader) setAvatarMenuOpen((v) => !v);
+                else if (conv.avatarUrl) setGroupAvatarLightbox(true);
+              }}
+              className={clsx(
+                "rounded-full",
+                (conv.isGroup && isLeader) || conv.avatarUrl
+                  ? "cursor-pointer"
+                  : "cursor-default",
+              )}
+              disabled={uploadingAvatar}
+            >
+              {uploadingAvatar ? (
+                <div className="w-16 h-16 rounded-full bg-surface-100 flex items-center justify-center">
+                  <Loader2 size={20} className="animate-spin text-text-muted" />
+                </div>
+              ) : (
+                <Avatar
+                  src={conv.avatarUrl}
+                  initials={initials}
+                  size="xl"
+                  shape="circle"
                 />
+              )}
+            </button>
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+
+            {conv.isGroup && isLeader && avatarMenuOpen && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-[calc(100%+6px)] w-44 bg-white rounded-xl shadow-lg border border-surface-200 py-1 z-50 overflow-hidden">
+                {conv.avatarUrl && (
+                  <button
+                    onClick={() => {
+                      setAvatarMenuOpen(false);
+                      setGroupAvatarLightbox(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+                  >
+                    <User size={13} className="text-text-muted shrink-0" />
+                    Xem ảnh nhóm
+                  </button>
+                )}
                 <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={uploadingAvatar}
-                  className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center border-2 border-white hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  onClick={() => {
+                    setAvatarMenuOpen(false);
+                    avatarInputRef.current?.click();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
                 >
-                  {uploadingAvatar ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : (
-                    <Camera size={11} />
-                  )}
+                  <Camera size={13} className="text-text-muted shrink-0" />
+                  Đổi ảnh nhóm
                 </button>
-              </>
+              </div>
             )}
           </div>
-          <p className="text-sm font-bold text-text-primary text-center">
+          <p className="text-sm font-bold text-text-primary text-center mt-1">
             {conv.name}
           </p>
-          {conv.isGroup ? (
-            <p className="text-xs text-text-muted mt-0.5">
-              Nhóm · {members.length} thành viên
-            </p>
-          ) : (
+          {conv.isGroup && isLeader && (
+            <button
+              onClick={() => setRenameOpen(true)}
+              className="mt-1.5 flex items-center gap-1 text-[11px] text-text-muted hover:text-primary transition-colors"
+            >
+              <Pencil size={11} />
+              Đổi tên nhóm
+            </button>
+          )}
+          {!conv.isGroup && (
             <p className="text-xs text-green-500 mt-0.5 font-medium">
               ● Đang hoạt động
             </p>
@@ -1055,6 +1172,35 @@ export function InfoSidebar({
           </button>
         </div>
       </div>
+
+      {renameOpen && (
+        <RenameGroupModal
+          currentName={conv.name}
+          onClose={() => setRenameOpen(false)}
+          onSave={handleSaveName}
+        />
+      )}
+
+      {groupAvatarLightbox && conv.avatarUrl && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center"
+          onClick={() => setGroupAvatarLightbox(false)}
+        >
+          <button
+            onClick={() => setGroupAvatarLightbox(false)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white z-10"
+          >
+            <X size={18} />
+          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <img
+              src={conv.avatarUrl}
+              alt={conv.name}
+              className="max-w-[85vw] max-h-[85vh] rounded-lg"
+            />
+          </div>
+        </div>
+      )}
 
       {mediaModalTab && (
         <MediaModal
