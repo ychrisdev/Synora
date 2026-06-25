@@ -404,10 +404,7 @@ export default function ChatPage() {
         });
 
         if (activeId && !activeStillExists) {
-          showToast(
-            "Nhóm đã bị giải tán",
-            "error",
-          );
+          showToast("Nhóm đã bị giải tán", "error");
           setActiveId(null);
           setMessages([]);
           setInfoOpen(false);
@@ -791,12 +788,12 @@ export default function ChatPage() {
   }, []);
 
   const handleStartDM = useCallback(
-    async (userId: string, _username: string) => {
+    async (_userId: string, username: string) => {
       try {
         const res = await fetch("/api/conversations", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ participantIds: [userId] }),
+          body: JSON.stringify({ targetUsername: username }),
         });
         if (!res.ok) throw new Error();
         const conv = await res.json();
