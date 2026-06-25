@@ -374,6 +374,10 @@ export default function ChatPage() {
       const convRes = await fetch("/api/conversations");
       if (convRes.ok) {
         const serverConvs: Conversation[] = await convRes.json();
+        const activeId = activeIdRef.current;
+        const activeStillExists =
+          !activeId || serverConvs.some((c) => c.id === activeId);
+
         setConvList((prev) => {
           return serverConvs.map((serverConv) => {
             const localConv = prev.find((c) => c.id === serverConv.id);
@@ -398,6 +402,17 @@ export default function ChatPage() {
             };
           });
         });
+
+        if (activeId && !activeStillExists) {
+          showToast(
+            "Nhóm đã bị giải tán",
+            "error",
+          );
+          setActiveId(null);
+          setMessages([]);
+          setInfoOpen(false);
+          return;
+        }
       }
     } catch {}
 
@@ -764,6 +779,16 @@ export default function ChatPage() {
     setActiveId(convId);
     setNewConvOpen(false);
   };
+
+  const handleLeaveConversation = useCallback((conversationId: string) => {
+    setConvList((prev) => prev.filter((c) => c.id !== conversationId));
+    setInfoOpen(false);
+    if (activeIdRef.current === conversationId) {
+      setActiveId(null);
+      setMessages([]);
+      setNextCursor(null);
+    }
+  }, []);
 
   const handleStartDM = useCallback(
     async (userId: string, _username: string) => {
@@ -1247,6 +1272,7 @@ export default function ChatPage() {
             )
           }
           onStartDM={handleStartDM}
+          onLeaveConversation={handleLeaveConversation}
         />
       )}
       {newConvOpen && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   X,
@@ -39,6 +39,8 @@ import {
   inviteMembers,
   removeMember,
   transferLeader,
+  leaveGroup,
+  disbandGroup,
   updateConversationInfo,
   formatBytes,
   getFileExt,
@@ -469,11 +471,13 @@ function MembersModal({
   currentUserId,
   onClose,
   onStartDM,
+  onMembersChanged,
 }: {
   conversationId: string;
   currentUserId: string;
   onClose: () => void;
   onStartDM: (userId: string, username: string) => void;
+  onMembersChanged?: () => void;
 }) {
   const { showToast } = useToast();
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -514,6 +518,7 @@ function MembersModal({
         showToast("Đã chuyển quyền trưởng nhóm", "success");
       }
       await load();
+      onMembersChanged?.();
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
     } finally {
@@ -657,21 +662,23 @@ function MembersModal({
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setConfirmTarget(null)}
-                className="flex-1 py-2 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
-              >
-                Huỷ
-              </button>
-              <button
                 onClick={handleConfirm}
                 className={clsx(
-                  "flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-colors",
+                  "w-full py-2.5 rounded-xl text-xs font-semibold text-white transition-colors",
                   confirmTarget.type === "remove"
                     ? "bg-red-500 hover:bg-red-600"
                     : "bg-primary hover:bg-primary-700",
                 )}
               >
-                {confirmTarget.type === "remove" ? "Xóa" : "Chuyển quyền"}
+                {confirmTarget.type === "remove"
+                  ? "Xóa khỏi nhóm"
+                  : "Chuyển quyền"}
+              </button>
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="w-full py-2.5 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
+              >
+                Huỷ
               </button>
             </div>
           </div>
@@ -749,12 +756,204 @@ function RenameGroupModal({
   );
 }
 
+function LeaveChoiceModal({ onClose, onChooseTransfer, onChooseDisband }) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-[70]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] bg-white rounded-2xl shadow-2xl z-[70] p-6">
+        <p className="text-sm font-bold text-text-primary mb-1">
+          Bạn đang là trưởng nhóm
+        </p>
+        <p className="text-xs text-text-muted mb-5">
+          Hãy chuyển quyền trưởng nhóm cho người khác trước khi rời, hoặc giải
+          tán nhóm nếu không còn ai phù hợp.
+        </p>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={onChooseTransfer}
+              className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-700 transition-colors"
+            >
+              Chuyển quyền & rời
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
+            >
+              Huỷ
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TransferLeaderAndLeaveModal({
+  members,
+  currentUserId,
+  onClose,
+  onConfirm,
+}: {
+  members: GroupMember[];
+  currentUserId: string;
+  onClose: () => void;
+  onConfirm: (userId: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { showToast } = useToast();
+  const candidates = members.filter((m) => m.userId !== currentUserId);
+
+  const handleConfirm = async () => {
+    if (!selected || submitting) return;
+    setSubmitting(true);
+    try {
+      await onConfirm(selected);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-[70]" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] max-h-[70vh] bg-white rounded-2xl shadow-2xl z-[70] flex flex-col overflow-hidden">
+        <div className="px-5 py-4 border-b border-surface-100">
+          <p className="text-sm font-bold text-text-primary">
+            Chọn người kế nhiệm
+          </p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Người này sẽ trở thành trưởng nhóm mới sau khi bạn rời nhóm.
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto py-2">
+          {candidates.length === 0 ? (
+            <p className="text-xs text-text-muted text-center py-8">
+              Không có thành viên nào khác
+            </p>
+          ) : (
+            candidates.map((m) => (
+              <button
+                key={m.userId}
+                onClick={() => setSelected(m.userId)}
+                className={clsx(
+                  "w-full flex items-center gap-3 px-5 py-2.5 transition-colors",
+                  selected === m.userId
+                    ? "bg-primary/8"
+                    : "hover:bg-surface-50",
+                )}
+              >
+                <Avatar
+                  src={m.avatarUrl}
+                  initials={getInitialsFromName(m.displayName)}
+                  color={getColorForUser(m.userId)}
+                  size="sm"
+                />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="text-xs font-semibold text-text-primary truncate">
+                    {m.displayName}
+                  </p>
+                  <p className="text-[10px] text-text-muted">@{m.username}</p>
+                </div>
+                <div
+                  className={clsx(
+                    "w-4 h-4 rounded-full border-2 shrink-0",
+                    selected === m.userId
+                      ? "bg-primary border-primary"
+                      : "border-surface-300",
+                  )}
+                />
+              </button>
+            ))
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-surface-100 flex justify-end gap-2">
+          <button
+            onClick={handleConfirm}
+            disabled={!selected || submitting}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            {submitting && <Loader2 size={12} className="animate-spin" />}
+            Chuyển quyền & rời
+          </button>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 disabled:opacity-50"
+          >
+            Huỷ
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DisbandGroupModal({
+  groupName,
+  onClose,
+  onConfirm,
+}: {
+  groupName: string;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const { showToast } = useToast();
+
+  const handleConfirm = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onConfirm();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 z-[70]"
+        onClick={() => !submitting && onClose()}
+      />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] bg-white rounded-2xl shadow-2xl z-[70] p-6">
+        <p className="text-sm font-bold mb-1">Giải tán "{groupName}"?</p>
+        <p className="text-xs text-text-muted mb-5">
+          Toàn bộ tin nhắn, file và thành viên sẽ bị xoá vĩnh viễn. Hành động
+          này không thể hoàn tác.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={handleConfirm}
+            disabled={submitting}
+            className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5"
+          >
+            {submitting && <Loader2 size={12} className="animate-spin" />}
+            Giải tán nhóm
+          </button>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="flex-1 py-2.5 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors disabled:opacity-50"
+          >
+            Huỷ
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
 interface InfoSidebarProps {
   conv: Conversation;
   currentUserId: string;
   onClose: () => void;
   onConvUpdated?: (patch: { name?: string; avatarUrl?: string }) => void;
   onStartDM?: (userId: string, username: string) => void;
+  onLeaveConversation?: (conversationId: string) => void;
 }
 
 export function InfoSidebar({
@@ -763,6 +962,7 @@ export function InfoSidebar({
   onClose,
   onConvUpdated,
   onStartDM,
+  onLeaveConversation,
 }: InfoSidebarProps) {
   const { showToast } = useToast();
   const [notifOn, setNotifOn] = useState(true);
@@ -785,6 +985,9 @@ export function InfoSidebar({
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
   const [groupAvatarLightbox, setGroupAvatarLightbox] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [leaveChoiceOpen, setLeaveChoiceOpen] = useState(false);
+  const [transferLeaveOpen, setTransferLeaveOpen] = useState(false);
+  const [disbandOpen, setDisbandOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
   useOutsideClick(avatarMenuRef, () => setAvatarMenuOpen(false));
 
@@ -796,12 +999,19 @@ export function InfoSidebar({
       .finally(() => setLoadingAttachments(false));
   }, [conv.id]);
 
-  useEffect(() => {
+  const reloadMembers = useCallback(async () => {
     if (!conv.isGroup) return;
-    fetchGroupMembers(conv.id)
-      .then(setMembers)
-      .catch(() => setMembers([]));
+    try {
+      const data = await fetchGroupMembers(conv.id);
+      setMembers(data);
+    } catch {
+      setMembers([]);
+    }
   }, [conv.id, conv.isGroup]);
+
+  useEffect(() => {
+    reloadMembers();
+  }, [reloadMembers]);
 
   const isLeader =
     members.find((m) => m.userId === currentUserId)?.isLeader ?? false;
@@ -828,6 +1038,43 @@ export function InfoSidebar({
   const handleSaveName = async (trimmed: string) => {
     await updateConversationInfo(conv.id, { name: trimmed });
     onConvUpdated?.({ name: trimmed });
+  };
+
+  const handleLeaveClick = () => {
+    if (conv.isGroup && isLeader) {
+      if (members.length <= 1) {
+        setDisbandOpen(true);
+      } else {
+        setLeaveChoiceOpen(true);
+      }
+    } else {
+      setConfirm("leave");
+    }
+  };
+
+  const handleSimpleLeave = async () => {
+    try {
+      await leaveGroup(conv.id);
+      showToast("Bạn đã rời nhóm", "success");
+      setConfirm(null);
+      onLeaveConversation?.(conv.id);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+    }
+  };
+
+  const handleTransferAndLeave = async (successorId: string) => {
+    await leaveGroup(conv.id, successorId);
+    showToast("Đã chuyển quyền trưởng nhóm và rời nhóm", "success");
+    setTransferLeaveOpen(false);
+    onLeaveConversation?.(conv.id);
+  };
+
+  const handleDisband = async () => {
+    await disbandGroup(conv.id);
+    showToast("Đã giải tán nhóm", "success");
+    setDisbandOpen(false);
+    onLeaveConversation?.(conv.id);
   };
 
   const mediaAttachments = attachments.filter(
@@ -1132,21 +1379,42 @@ export function InfoSidebar({
           )}
           {conv.isGroup && (
             <button
-              onClick={() => setConfirm("leave")}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-orange-50 transition-colors group w-full text-left"
+              onClick={handleLeaveClick}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors group w-full text-left"
             >
-              <div className="w-7 h-7 rounded-lg bg-surface-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-surface-100 group-hover:bg-red-100 flex items-center justify-center transition-colors shrink-0">
                 <LogOut
                   size={13}
-                  className="text-text-muted group-hover:text-orange-500 transition-colors"
+                  className="text-text-muted group-hover:text-red-500 transition-colors"
                 />
               </div>
               <div>
-                <p className="text-xs font-semibold text-text-secondary group-hover:text-orange-500 transition-colors">
+                <p className="text-xs font-semibold text-text-secondary group-hover:text-red-500 transition-colors">
                   Rời nhóm
                 </p>
                 <p className="text-[11px] text-text-muted">
                   Bạn sẽ không nhận tin nhắn nữa
+                </p>
+              </div>
+            </button>
+          )}
+          {conv.isGroup && isLeader && (
+            <button
+              onClick={() => setDisbandOpen(true)}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors group w-full text-left"
+            >
+              <div className="w-7 h-7 rounded-lg bg-surface-100 group-hover:bg-red-100 flex items-center justify-center transition-colors shrink-0">
+                <ShieldAlert
+                  size={13}
+                  className="text-text-muted group-hover:text-red-500 transition-colors"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-text-secondary group-hover:text-red-500 transition-colors">
+                  Giải tán nhóm
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  Xoá vĩnh viễn toàn bộ nhóm
                 </p>
               </div>
             </button>
@@ -1178,6 +1446,37 @@ export function InfoSidebar({
           currentName={conv.name}
           onClose={() => setRenameOpen(false)}
           onSave={handleSaveName}
+        />
+      )}
+
+      {leaveChoiceOpen && (
+        <LeaveChoiceModal
+          onClose={() => setLeaveChoiceOpen(false)}
+          onChooseTransfer={() => {
+            setLeaveChoiceOpen(false);
+            setTransferLeaveOpen(true);
+          }}
+          onChooseDisband={() => {
+            setLeaveChoiceOpen(false);
+            setDisbandOpen(true);
+          }}
+        />
+      )}
+
+      {transferLeaveOpen && (
+        <TransferLeaderAndLeaveModal
+          members={members}
+          currentUserId={currentUserId}
+          onClose={() => setTransferLeaveOpen(false)}
+          onConfirm={handleTransferAndLeave}
+        />
+      )}
+
+      {disbandOpen && (
+        <DisbandGroupModal
+          groupName={conv.name}
+          onClose={() => setDisbandOpen(false)}
+          onConfirm={handleDisband}
         />
       )}
 
@@ -1218,8 +1517,12 @@ export function InfoSidebar({
         <MembersModal
           conversationId={conv.id}
           currentUserId={currentUserId}
-          onClose={() => setMembersOpen(false)}
+          onClose={() => {
+            setMembersOpen(false);
+            reloadMembers();
+          }}
           onStartDM={onStartDM ?? (() => {})}
+          onMembersChanged={reloadMembers}
         />
       )}
 
@@ -1241,22 +1544,18 @@ export function InfoSidebar({
               {confirm === "block"
                 ? `Bạn sẽ không nhận được tin nhắn từ ${conv.name} nữa.`
                 : confirm === "leave"
-                  ? `Bạn sẽ rời ${conv.name}. Cần được mời lại để tham gia tiếp.`
+                  ? `Bạn sẽ rời ${conv.name}. Bạn chắc chứ ?`
                   : "Mô tả vấn đề sẽ giúp chúng tôi xử lý nhanh hơn."}
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setConfirm(null)}
-                className="flex-1 py-2 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
-              >
-                Huỷ
-              </button>
-              <button
-                onClick={() => setConfirm(null)}
+                onClick={() =>
+                  confirm === "leave" ? handleSimpleLeave() : setConfirm(null)
+                }
                 className={clsx(
                   "flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-colors",
                   confirm === "leave"
-                    ? "bg-orange-500 hover:bg-orange-600"
+                    ? "bg-red-500 hover:bg-red-600"
                     : "bg-red-500 hover:bg-red-600",
                 )}
               >
@@ -1265,6 +1564,12 @@ export function InfoSidebar({
                   : confirm === "leave"
                     ? "Rời nhóm"
                     : "Báo cáo"}
+              </button>
+              <button
+                onClick={() => setConfirm(null)}
+                className="flex-1 py-2 rounded-xl border border-surface-200 text-xs font-semibold text-text-secondary hover:bg-surface-50 transition-colors"
+              >
+                Huỷ
               </button>
             </div>
           </div>
