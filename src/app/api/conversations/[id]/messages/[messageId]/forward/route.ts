@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { utapi } from "@/lib/uploadthing-server";
 
 type Params = { params: Promise<{ id: string; messageId: string }> };
 
@@ -150,6 +151,46 @@ export async function POST(req: NextRequest, { params }: Params) {
   const originalSenderName =
     original.sender.profile?.displayName ?? original.sender.username;
 
+  let duplicatedAttachments: {
+    url: string;
+    key: string;
+    name: string;
+    size: number;
+    type: "IMAGE" | "VIDEO" | "DOCUMENT";
+    mimeType: string | null;
+  }[] = [];
+
+  if (original.attachments.length > 0) {
+    try {
+      const uploadResults = await utapi.uploadFilesFromUrl(
+        original.attachments.map((a) => ({ url: a.url, name: a.name })),
+      );
+
+      duplicatedAttachments = uploadResults.map((result, i) => {
+        const source = original.attachments[i];
+        if (!result.data) {
+          throw new Error(
+            result.error?.message ?? `Không thể sao chép file "${source.name}"`,
+          );
+        }
+        return {
+          url: result.data.ufsUrl ?? result.data.url,
+          key: result.data.key,
+          name: source.name,
+          size: source.size,
+          type: source.type,
+          mimeType: source.mimeType,
+        };
+      });
+    } catch (err) {
+      console.error("Sao chép file khi chuyển tiếp thất bại:", err);
+      return NextResponse.json(
+        { error: "Không thể chuyển tiếp file đính kèm, vui lòng thử lại" },
+        { status: 500 },
+      );
+    }
+  }
+
   const [forwarded] = await prisma.$transaction([
     prisma.message.create({
       data: {
@@ -158,17 +199,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         content: original.content,
         forwardedFromSender: originalSenderName,
         status: "SENT",
-        attachments: original.attachments.length
-          ? {
-              create: original.attachments.map((a) => ({
-                url: a.url,
-                key: a.key,
-                name: a.name,
-                size: a.size,
-                type: a.type,
-                mimeType: a.mimeType,
-              })),
-            }
+        attachments: duplicatedAttachments.length
+          ? { create: duplicatedAttachments }
           : undefined,
       },
       select: MESSAGE_SELECT,
