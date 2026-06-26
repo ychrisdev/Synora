@@ -38,10 +38,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       { status: 404 },
     );
 
-  await prisma.conversationMember.delete({
-    where: { conversationId_userId: { conversationId, userId: targetUserId } },
-  });
-
   const [actor, targetUser] = await Promise.all([
     prisma.user.findUnique({
       where: { id: requesterId },
@@ -160,19 +156,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     prisma.conversation.update({
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
-    }),
-  ]);
-
-  await prisma.$transaction([
-    prisma.conversationMember.update({
-      where: { conversationId_userId: { conversationId, userId: requesterId } },
-      data: { isLeader: false },
-    }),
-    prisma.conversationMember.update({
-      where: {
-        conversationId_userId: { conversationId, userId: targetUserId },
-      },
-      data: { isLeader: true },
     }),
   ]);
 
