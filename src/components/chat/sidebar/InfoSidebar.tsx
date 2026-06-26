@@ -1024,8 +1024,9 @@ export function InfoSidebar({
     try {
       const results = await startAvatarUpload([file]);
       const url = results?.[0]?.ufsUrl ?? results?.[0]?.url;
+      const key = results?.[0]?.key;
       if (!url) throw new Error("Tải ảnh lên thất bại");
-      await updateConversationInfo(conv.id, { avatarUrl: url });
+      await updateConversationInfo(conv.id, { avatarUrl: url, avatarKey: key });
       onConvUpdated?.({ avatarUrl: url });
       showToast("Đã đổi ảnh nhóm", "success");
     } catch (e) {

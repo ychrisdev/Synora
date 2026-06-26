@@ -415,7 +415,7 @@ export async function transferLeader(
 
 export async function updateConversationInfo(
   conversationId: string,
-  payload: { avatarUrl?: string; name?: string },
+  payload: { avatarUrl?: string; avatarKey?: string; name?: string },
 ): Promise<{ id: string; name: string | null; avatarUrl: string | null }> {
   const res = await fetch(`/api/conversations/${conversationId}`, {
     method: "PATCH",

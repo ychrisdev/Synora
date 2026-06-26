@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { utapi } from "@/lib/uploadthing-server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -21,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { isGroup: true },
+    select: { isGroup: true, avatarKey: true },
   });
   if (!conversation)
     return NextResponse.json({ error: "Không tồn tại" }, { status: 404 });
@@ -33,7 +34,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     );
 
   const body = await req.json();
-  const { avatarUrl, name } = body as { avatarUrl?: string; name?: string };
+  const { avatarUrl, avatarKey, name } = body as {
+    avatarUrl?: string;
+    avatarKey?: string;
+    name?: string;
+  };
 
   if (avatarUrl === undefined && name === undefined)
     return NextResponse.json(
@@ -53,12 +58,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       : `${actorName} đã đổi ảnh nhóm`;
 
   const now = new Date();
+  const oldAvatarKey = conversation.avatarKey;
 
   const [updated] = await prisma.$transaction([
     prisma.conversation.update({
       where: { id: conversationId },
       data: {
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        ...(avatarKey !== undefined ? { avatarKey } : {}),
         ...(name !== undefined ? { name: name.trim() } : {}),
         lastMessageAt: now,
       },
@@ -74,6 +81,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
     }),
   ]);
+
+  if (avatarUrl !== undefined && oldAvatarKey) {
+    try {
+      await utapi.deleteFiles([oldAvatarKey]);
+    } catch (err) {
+      console.error("Xóa avatar cũ trên UploadThing thất bại:", err);
+    }
+  }
 
   return NextResponse.json(updated);
 }
@@ -94,7 +109,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { isGroup: true },
+    select: {
+      isGroup: true,
+      avatarKey: true,
+      messages: {
+        select: { attachments: { select: { key: true } } },
+      },
+    },
   });
   if (!conversation)
     return NextResponse.json({ error: "Không tìm thấy nhóm" }, { status: 404 });
@@ -109,7 +130,26 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       { status: 403 },
     );
 
+  const attachmentKeys = conversation.messages.flatMap((m) =>
+    m.attachments.map((a) => a.key),
+  );
+  const allKeys = [
+    ...attachmentKeys,
+    ...(conversation.avatarKey ? [conversation.avatarKey] : []),
+  ];
+
   await prisma.conversation.delete({ where: { id: conversationId } });
+
+  if (allKeys.length > 0) {
+    try {
+      await utapi.deleteFiles(allKeys);
+    } catch (err) {
+      console.error(
+        "Xóa file trên UploadThing khi giải tán nhóm thất bại:",
+        err,
+      );
+    }
+  }
 
   return NextResponse.json({ disbanded: true });
 }
