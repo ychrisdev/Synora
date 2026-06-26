@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { utapi } from "@/lib/uploadthing-server";
 
 type Params = { params: Promise<{ id: string; messageId: string }> };
 
@@ -23,6 +24,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const message = await prisma.message.findFirst({
     where: { id: messageId, conversationId },
+    select: {
+      id: true,
+      senderId: true,
+      deletedAt: true,
+      createdAt: true,
+      attachments: { select: { key: true } },
+    },
   });
   if (!message)
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
@@ -46,11 +54,29 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       { status: 400 },
     );
 
-  const updated = await prisma.message.update({
-    where: { id: messageId },
-    data: { deletedAt: new Date() },
-    select: { id: true, deletedAt: true },
-  });
+  const attachmentKeys = message.attachments.map((a) => a.key);
+
+  const [updated] = await prisma.$transaction([
+    prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date() },
+      select: { id: true, deletedAt: true },
+    }),
+    prisma.messageAttachment.deleteMany({
+      where: { messageId },
+    }),
+  ]);
+
+  if (attachmentKeys.length > 0) {
+    try {
+      await utapi.deleteFiles(attachmentKeys);
+    } catch (err) {
+      console.error(
+        "Xóa file đính kèm thu hồi tin nhắn thất bại:",
+        err,
+      );
+    }
+  }
 
   return NextResponse.json(updated);
 }
