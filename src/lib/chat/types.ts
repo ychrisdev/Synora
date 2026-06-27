@@ -8,6 +8,19 @@ export type Conversation = {
   lastMessageAt: string | null;
   unreadCount: number;
   memberCount?: number;
+  isPending?: boolean;
+  isDraft?: boolean;
+};
+
+export type PendingConversation = {
+  id: string;
+  senderId: string;
+  senderUsername: string;
+  sender: string;
+  avatarUrl: string | null;
+  content: string | null;
+  createdAt: string | null;
+  messageCount: number;
 };
 
 export type GroupMember = {

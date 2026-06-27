@@ -1,0 +1,85 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { buildAttachmentLabel } from "@/lib/chat/utils";
+
+export async function GET(_req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const userId = session.user.id;
+
+  const pending = await prisma.conversationMember.findMany({
+    where: { userId, isAccepted: false },
+    select: {
+      conversation: {
+        select: {
+          id: true,
+          isGroup: true,
+          members: {
+            where: { userId: { not: userId } },
+            take: 1,
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  profile: {
+                    select: { displayName: true, avatarUrl: true },
+                  },
+                },
+              },
+            },
+          },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            where: { deletedAt: null },
+            select: {
+              content: true,
+              createdAt: true,
+              senderId: true,
+              attachments: { select: { type: true } },
+            },
+          },
+          _count: {
+            select: {
+              messages: {
+                where: { deletedAt: null, isSystemMessage: false },
+              } as any,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { joinedAt: "desc" },
+  });
+
+  const result = pending.map((m) => {
+    const conv = m.conversation;
+    const other = conv.members[0]?.user;
+    const lastMsg = conv.messages[0];
+
+    let content: string | null = null;
+    if (lastMsg) {
+      if (lastMsg.content) content = lastMsg.content;
+      else if (lastMsg.attachments.length > 0)
+        content = buildAttachmentLabel(lastMsg.attachments);
+    }
+
+    return {
+      id: conv.id,
+      senderId: other?.id ?? "",
+      senderUsername: other?.username ?? "",
+      sender: other?.profile?.displayName ?? other?.username ?? "Người dùng",
+      avatarUrl: other?.profile?.avatarUrl ?? null,
+      content,
+      createdAt: lastMsg?.createdAt?.toISOString() ?? null,
+      messageCount: conv._count.messages,
+    };
+  });
+
+  return NextResponse.json(result);
+}

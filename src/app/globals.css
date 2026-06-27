@@ -77,3 +77,18 @@ body {
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-1px);
 }
+ 
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+ 
+@theme {
+  --animate-slide-in-left: slide-in-left 0.2s ease-out;
+}

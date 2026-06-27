@@ -8,6 +8,7 @@ import {
   useCallback,
 } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Home,
@@ -23,7 +24,6 @@ import {
   Pin,
 } from "lucide-react";
 import { clsx } from "clsx";
-
 import type {
   Conversation,
   Message,
@@ -43,6 +43,7 @@ import {
   unpinMessage,
   fetchPinnedMessages,
   buildAttachmentLabel,
+  respondPendingConversation,
 } from "@/lib/chat/utils";
 import { groupMembers } from "@/lib/chat/data";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -54,6 +55,7 @@ import { ConversationList } from "@/components/chat/sidebar/ConversationList";
 import { InfoSidebar } from "@/components/chat/sidebar/InfoSidebar";
 import { ForwardMessageModal } from "@/components/chat/ForwardMessageModal";
 import { PinnedMessagesBar } from "@/components/chat/PinnedMessagesBar";
+import { PendingMessages } from "@/components/chat/PendingMessages";
 import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 
@@ -64,6 +66,16 @@ function getInitials(name: string) {
     .map((w) => w[0])
     .join("")
     .toUpperCase();
+}
+
+function appendLocalPendingOnly(
+  serverList: Conversation[],
+  prevList: Conversation[],
+): Conversation[] {
+  const pendingOnly = prevList.filter(
+    (c) => c.isPending && !serverList.some((sc) => sc.id === c.id),
+  );
+  return [...serverList, ...pendingOnly];
 }
 
 type ScrollMode = "instant" | "smooth" | null;
@@ -130,7 +142,12 @@ export default function ChatPage() {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
-
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const startedDmUsernameRef = useRef<string | null>(null);
+  const [pendingActionLoading, setPendingActionLoading] = useState(false);
+  const [pendingRefreshKey, setPendingRefreshKey] = useState(0);
+  const convListRef = useRef<Conversation[]>([]);
   const loadPinned = useCallback(async (convId: string) => {
     try {
       const data = await fetchPinnedMessages(convId);
@@ -309,7 +326,14 @@ export default function ChatPage() {
       const res = await fetch("/api/conversations");
       if (!res.ok) return;
       const data: Conversation[] = await res.json();
-      setConvList(data);
+      setConvList((prev) => {
+        const merged = data.map((serverConv) => {
+          const localConv = prev.find((c) => c.id === serverConv.id);
+          const stillDraft = !!localConv?.isDraft && !serverConv.lastMessageAt;
+          return { ...serverConv, isDraft: stillDraft };
+        });
+        return appendLocalPendingOnly(merged, prev);
+      });
       if (!activeIdRef.current && data.length > 0) setActiveId(data[0].id);
     } finally {
       setConvLoading(false);
@@ -375,11 +399,16 @@ export default function ChatPage() {
       if (convRes.ok) {
         const serverConvs: Conversation[] = await convRes.json();
         const activeId = activeIdRef.current;
+        const activeIsLocalPending = convListRef.current.some(
+          (c) => c.id === activeId && c.isPending,
+        );
         const activeStillExists =
-          !activeId || serverConvs.some((c) => c.id === activeId);
+          !activeId ||
+          serverConvs.some((c) => c.id === activeId) ||
+          activeIsLocalPending;
 
         setConvList((prev) => {
-          return serverConvs.map((serverConv) => {
+          const merged = serverConvs.map((serverConv) => {
             const localConv = prev.find((c) => c.id === serverConv.id);
             const localIsNewer =
               !!localConv &&
@@ -387,6 +416,8 @@ export default function ChatPage() {
               !!serverConv.lastMessageAt &&
               new Date(localConv.lastMessageAt) >=
                 new Date(serverConv.lastMessageAt);
+            const stillDraft =
+              !!localConv?.isDraft && !serverConv.lastMessageAt;
             return {
               ...serverConv,
               unreadCount:
@@ -399,8 +430,10 @@ export default function ChatPage() {
               lastMessageAt: localIsNewer
                 ? localConv!.lastMessageAt
                 : serverConv.lastMessageAt,
+              isDraft: stillDraft,
             };
           });
+          return appendLocalPendingOnly(merged, prev);
         });
 
         if (activeId && !activeStillExists) {
@@ -714,7 +747,12 @@ export default function ChatPage() {
     setConvList((prev) =>
       prev.map((c) =>
         c.id === activeId
-          ? { ...c, lastMessage: text || attachmentLabel, lastMessageAt: now }
+          ? {
+              ...c,
+              lastMessage: text || attachmentLabel,
+              lastMessageAt: now,
+              isDraft: false,
+            }
           : c,
       ),
     );
@@ -787,6 +825,46 @@ export default function ChatPage() {
     }
   }, []);
 
+  const handlePendingAccept = async () => {
+    if (!activeId || pendingActionLoading) return;
+    setPendingActionLoading(true);
+    try {
+      await respondPendingConversation(activeId, "accept");
+      await fetchConversations();
+      setPendingRefreshKey((k) => k + 1);
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể mở nhắn tin",
+        "error",
+      );
+    } finally {
+      setPendingActionLoading(false);
+    }
+  };
+
+  const handlePendingDelete = async () => {
+    if (!activeId || pendingActionLoading) return;
+    setPendingActionLoading(true);
+    try {
+      await respondPendingConversation(activeId, "reject");
+      setConvList((prev) => prev.filter((c) => c.id !== activeId));
+      setActiveId(null);
+      setMessages([]);
+      setPendingRefreshKey((k) => k + 1);
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể xóa cuộc trò chuyện",
+        "error",
+      );
+    } finally {
+      setPendingActionLoading(false);
+    }
+  };
+
+  const handlePendingBlock = () => {
+    showToast("Chức năng chặn đang được phát triển", "error");
+  };
+
   const handleStartDM = useCallback(
     async (_userId: string, username: string) => {
       try {
@@ -795,17 +873,74 @@ export default function ChatPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ targetUsername: username }),
         });
-        if (!res.ok) throw new Error();
-        const conv = await res.json();
-        await fetchConversations();
-        setActiveId(conv.id);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            data?.detail || data?.error || `Lỗi không xác định (${res.status})`,
+          );
+        }
+
+        if (data.isAccepted && data.lastMessageAt) {
+          await fetchConversations();
+        } else {
+          setConvList((prev) => {
+            const patch = {
+              isPending: !data.isAccepted,
+              isDraft: !!data.isAccepted && !data.lastMessageAt,
+            };
+            if (prev.some((c) => c.id === data.id)) {
+              return prev.map((c) =>
+                c.id === data.id ? { ...c, ...patch } : c,
+              );
+            }
+            return [
+              ...prev,
+              {
+                id: data.id,
+                name: data.name,
+                avatarUrl: data.avatarUrl,
+                isGroup: false,
+                otherUsername: data.otherUsername,
+                lastMessage: "",
+                lastMessageAt: data.lastMessageAt,
+                unreadCount: 0,
+                ...patch,
+              },
+            ];
+          });
+        }
+
+        setActiveId(data.id);
         setInfoOpen(false);
-      } catch {
-        showToast("Không thể mở cuộc trò chuyện", "error");
+        setReplyingTo(null);
+        setPinNotices([]);
+        setHasNewMessage(false);
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : "Không thể mở cuộc trò chuyện";
+        showToast(msg, "error");
       }
     },
     [fetchConversations, showToast],
   );
+
+  useEffect(() => {
+    const username = searchParams.get("with");
+    if (!username) {
+      startedDmUsernameRef.current = null;
+      return;
+    }
+    if (startedDmUsernameRef.current === username) return;
+    startedDmUsernameRef.current = username;
+
+    handleStartDM("", username).finally(() => {
+      router.replace("/chat");
+    });
+  }, [searchParams, handleStartDM, router]);
+
+  useEffect(() => {
+    convListRef.current = convList;
+  }, [convList]);
 
   const sortedConvList = [...convList].sort((a, b) => {
     const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
@@ -814,6 +949,8 @@ export default function ChatPage() {
   });
 
   const filtered = sortedConvList.filter((c) => {
+    if (c.isDraft) return false;
+    if (c.isPending) return false;
     if (!c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (activeFilter === "unread") return c.unreadCount > 0;
     if (activeFilter === "group") return c.isGroup;
@@ -849,6 +986,50 @@ export default function ChatPage() {
             className="absolute -top-1 -right-1 pointer-events-none"
           />
         </div>
+        <PendingMessages
+          refreshKey={pendingRefreshKey}
+          onOpen={(conv) => {
+            setConvList((prev) => {
+              if (prev.some((c) => c.id === conv.id)) return prev;
+              return [
+                ...prev,
+                {
+                  id: conv.id,
+                  name: conv.name,
+                  avatarUrl: conv.avatarUrl,
+                  isGroup: false,
+                  otherUsername: conv.otherUsername,
+                  lastMessage:
+                    conv.lastMessage || `${conv.name} muốn trò chuyện với bạn`,
+                  lastMessageAt: conv.lastMessageAt,
+                  unreadCount: 0,
+                  isPending: true,
+                },
+              ];
+            });
+            setActiveId(conv.id);
+            setInfoOpen(false);
+            setReplyingTo(null);
+            setPinNotices([]);
+            setHasNewMessage(false);
+          }}
+          onClose={() => {
+            const currentConv = convListRef.current.find(
+              (c) => c.id === activeIdRef.current,
+            );
+            if (currentConv?.isPending) {
+              setActiveId(null);
+              setMessages([]);
+            }
+          }}
+          onDeleted={(id) => {
+            setConvList((prev) => prev.filter((c) => c.id !== id));
+            if (activeIdRef.current === id) {
+              setActiveId(null);
+              setMessages([]);
+            }
+          }}
+        />
         <div className="flex-1" />
         <AvatarMenu />
       </div>
@@ -1162,96 +1343,124 @@ export default function ChatPage() {
               onChange={handlePickDoc}
             />
 
-            {pendingFiles.length > 0 && (
-              <div className="px-4 pt-2 flex flex-wrap gap-2 border-t border-surface-100">
-                {pendingFiles.map((f) => (
-                  <div key={f.id} className="relative">
-                    {f.kind === "DOCUMENT" ? (
-                      <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-xs">
-                        <span className="truncate max-w-[120px]">
-                          {f.file.name}
-                        </span>
-                        <button onClick={() => removePendingFile(f.id)}>
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-surface-200">
-                        {f.kind === "VIDEO" ? (
-                          <video
-                            src={f.previewUrl}
-                            className="w-full h-full object-cover"
-                            muted
-                          />
+            {currentConv.isPending ? (
+              <div className="px-4 py-4 border-t border-surface-200 bg-white shrink-0 flex items-center justify-center gap-2">
+                <button
+                  onClick={handlePendingBlock}
+                  disabled={pendingActionLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-surface-100 text-text-secondary hover:bg-surface-200 transition-colors disabled:opacity-50"
+                >
+                  Chặn
+                </button>
+                <button
+                  onClick={handlePendingDelete}
+                  disabled={pendingActionLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-red-50 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  Xóa
+                </button>
+                <button
+                  onClick={handlePendingAccept}
+                  disabled={pendingActionLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
+                >
+                  Chấp nhận
+                </button>
+              </div>
+            ) : (
+              <>
+                {pendingFiles.length > 0 && (
+                  <div className="px-4 pt-2 flex flex-wrap gap-2 border-t border-surface-100">
+                    {pendingFiles.map((f) => (
+                      <div key={f.id} className="relative">
+                        {f.kind === "DOCUMENT" ? (
+                          <div className="flex items-center gap-2 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2 text-xs">
+                            <span className="truncate max-w-[120px]">
+                              {f.file.name}
+                            </span>
+                            <button onClick={() => removePendingFile(f.id)}>
+                              <X size={12} />
+                            </button>
+                          </div>
                         ) : (
-                          <img
-                            src={f.previewUrl}
-                            className="w-full h-full object-cover"
-                            alt={f.file.name}
-                          />
+                          <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-surface-200">
+                            {f.kind === "VIDEO" ? (
+                              <video
+                                src={f.previewUrl}
+                                className="w-full h-full object-cover"
+                                muted
+                              />
+                            ) : (
+                              <img
+                                src={f.previewUrl}
+                                className="w-full h-full object-cover"
+                                alt={f.file.name}
+                              />
+                            )}
+                            <button
+                              onClick={() => removePendingFile(f.id)}
+                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
                         )}
-                        <button
-                          onClick={() => removePendingFile(f.id)}
-                          className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
-                        >
-                          <X size={10} />
-                        </button>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            <div className="px-4 py-3 border-t border-surface-200 bg-white shrink-0">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => docInputRef.current?.click()}
-                  disabled={uploadingFiles}
-                  className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Paperclip size={17} />
-                </button>
-                <button
-                  onClick={() => mediaInputRef.current?.click()}
-                  disabled={uploadingFiles}
-                  className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <ImageIcon size={17} />
-                </button>
-                <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
-                  <Smile size={16} className="text-text-muted shrink-0" />
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
+                <div className="px-4 py-3 border-t border-surface-200 bg-white shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => docInputRef.current?.click()}
+                      disabled={uploadingFiles}
+                      className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Paperclip size={17} />
+                    </button>
+                    <button
+                      onClick={() => mediaInputRef.current?.click()}
+                      disabled={uploadingFiles}
+                      className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <ImageIcon size={17} />
+                    </button>
+                    <div className="flex-1 flex items-center gap-2 bg-surface-100 rounded-full px-4 py-2 border border-transparent focus-within:border-primary focus-within:bg-white transition-colors">
+                      <Smile size={16} className="text-text-muted shrink-0" />
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                          }
+                        }}
+                        placeholder="Nhập tin nhắn..."
+                        className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSend}
+                      disabled={
+                        (!input.trim() && pendingFiles.length === 0) || sending
                       }
-                    }}
-                    placeholder="Nhập tin nhắn..."
-                    className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                  />
+                      className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                  {uploadingFiles && (
+                    <p className="text-xs text-text-muted mt-1.5 px-1">
+                      Đang tải file lên...
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={handleSend}
-                  disabled={
-                    (!input.trim() && pendingFiles.length === 0) || sending
-                  }
-                  className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send size={16} />
-                </button>
-              </div>
-              {uploadingFiles && (
-                <p className="text-xs text-text-muted mt-1.5 px-1">
-                  Đang tải file lên...
-                </p>
-              )}
-            </div>
+              </>
+            )}
           </>
         )}
       </div>

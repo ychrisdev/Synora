@@ -4,8 +4,6 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import {
   User,
-  Clock,
-  BanIcon,
   Settings,
   HelpCircle,
   LogOut,
@@ -13,7 +11,6 @@ import {
   Bell,
   MessageSquare,
   ArrowLeft,
-  Inbox,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useSession, signOut } from "next-auth/react";
@@ -21,7 +18,6 @@ import { useOutsideClick } from "@/lib/chat/hooks";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import Avatar from "@/components/ui/Avatar";
 import { PillBadge } from "./Badge";
-import { pendingMessages, blockedUsers } from "@/lib/chat/data";
 import { getColorForUser, getInitialsFromName } from "@/lib/chat/utils";
 import type { AvatarMenuPanel } from "@/lib/chat/types";
 
@@ -100,35 +96,6 @@ export function AvatarMenu() {
                   <User size={14} className="text-text-muted shrink-0" />
                   Trang cá nhân
                 </Link>
-
-                <button
-                  onClick={() => setPanel("pending")}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
-                >
-                  <Clock size={14} className="text-text-muted shrink-0" />
-                  Tin nhắn chờ
-                  <PillBadge
-                    count={pendingMessages.length}
-                    variant="pending"
-                    className="ml-auto"
-                  />
-                  <ChevronRight size={12} className="text-text-muted" />
-                </button>
-
-                <button
-                  onClick={() => setPanel("blocked")}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
-                >
-                  <BanIcon size={14} className="text-text-muted shrink-0" />
-                  Danh sách chặn
-                  <PillBadge
-                    count={blockedUsers.length}
-                    variant="blocked"
-                    className="ml-auto"
-                  />
-                  <ChevronRight size={12} className="text-text-muted" />
-                </button>
-
                 <button
                   onClick={() => setPanel("settings")}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
@@ -155,129 +122,6 @@ export function AvatarMenu() {
               </div>
             </>
           )}
-
-          {panel === "pending" && (
-            <>
-              <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">
-                <button
-                  onClick={() => setPanel("main")}
-                  className="p-1 hover:bg-surface-100 rounded-lg transition-colors text-text-muted"
-                >
-                  <ArrowLeft size={14} />
-                </button>
-                <p className="text-sm font-bold text-text-primary">
-                  Tin nhắn chờ
-                </p>
-                <PillBadge
-                  count={pendingMessages.length}
-                  variant="pending"
-                  className="ml-auto"
-                />
-              </div>
-              <div className="py-2">
-                {pendingMessages.length === 0 ? (
-                  <div className="flex flex-col items-center py-8 gap-2 text-text-muted">
-                    <Inbox size={28} className="opacity-40" />
-                    <p className="text-xs">Không có tin nhắn chờ</p>
-                  </div>
-                ) : (
-                  pendingMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className="px-4 py-3 hover:bg-surface-50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={clsx(
-                            "w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0",
-                            msg.color,
-                          )}
-                        >
-                          {msg.initials}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <p className="text-xs font-bold text-text-primary">
-                              {msg.sender}
-                            </p>
-                            <p className="text-[10px] text-text-muted shrink-0 ml-2">
-                              {msg.time}
-                            </p>
-                          </div>
-                          <p className="text-[11px] text-text-muted truncate">
-                            {msg.content}
-                          </p>
-                          <div className="flex gap-1.5 mt-2">
-                            <button className="px-2.5 py-1 bg-primary text-white text-[10px] font-semibold rounded-full hover:bg-primary-700 transition-colors">
-                              Chấp nhận
-                            </button>
-                            <button className="px-2.5 py-1 bg-surface-100 text-text-secondary text-[10px] font-semibold rounded-full hover:bg-surface-200 transition-colors">
-                              Từ chối
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-
-          {panel === "blocked" && (
-            <>
-              <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">
-                <button
-                  onClick={() => setPanel("main")}
-                  className="p-1 hover:bg-surface-100 rounded-lg transition-colors text-text-muted"
-                >
-                  <ArrowLeft size={14} />
-                </button>
-                <p className="text-sm font-bold text-text-primary">
-                  Danh sách chặn
-                </p>
-                <PillBadge
-                  count={blockedUsers.length}
-                  variant="blocked"
-                  className="ml-auto"
-                />
-              </div>
-              <div className="py-2">
-                {blockedUsers.length === 0 ? (
-                  <div className="flex flex-col items-center py-8 gap-2 text-text-muted">
-                    <BanIcon size={28} className="opacity-40" />
-                    <p className="text-xs">Chưa chặn ai</p>
-                  </div>
-                ) : (
-                  blockedUsers.map((u) => (
-                    <div
-                      key={u.id}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-surface-50 transition-colors group"
-                    >
-                      <Avatar
-                        initials={u.initials}
-                        color={u.color}
-                        size="md"
-                        shape="circle"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-text-primary">
-                          {u.name}
-                        </p>
-                        <p className="text-[10px] text-text-muted">
-                          {u.blockedAt}
-                        </p>
-                      </div>
-                      <button className="opacity-0 group-hover:opacity-100 px-2.5 py-1 bg-surface-100 text-text-secondary text-[10px] font-semibold rounded-full hover:bg-surface-200 transition-all">
-                        Bỏ chặn
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-
           {panel === "settings" && (
             <>
               <div className="flex items-center gap-2 px-4 py-3.5 border-b border-surface-100">

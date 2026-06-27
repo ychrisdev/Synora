@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildAttachmentLabel } from "@/lib/chat/utils";
+import { areFriends } from "@/lib/chat/friends";
 
 export async function GET(_req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -12,7 +13,7 @@ export async function GET(_req: NextRequest) {
   const userId = session.user.id;
 
   const memberships = await prisma.conversationMember.findMany({
-    where: { userId },
+    where: { userId, isAccepted: true },
     select: {
       lastReadAt: true,
       conversation: {
@@ -197,124 +198,176 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
-  }
-  const userId = session.user.id;
-
-  const body = await req.json();
-  const { targetUsername, isGroup, name, usernames } = body as {
-    targetUsername?: string;
-    isGroup?: boolean;
-    name?: string;
-    usernames?: string[];
-  };
-
-  if (isGroup) {
-    if (!name?.trim()) {
-      return NextResponse.json({ error: "Thiếu tên nhóm" }, { status: 400 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
     }
-    if (!usernames || usernames.length < 2) {
+    const userId = session.user.id;
+
+    const body = await req.json();
+    const { targetUsername, isGroup, name, usernames } = body as {
+      targetUsername?: string;
+      isGroup?: boolean;
+      name?: string;
+      usernames?: string[];
+    };
+
+    if (isGroup) {
+      if (!name?.trim()) {
+        return NextResponse.json({ error: "Thiếu tên nhóm" }, { status: 400 });
+      }
+      if (!usernames || usernames.length < 2) {
+        return NextResponse.json(
+          { error: "Cần ít nhất 2 thành viên" },
+          { status: 400 },
+        );
+      }
+
+      const members = await prisma.user.findMany({
+        where: { username: { in: usernames } },
+        select: { id: true },
+      });
+      if (members.length !== usernames.length) {
+        return NextResponse.json(
+          { error: "Không tìm thấy một số người dùng" },
+          { status: 404 },
+        );
+      }
+
+      const memberIds = Array.from(
+        new Set([userId, ...members.map((m) => m.id)]),
+      );
+
+      const conversation = await prisma.conversation.create({
+        data: {
+          isGroup: true,
+          name: name.trim(),
+          members: {
+            create: memberIds.map((id) => ({
+              userId: id,
+              isLeader: id === userId,
+            })),
+          },
+        },
+        select: { id: true, isGroup: true, name: true, avatarUrl: true },
+      });
+
+      return NextResponse.json({
+        id: conversation.id,
+        isGroup: true,
+        name: conversation.name,
+        avatarUrl: conversation.avatarUrl,
+      });
+    }
+
+    if (!targetUsername) {
       return NextResponse.json(
-        { error: "Cần ít nhất 2 thành viên" },
+        { error: "Thiếu targetUsername" },
         { status: 400 },
       );
     }
 
-    const members = await prisma.user.findMany({
-      where: { username: { in: usernames } },
-      select: { id: true },
+    const target = await prisma.user.findUnique({
+      where: { username: targetUsername },
+      select: {
+        id: true,
+        username: true,
+        profile: { select: { displayName: true, avatarUrl: true } },
+      },
     });
-    if (members.length !== usernames.length) {
+    if (!target) {
       return NextResponse.json(
-        { error: "Không tìm thấy một số người dùng" },
+        { error: "Không tìm thấy người dùng" },
         { status: 404 },
       );
     }
+    if (target.id === userId) {
+      return NextResponse.json(
+        { error: "Không thể tự chat với mình" },
+        { status: 400 },
+      );
+    }
 
-    const memberIds = Array.from(
-      new Set([userId, ...members.map((m) => m.id)]),
-    );
+    const dmKey = [userId, target.id].sort().join("_");
 
-    const conversation = await prisma.conversation.create({
-      data: {
-        isGroup: true,
-        name: name.trim(),
+    let conversationId: string;
+    let isAccepted: boolean;
+    let lastMessageAt: Date | null;
+
+    const existing = await prisma.conversation.findUnique({
+      where: { dmKey },
+      select: {
+        id: true,
+        lastMessageAt: true,
         members: {
-          create: memberIds.map((id) => ({
-            userId: id,
-            isLeader: id === userId,
-          })),
+          where: { userId },
+          select: { isAccepted: true },
         },
       },
-      select: { id: true, isGroup: true, name: true, avatarUrl: true },
     });
+
+    if (existing) {
+      conversationId = existing.id;
+      lastMessageAt = existing.lastMessageAt;
+      isAccepted = existing.members[0]?.isAccepted ?? false;
+    } else {
+      const friends = await areFriends(userId, target.id);
+      try {
+        const created = await prisma.conversation.create({
+          data: {
+            isGroup: false,
+            dmKey,
+            members: {
+              create: [
+                { userId, isAccepted: true },
+                { userId: target.id, isAccepted: friends },
+              ],
+            },
+          },
+          select: { id: true, lastMessageAt: true },
+        });
+        conversationId = created.id;
+        lastMessageAt = created.lastMessageAt;
+        isAccepted = true;
+      } catch (innerErr: any) {
+        if (innerErr?.code === "P2002") {
+          const raceWinner = await prisma.conversation.findUnique({
+            where: { dmKey },
+            select: {
+              id: true,
+              lastMessageAt: true,
+              members: { where: { userId }, select: { isAccepted: true } },
+            },
+          });
+          if (!raceWinner) throw innerErr;
+          conversationId = raceWinner.id;
+          lastMessageAt = raceWinner.lastMessageAt;
+          isAccepted = raceWinner.members[0]?.isAccepted ?? false;
+        } else {
+          throw innerErr;
+        }
+      }
+    }
 
     return NextResponse.json({
-      id: conversation.id,
-      isGroup: true,
-      name: conversation.name,
-      avatarUrl: conversation.avatarUrl,
-    });
-  }
-
-  if (!targetUsername) {
-    return NextResponse.json(
-      { error: "Thiếu targetUsername" },
-      { status: 400 },
-    );
-  }
-
-  const target = await prisma.user.findUnique({
-    where: { username: targetUsername },
-    select: {
-      id: true,
-      username: true,
-      profile: { select: { displayName: true, avatarUrl: true } },
-    },
-  });
-  if (!target) {
-    return NextResponse.json(
-      { error: "Không tìm thấy người dùng" },
-      { status: 404 },
-    );
-  }
-  if (target.id === userId) {
-    return NextResponse.json(
-      { error: "Không thể tự chat với mình" },
-      { status: 400 },
-    );
-  }
-
-  const existing = await prisma.conversation.findFirst({
-    where: {
+      id: conversationId,
       isGroup: false,
-      AND: [
-        { members: { some: { userId } } },
-        { members: { some: { userId: target.id } } },
-      ],
-    },
-    select: { id: true },
-  });
-
-  const conversationId =
-    existing?.id ??
-    (
-      await prisma.conversation.create({
-        data: {
-          isGroup: false,
-          members: { create: [{ userId }, { userId: target.id }] },
-        },
-        select: { id: true },
-      })
-    ).id;
-
-  return NextResponse.json({
-    id: conversationId,
-    isGroup: false,
-    name: target.profile?.displayName ?? target.username,
-    avatarUrl: target.profile?.avatarUrl ?? null,
-    otherUsername: target.username,
-  });
+      name: target.profile?.displayName ?? target.username,
+      avatarUrl: target.profile?.avatarUrl ?? null,
+      otherUsername: target.username,
+      isAccepted,
+      lastMessageAt: lastMessageAt ? lastMessageAt.toISOString() : null,
+    });
+  } catch (err) {
+    console.error("POST /api/conversations error:", err);
+    console.error("Stack:", err instanceof Error ? err.stack : String(err));
+    return NextResponse.json(
+      {
+        error: "Không thể tạo cuộc trò chuyện",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
+  }
 }

@@ -450,3 +450,21 @@ export async function disbandGroup(conversationId: string): Promise<void> {
     throw new Error(data.error ?? "Không thể giải tán nhóm");
   }
 }
+
+export async function fetchPendingConversations(): Promise<PendingConversation[]> {
+  const res = await fetch("/api/conversations/pending");
+  if (!res.ok) throw new Error("Không thể tải tin nhắn chờ");
+  return res.json();
+}
+
+export async function respondPendingConversation(
+  conversationId: string,
+  action: "accept" | "reject",
+): Promise<void> {
+  const res = await fetch(`/api/conversations/${conversationId}/pending`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error("Có lỗi xảy ra");
+}

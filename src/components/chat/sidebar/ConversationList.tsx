@@ -151,15 +151,22 @@ export function ConversationList({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
-                  <p
-                    className={clsx(
-                      "text-xs truncate",
-                      conv.unreadCount > 0 ? "font-bold" : "font-semibold",
-                      "text-text-primary",
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p
+                      className={clsx(
+                        "text-xs truncate",
+                        conv.unreadCount > 0 ? "font-bold" : "font-semibold",
+                        "text-text-primary",
+                      )}
+                    >
+                      {conv.name}
+                    </p>
+                    {conv.isPending && (
+                      <span className="shrink-0 text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                        Chờ
+                      </span>
                     )}
-                  >
-                    {conv.name}
-                  </p>
+                  </div>
                   <span
                     className={clsx(
                       "text-[10px] shrink-0 ml-1",

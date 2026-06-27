@@ -357,6 +357,7 @@ model Conversation {
   name      String?
   avatarUrl String?
   avatarKey String?
+  dmKey     String?              @unique
 
   members   ConversationMember[]
   messages  Message[]
@@ -377,6 +378,7 @@ model ConversationMember {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   isLeader       Boolean      @default(false)
+  isAccepted     Boolean      @default(true)
   lastReadAt     DateTime?
 
   joinedAt       DateTime     @default(now())

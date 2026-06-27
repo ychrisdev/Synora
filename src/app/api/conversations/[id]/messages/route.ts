@@ -132,7 +132,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   if (!membership)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
+  if (!membership.isAccepted) {
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { isAccepted: true },
+    });
+  }
   const body = await req.json();
   const { content, replyToId, attachments } = body as {
     content?: string;
