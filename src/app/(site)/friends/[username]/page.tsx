@@ -11,20 +11,12 @@ import {
   UserMinus,
   Users,
   ArrowLeft,
-  Bookmark,
   Trash2,
+  Clock,
 } from "lucide-react";
+import Avatar from "@/components/ui/Avatar";
 
-type Tab = "all" | "requests";
-
-const COLORS = [
-  "bg-violet-500",
-  "bg-teal-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-  "bg-amber-500",
-  "bg-cyan-600",
-];
+type Tab = "all" | "requests" | "pending";
 
 function getInitials(name: string) {
   return name
@@ -108,25 +100,6 @@ function ConfirmDialog({
   );
 }
 
-function AvatarCell({ person, index }: { person: PersonCard; index: number }) {
-  return person.avatarUrl ? (
-    <img
-      src={person.avatarUrl}
-      alt={person.displayName}
-      className="w-11 h-11 rounded-full object-cover"
-    />
-  ) : (
-    <div
-      className={clsx(
-        "w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-bold",
-        COLORS[index % COLORS.length],
-      )}
-    >
-      {getInitials(person.displayName)}
-    </div>
-  );
-}
-
 function EmptyState({ message }: { message: string }) {
   return (
     <div className="col-span-2 flex flex-col items-center justify-center py-16 text-center">
@@ -147,16 +120,16 @@ export default function FriendsPage() {
   const [tab, setTab] = useState<Tab>("all");
   const [friends, setFriends] = useState<PersonCard[]>([]);
   const [requests, setRequests] = useState<PersonCard[]>([]);
+  const [pendingSent, setPendingSent] = useState<PersonCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const [confirm, setConfirm] = useState<{
-    type: "unfriend" | "reject";
+    type: "unfriend" | "reject" | "cancel";
     person: PersonCard;
   } | null>(null);
 
   const actionInProgress = useRef<Set<string>>(new Set());
-
   const isOwner = session?.user?.username === username;
 
   const showToast = useCallback((msg: string, type: ToastState["type"]) => {
@@ -181,6 +154,13 @@ export default function FriendsPage() {
         ).values(),
       ) as PersonCard[];
       setFriends(uniqueFriends);
+
+      const uniquePending = Array.from(
+        new Map(
+          (friendsData.pendingSent ?? []).map((p: PersonCard) => [p.id, p]),
+        ).values(),
+      ) as PersonCard[];
+      setPendingSent(uniquePending);
 
       if (reqRes) {
         const reqData = await reqRes.json();
@@ -215,6 +195,23 @@ export default function FriendsPage() {
       await fetch(`/api/profile/${person.username}/follow`, { method: "POST" });
       setFriends((prev) => prev.filter((f) => f.id !== person.id));
       showToast("Đã hủy kết bạn", "delete");
+    } finally {
+      actionInProgress.current.delete(person.id);
+    }
+  };
+
+  const handleCancelRequest = (person: PersonCard) => {
+    if (actionInProgress.current.has(person.id)) return;
+    setConfirm({ type: "cancel", person });
+  };
+
+  const doCancelRequest = async (person: PersonCard) => {
+    setConfirm(null);
+    actionInProgress.current.add(person.id);
+    try {
+      await fetch(`/api/profile/${person.username}/follow`, { method: "POST" });
+      setPendingSent((prev) => prev.filter((p) => p.id !== person.id));
+      showToast("Đã thu hồi lời mời kết bạn", "delete");
     } finally {
       actionInProgress.current.delete(person.id);
     }
@@ -278,11 +275,19 @@ export default function FriendsPage() {
             label: "Yêu cầu kết bạn",
             count: requests.length,
           },
+          {
+            key: "pending" as Tab,
+            label: "Đang theo dõi",
+            count: pendingSent.length,
+          },
         ]
       : []),
   ];
 
-  const currentList = tab === "all" ? friends : requests;
+  const isEmpty =
+    (tab === "all" && friends.length === 0) ||
+    (tab === "requests" && requests.length === 0) ||
+    (tab === "pending" && pendingSent.length === 0);
 
   return (
     <div className="min-h-screen bg-surface-50">
@@ -306,6 +311,17 @@ export default function FriendsPage() {
           description={`Từ chối lời mời kết bạn từ ${confirm.person.displayName}.`}
           confirmLabel="Từ chối"
           onConfirm={() => doReject(confirm.person)}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {confirm?.type === "cancel" && (
+        <ConfirmDialog
+          icon={<Clock size={20} className="text-red-500" />}
+          title="Thu hồi lời mời?"
+          description={`Thu hồi lời mời kết bạn đã gửi đến ${confirm.person.displayName}.`}
+          confirmLabel="Thu hồi"
+          onConfirm={() => doCancelRequest(confirm.person)}
           onCancel={() => setConfirm(null)}
         />
       )}
@@ -366,20 +382,22 @@ export default function FriendsPage() {
                   />
                 ))}
               </div>
-            ) : currentList.length === 0 ? (
+            ) : isEmpty ? (
               <div className="grid grid-cols-2">
                 <EmptyState
                   message={
                     tab === "all"
                       ? "Chưa có bạn bè nào"
-                      : "Không có yêu cầu kết bạn"
+                      : tab === "requests"
+                        ? "Không có yêu cầu kết bạn"
+                        : "Không có lời mời nào đang chờ"
                   }
                 />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {tab === "all" &&
-                  friends.map((f, i) => (
+                  friends.map((f) => (
                     <div
                       key={f.id}
                       className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
@@ -388,7 +406,13 @@ export default function FriendsPage() {
                         href={`/profile/${f.username}`}
                         className="shrink-0"
                       >
-                        <AvatarCell person={f} index={i} />
+                        <Avatar
+                          src={f.avatarUrl}
+                          name={f.displayName}
+                          initials={getInitials(f.displayName)}
+                          color="bg-primary"
+                          size="md"
+                        />
                       </NextLink>
                       <div className="flex-1 min-w-0">
                         <NextLink href={`/profile/${f.username}`}>
@@ -413,7 +437,7 @@ export default function FriendsPage() {
                   ))}
 
                 {tab === "requests" &&
-                  requests.map((r, i) => (
+                  requests.map((r) => (
                     <div
                       key={r.requestId}
                       className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
@@ -422,7 +446,13 @@ export default function FriendsPage() {
                         href={`/profile/${r.username}`}
                         className="shrink-0"
                       >
-                        <AvatarCell person={r} index={i} />
+                        <Avatar
+                          src={r.avatarUrl}
+                          name={r.displayName}
+                          initials={getInitials(r.displayName)}
+                          color="bg-primary"
+                          size="md"
+                        />
                       </NextLink>
                       <div className="flex-1 min-w-0">
                         <NextLink href={`/profile/${r.username}`}>
@@ -452,6 +482,44 @@ export default function FriendsPage() {
                             <UserX size={10} /> Từ chối
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  ))}
+
+                {tab === "pending" &&
+                  pendingSent.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
+                    >
+                      <NextLink
+                        href={`/profile/${p.username}`}
+                        className="shrink-0"
+                      >
+                        <Avatar
+                          src={p.avatarUrl}
+                          name={p.displayName}
+                          initials={getInitials(p.displayName)}
+                          color="bg-primary"
+                          size="md"
+                        />
+                      </NextLink>
+                      <div className="flex-1 min-w-0">
+                        <NextLink href={`/profile/${p.username}`}>
+                          <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
+                            {p.displayName}
+                          </p>
+                        </NextLink>
+                        <p className="text-[10px] text-text-muted mt-0.5">
+                          {p.followerCount.toLocaleString("vi-VN")} người theo
+                          dõi
+                        </p>
+                        <button
+                          onClick={() => handleCancelRequest(p)}
+                          className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
+                        >
+                          <Clock size={11} /> Thu hồi lời mời
+                        </button>
                       </div>
                     </div>
                   ))}

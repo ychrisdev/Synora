@@ -7,6 +7,7 @@ import NextLink from "next/link";
 import { useSession } from "next-auth/react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import Avatar from "@/components/ui/Avatar";
 
 interface Friend {
   id: string;
@@ -129,25 +130,21 @@ export function FriendsWidget({
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {friends.map((f, i) => (
+            {friends.map((f) => (
               <div key={f.id} className="flex items-center gap-2 group">
                 <NextLink href={`/profile/${f.username}`} className="shrink-0">
-                  {f.avatarUrl ? (
-                    <img
-                      src={f.avatarUrl}
-                      alt={f.displayName}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className={clsx(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold",
-                        COLORS[i % COLORS.length],
-                      )}
-                    >
-                      {getInitials(f.displayName)}
-                    </div>
-                  )}
+                  <Avatar
+                    src={f.avatarUrl}
+                    name={f.displayName}
+                    initials={f.displayName
+                      .split(" ")
+                      .map((w) => w[0])
+                      .slice(-2)
+                      .join("")
+                      .toUpperCase()}
+                    color="bg-primary"
+                    size="sm"
+                  />
                 </NextLink>
                 <div className="flex-1 min-w-0">
                   <NextLink href={`/profile/${f.username}`}>
