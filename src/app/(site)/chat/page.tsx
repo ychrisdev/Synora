@@ -68,14 +68,15 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function appendLocalPendingOnly(
+function appendLocalOnlyConversations(
   serverList: Conversation[],
   prevList: Conversation[],
 ): Conversation[] {
-  const pendingOnly = prevList.filter(
-    (c) => c.isPending && !serverList.some((sc) => sc.id === c.id),
+  const localOnly = prevList.filter(
+    (c) =>
+      (c.isPending || c.isArchived) && !serverList.some((sc) => sc.id === c.id),
   );
-  return [...serverList, ...pendingOnly];
+  return [...serverList, ...localOnly];
 }
 
 type ScrollMode = "instant" | "smooth" | null;
@@ -332,7 +333,7 @@ export default function ChatPage() {
           const stillDraft = !!localConv?.isDraft && !serverConv.lastMessageAt;
           return { ...serverConv, isDraft: stillDraft };
         });
-        return appendLocalPendingOnly(merged, prev);
+        return appendLocalOnlyConversations(merged, prev);
       });
       if (!activeIdRef.current && data.length > 0) setActiveId(data[0].id);
     } finally {
@@ -402,11 +403,14 @@ export default function ChatPage() {
         const activeIsLocalPending = convListRef.current.some(
           (c) => c.id === activeId && c.isPending,
         );
+        const activeIsArchived = convListRef.current.some(
+          (c) => c.id === activeId && c.isArchived,
+        );
         const activeStillExists =
           !activeId ||
           serverConvs.some((c) => c.id === activeId) ||
-          activeIsLocalPending;
-
+          activeIsLocalPending ||
+          activeIsArchived;
         setConvList((prev) => {
           const merged = serverConvs.map((serverConv) => {
             const localConv = prev.find((c) => c.id === serverConv.id);
@@ -433,7 +437,7 @@ export default function ChatPage() {
               isDraft: stillDraft,
             };
           });
-          return appendLocalPendingOnly(merged, prev);
+          return appendLocalOnlyConversations(merged, prev);
         });
 
         if (activeId && !activeStillExists) {
@@ -643,6 +647,8 @@ export default function ChatPage() {
   const handleSend = async () => {
     if ((!input.trim() && pendingFiles.length === 0) || !activeId || sending)
       return;
+    const isCurrentlyArchived =
+      convListRef.current.find((c) => c.id === activeId)?.isArchived ?? false;
     let uploadedAttachments: {
       url: string;
       key: string;
@@ -756,6 +762,21 @@ export default function ChatPage() {
           : c,
       ),
     );
+    if (isCurrentlyArchived) {
+      try {
+        await fetch(`/api/conversations/${activeId}/archive`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: false }),
+        });
+        setConvList((prev) =>
+          prev.map((c) =>
+            c.id === activeId ? { ...c, isArchived: false } : c,
+          ),
+        );
+        fetchConversations();
+      } catch {}
+    }
     setReplyingTo(null);
 
     try {
@@ -824,6 +845,86 @@ export default function ChatPage() {
       setNextCursor(null);
     }
   }, []);
+
+  const handleMarkUnread = useCallback(
+    async (id: string) => {
+      setConvList((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, unreadCount: Math.max(c.unreadCount, 1) } : c,
+        ),
+      );
+      try {
+        const res = await fetch(`/api/conversations/${id}/mark-unread`, {
+          method: "POST",
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        showToast("Không thể đánh dấu chưa đọc", "error");
+        fetchConversations();
+      }
+    },
+    [fetchConversations, showToast],
+  );
+
+  const handleArchiveConv = useCallback(
+    async (id: string) => {
+      setConvList((prev) => prev.filter((c) => c.id !== id));
+      if (activeIdRef.current === id) {
+        setActiveId(null);
+        setMessages([]);
+      }
+      try {
+        const res = await fetch(`/api/conversations/${id}/archive`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: true }),
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        showToast("Không thể lưu trữ cuộc trò chuyện", "error");
+        fetchConversations();
+      }
+    },
+    [fetchConversations, showToast],
+  );
+
+  const handleDeleteConv = useCallback(
+    async (id: string) => {
+      setConvList((prev) => prev.filter((c) => c.id !== id));
+      if (activeIdRef.current === id) {
+        setActiveId(null);
+        setMessages([]);
+      }
+      try {
+        const res = await fetch(`/api/conversations/${id}`, {
+          method: "DELETE",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Có lỗi xảy ra");
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : "Không thể xóa cuộc trò chuyện",
+          "error",
+        );
+        fetchConversations();
+      }
+    },
+    [fetchConversations, showToast],
+  );
+
+  const handleBlockConv = useCallback(
+    (_id: string) => {
+      showToast("Chức năng chặn đang được phát triển", "error");
+    },
+    [showToast],
+  );
+
+  const handleReportConv = useCallback(
+    (_id: string) => {
+      showToast("Chức năng báo cáo đang được phát triển", "error");
+    },
+    [showToast],
+  );
 
   const handlePendingAccept = async () => {
     if (!activeId || pendingActionLoading) return;
@@ -951,6 +1052,7 @@ export default function ChatPage() {
   const filtered = sortedConvList.filter((c) => {
     if (c.isDraft) return false;
     if (c.isPending) return false;
+    if (c.isArchived) return false;
     if (!c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (activeFilter === "unread") return c.unreadCount > 0;
     if (activeFilter === "group") return c.isGroup;
@@ -988,6 +1090,9 @@ export default function ChatPage() {
         </div>
         <PendingMessages
           refreshKey={pendingRefreshKey}
+          onUnarchived={(id) => {
+            fetchConversations();
+          }}
           onOpen={(conv) => {
             setConvList((prev) => {
               if (prev.some((c) => c.id === conv.id)) return prev;
@@ -999,11 +1104,10 @@ export default function ChatPage() {
                   avatarUrl: conv.avatarUrl,
                   isGroup: false,
                   otherUsername: conv.otherUsername,
-                  lastMessage:
-                    conv.lastMessage || `${conv.name} muốn trò chuyện với bạn`,
+                  lastMessage: conv.lastMessage || "",
                   lastMessageAt: conv.lastMessageAt,
                   unreadCount: 0,
-                  isPending: true,
+                  isArchived: true,
                 },
               ];
             });
@@ -1044,6 +1148,11 @@ export default function ChatPage() {
         onFilterChange={setActiveFilter}
         totalUnread={totalUnread}
         loading={convLoading}
+        onMarkUnread={handleMarkUnread}
+        onBlock={handleBlockConv}
+        onArchive={handleArchiveConv}
+        onDelete={handleDeleteConv}
+        onReport={handleReportConv}
       />
 
       <div className="flex-1 flex flex-col bg-white min-w-0 relative">
@@ -1367,6 +1476,35 @@ export default function ChatPage() {
                   Chấp nhận
                 </button>
               </div>
+            ) : currentConv.isArchived ? (
+              <div className="px-4 py-4 border-t border-surface-200 bg-white shrink-0 flex items-center justify-center gap-3">
+                <p className="text-xs text-text-muted">
+                  Cuộc trò chuyện đang được lưu trữ
+                </p>
+                <button
+                  onClick={async () => {
+                    if (!activeId) return;
+                    try {
+                      await fetch(`/api/conversations/${activeId}/archive`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ archived: false }),
+                      });
+                      setConvList((prev) =>
+                        prev.map((c) =>
+                          c.id === activeId ? { ...c, isArchived: false } : c,
+                        ),
+                      );
+                      fetchConversations();
+                    } catch {
+                      showToast("Không thể bỏ lưu trữ", "error");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-700 transition-colors"
+                >
+                  Bỏ lưu trữ
+                </button>
+              </div>
             ) : (
               <>
                 {pendingFiles.length > 0 && (
@@ -1485,6 +1623,7 @@ export default function ChatPage() {
         <NewConversationModal
           onClose={() => setNewConvOpen(false)}
           onCreated={handleConvCreated}
+          conversations={convList}
         />
       )}
 
