@@ -380,6 +380,10 @@ model ConversationMember {
   isLeader       Boolean      @default(false)
   isAccepted     Boolean      @default(true)
   lastReadAt     DateTime?
+  
+  markedUnreadAt DateTime?
+  isArchived     Boolean      @default(false)
+  hiddenAt       DateTime?
 
   joinedAt       DateTime     @default(now())
 

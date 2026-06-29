@@ -10,6 +10,8 @@ export type Conversation = {
   memberCount?: number;
   isPending?: boolean;
   isDraft?: boolean;
+  isSelf?: boolean;
+  isArchived?: boolean;
 };
 
 export type PendingConversation = {

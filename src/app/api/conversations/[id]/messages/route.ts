@@ -111,7 +111,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   await prisma.conversationMember.update({
     where: { conversationId_userId: { conversationId, userId } },
-    data: { lastReadAt: new Date() },
+    data: { lastReadAt: new Date(), markedUnreadAt: null },
   });
 
   const nextCursor = hasMore ? messages[0]?.id : null;
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!membership.isAccepted) {
     await prisma.conversationMember.update({
       where: { conversationId_userId: { conversationId, userId } },
-      data: { isAccepted: true },
+      data: { lastReadAt: new Date(), markedUnreadAt: null },
     });
   }
   const body = await req.json();

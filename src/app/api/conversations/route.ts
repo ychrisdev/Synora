@@ -6,16 +6,28 @@ import { buildAttachmentLabel } from "@/lib/chat/utils";
 import { areFriends } from "@/lib/chat/friends";
 
 export async function GET(_req: NextRequest) {
+  const { searchParams } = new URL(_req.url);
+  const showArchived = searchParams.get("archived") === "true";
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
   const userId = session.user.id;
 
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      username: true,
+      profile: { select: { displayName: true, avatarUrl: true } },
+    },
+  });
+
   const memberships = await prisma.conversationMember.findMany({
-    where: { userId, isAccepted: true },
+    where: { userId, isAccepted: true, isArchived: showArchived },
     select: {
       lastReadAt: true,
+      markedUnreadAt: true,
+      hiddenAt: true,
       conversation: {
         select: {
           id: true,
@@ -23,6 +35,7 @@ export async function GET(_req: NextRequest) {
           name: true,
           avatarUrl: true,
           lastMessageAt: true,
+          dmKey: true,
           members: {
             where: { userId: { not: userId } },
             select: {
@@ -54,11 +67,18 @@ export async function GET(_req: NextRequest) {
     orderBy: { conversation: { lastMessageAt: "desc" } },
   });
 
-  const result = await Promise.all(
-    memberships.map(async (m) => {
-      const conv = m.conversation;
+  const visibleMemberships = memberships.filter((m) => {
+    if (!m.hiddenAt) return true;
+    const lastMsgAt = m.conversation.lastMessageAt;
+    return !!lastMsgAt && lastMsgAt > m.hiddenAt;
+  });
 
-      const unreadCount = await prisma.message.count({
+  const result = await Promise.all(
+    visibleMemberships.map(async (m) => {
+      const conv = m.conversation;
+      const isSelf = !conv.isGroup && conv.dmKey === `${userId}_${userId}`;
+
+      let unreadCount = await prisma.message.count({
         where: {
           conversationId: conv.id,
           senderId: { not: userId },
@@ -67,14 +87,19 @@ export async function GET(_req: NextRequest) {
           ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
         },
       });
+      if (unreadCount === 0 && m.markedUnreadAt) unreadCount = 1;
 
       const other = conv.members[0]?.user;
       const name = conv.isGroup
         ? (conv.name ?? "Nhóm chat")
-        : (other?.profile?.displayName ?? other?.username ?? "Người dùng");
+        : isSelf
+          ? "Bạn"
+          : (other?.profile?.displayName ?? other?.username ?? "Người dùng");
       const avatarUrl = conv.isGroup
         ? conv.avatarUrl
-        : (other?.profile?.avatarUrl ?? null);
+        : isSelf
+          ? (me?.profile?.avatarUrl ?? null)
+          : (other?.profile?.avatarUrl ?? null);
 
       const lastMsg = conv.messages[0];
 
@@ -185,7 +210,12 @@ export async function GET(_req: NextRequest) {
         isGroup: conv.isGroup,
         name,
         avatarUrl,
-        otherUsername: conv.isGroup ? undefined : other?.username,
+        otherUsername: conv.isGroup
+          ? undefined
+          : isSelf
+            ? me?.username
+            : other?.username,
+        isSelf,
         lastMessage,
         lastMessageAt: conv.lastMessageAt,
         unreadCount,
@@ -282,13 +312,8 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
-    if (target.id === userId) {
-      return NextResponse.json(
-        { error: "Không thể tự chat với mình" },
-        { status: 400 },
-      );
-    }
 
+    const isSelfChat = target.id === userId;
     const dmKey = [userId, target.id].sort().join("_");
 
     let conversationId: string;
@@ -302,7 +327,7 @@ export async function POST(req: NextRequest) {
         lastMessageAt: true,
         members: {
           where: { userId },
-          select: { isAccepted: true },
+          select: { isAccepted: true, hiddenAt: true },
         },
       },
     });
@@ -311,19 +336,26 @@ export async function POST(req: NextRequest) {
       conversationId = existing.id;
       lastMessageAt = existing.lastMessageAt;
       isAccepted = existing.members[0]?.isAccepted ?? false;
+
+      await prisma.conversationMember.update({
+        where: { conversationId_userId: { conversationId, userId } },
+        data: { hiddenAt: null, isArchived: false },
+      });
     } else {
-      const friends = await areFriends(userId, target.id);
+      const friends = isSelfChat ? true : await areFriends(userId, target.id);
+      const memberData = isSelfChat
+        ? [{ userId, isAccepted: true }]
+        : [
+            { userId, isAccepted: true },
+            { userId: target.id, isAccepted: friends },
+          ];
+
       try {
         const created = await prisma.conversation.create({
           data: {
             isGroup: false,
             dmKey,
-            members: {
-              create: [
-                { userId, isAccepted: true },
-                { userId: target.id, isAccepted: friends },
-              ],
-            },
+            members: { create: memberData },
           },
           select: { id: true, lastMessageAt: true },
         });
@@ -353,10 +385,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       id: conversationId,
       isGroup: false,
-      name: target.profile?.displayName ?? target.username,
+      name: isSelfChat
+        ? "Bạn"
+        : (target.profile?.displayName ?? target.username),
       avatarUrl: target.profile?.avatarUrl ?? null,
       otherUsername: target.username,
       isAccepted,
+      isSelf: isSelfChat,
       lastMessageAt: lastMessageAt ? lastMessageAt.toISOString() : null,
     });
   } catch (err) {

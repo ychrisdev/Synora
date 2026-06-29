@@ -118,12 +118,19 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     },
   });
   if (!conversation)
-    return NextResponse.json({ error: "Không tìm thấy nhóm" }, { status: 404 });
-  if (!conversation.isGroup)
     return NextResponse.json(
-      { error: "Không thể giải tán một cuộc trò chuyện riêng tư" },
-      { status: 400 },
+      { error: "Không tìm thấy cuộc trò chuyện" },
+      { status: 404 },
     );
+
+  if (!conversation.isGroup) {
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { hiddenAt: new Date() },
+    });
+    return NextResponse.json({ hidden: true });
+  }
+
   if (!membership.isLeader)
     return NextResponse.json(
       { error: "Chỉ trưởng nhóm mới có thể giải tán nhóm" },
