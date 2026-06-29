@@ -1,28 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { X, Search, User, Hash, Check, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
 import { getColorForUser, getInitialsFromName } from "@/lib/chat/utils";
-import type { NewConvTab } from "@/lib/chat/types";
+import type { NewConvTab, Conversation } from "@/lib/chat/types";
 
 interface FriendItem {
   id: string;
   username: string;
   displayName: string;
   avatarUrl: string | null;
+  isSelf?: boolean;
 }
 
 interface NewConversationModalProps {
   onClose: () => void;
   onCreated: (conversationId: string) => void;
+  conversations: Conversation[];
 }
 
 export function NewConversationModal({
   onClose,
   onCreated,
+  conversations,
 }: NewConversationModalProps) {
   const { data: session } = useSession();
   const [tab, setTab] = useState<NewConvTab>("direct");
@@ -45,11 +48,82 @@ export function NewConversationModal({
       .finally(() => setLoadingFriends(false));
   }, [session?.user?.username]);
 
-  const filtered = friends.filter(
-    (f) =>
-      f.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      f.username.toLowerCase().includes(search.toLowerCase()),
-  );
+  const currentUserId = session?.user?.id ?? "";
+
+  const selfItem: FriendItem | null = useMemo(() => {
+    if (!session?.user) return null;
+    return {
+      id: currentUserId || "self",
+      username: session.user.username ?? "",
+      displayName: session.user.name ?? "Bạn",
+      avatarUrl: session.user.image ?? null,
+      isSelf: true,
+    };
+  }, [session, currentUserId]);
+
+  const recentContacts: FriendItem[] = useMemo(() => {
+    return conversations
+      .filter(
+        (c) =>
+          !c.isGroup &&
+          !c.isSelf &&
+          !c.isPending &&
+          !c.isDraft &&
+          !!c.lastMessageAt &&
+          c.otherUsername,
+      )
+      .sort((a, b) => {
+        const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+        const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+        return bt - at;
+      })
+      .map((c) => ({
+        id: c.otherUsername!,
+        username: c.otherUsername!,
+        displayName: c.name,
+        avatarUrl: c.avatarUrl,
+      }));
+  }, [conversations]);
+
+  const others: FriendItem[] = useMemo(() => {
+    const map = new Map<string, FriendItem>();
+
+    for (const c of recentContacts) {
+      if (!map.has(c.username)) map.set(c.username, c);
+    }
+
+    for (const f of friends) {
+      const existing = map.get(f.username);
+      if (existing) {
+        map.set(f.username, { ...existing, id: f.id });
+      } else {
+        map.set(f.username, f);
+      }
+    }
+
+    const recentUsernames = recentContacts.map((c) => c.username);
+    const result: FriendItem[] = [];
+
+    for (const username of recentUsernames) {
+      const item = map.get(username);
+      if (item) result.push(item);
+    }
+
+    for (const f of friends) {
+      if (!recentUsernames.includes(f.username)) {
+        result.push(f);
+      }
+    }
+
+    return result;
+  }, [recentContacts, friends]);
+
+  const matchesQuery = (f: FriendItem) =>
+    f.displayName.toLowerCase().includes(search.toLowerCase()) ||
+    f.username.toLowerCase().includes(search.toLowerCase());
+
+  const filteredOthers = others.filter(matchesQuery);
+  const showSelf = tab === "direct" && !!selfItem && matchesQuery(selfItem);
 
   const toggle = (friend: FriendItem) =>
     setSelected((prev) =>
@@ -92,6 +166,50 @@ export function NewConversationModal({
     } finally {
       setCreating(false);
     }
+  };
+
+  const renderFriendRow = (f: FriendItem) => {
+    const isSelected = selected.some((s) => s.id === f.id);
+    const isDisabled = tab === "direct" && selected.length === 1 && !isSelected;
+    const label = f.isSelf ? "Bạn" : f.displayName;
+    return (
+      <button
+        key={f.id}
+        onClick={() => !isDisabled && toggle(f)}
+        disabled={isDisabled}
+        className={clsx(
+          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
+          isSelected
+            ? "bg-primary/8"
+            : isDisabled
+              ? "opacity-40 cursor-not-allowed"
+              : "hover:bg-surface-50",
+        )}
+      >
+        <Avatar
+          src={f.avatarUrl}
+          initials={getInitialsFromName(label)}
+          color={getColorForUser(f.id)}
+          size="md"
+        />
+        <div className="flex-1 text-left min-w-0">
+          <p className="text-sm font-semibold text-text-primary truncate">
+            {label}
+          </p>
+          <p className="text-xs text-text-muted">@{f.username}</p>
+        </div>
+        <div
+          className={clsx(
+            "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+            isSelected ? "bg-primary border-primary" : "border-surface-300",
+          )}
+        >
+          {isSelected && (
+            <Check size={11} className="text-white" strokeWidth={3} />
+          )}
+        </div>
+      </button>
+    );
   };
 
   return (
@@ -168,9 +286,9 @@ export function NewConversationModal({
                       getColorForUser(f.id),
                     )}
                   >
-                    {getInitialsFromName(f.displayName)[0]}
+                    {getInitialsFromName(f.isSelf ? "Bạn" : f.displayName)[0]}
                   </span>
-                  {f.displayName.split(" ").slice(-1)[0]}
+                  {f.isSelf ? "Bạn" : f.displayName.split(" ").slice(-1)[0]}
                   <X size={10} className="text-text-muted" />
                 </button>
               ))}
@@ -202,62 +320,19 @@ export function NewConversationModal({
                 <Loader2 size={16} className="animate-spin" />
                 <span className="text-xs">Đang tải...</span>
               </div>
-            ) : filtered.length === 0 ? (
-              <p className="text-xs text-text-muted text-center py-6">
-                {friends.length === 0
-                  ? "Bạn chưa có bạn bè nào"
-                  : "Không tìm thấy kết quả"}
-              </p>
             ) : (
-              filtered.map((f) => {
-                const isSelected = selected.some((s) => s.id === f.id);
-                const isDisabled =
-                  tab === "direct" && selected.length === 1 && !isSelected;
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => !isDisabled && toggle(f)}
-                    disabled={isDisabled}
-                    className={clsx(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
-                      isSelected
-                        ? "bg-primary/8"
-                        : isDisabled
-                          ? "opacity-40 cursor-not-allowed"
-                          : "hover:bg-surface-50",
-                    )}
-                  >
-                    <Avatar
-                      src={f.avatarUrl}
-                      initials={getInitialsFromName(f.displayName)}
-                      color={getColorForUser(f.id)}
-                      size="md"
-                    />
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-sm font-semibold text-text-primary truncate">
-                        {f.displayName}
-                      </p>
-                      <p className="text-xs text-text-muted">@{f.username}</p>
-                    </div>
-                    <div
-                      className={clsx(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                        isSelected
-                          ? "bg-primary border-primary"
-                          : "border-surface-300",
-                      )}
-                    >
-                      {isSelected && (
-                        <Check
-                          size={11}
-                          className="text-white"
-                          strokeWidth={3}
-                        />
-                      )}
-                    </div>
-                  </button>
-                );
-              })
+              <>
+                {showSelf && renderFriendRow(selfItem!)}
+                {filteredOthers.length === 0 ? (
+                  <p className="text-xs text-text-muted text-center py-6">
+                    {friends.length === 0 && recentContacts.length === 0
+                      ? "Bạn chưa có bạn bè nào"
+                      : "Không tìm thấy kết quả"}
+                  </p>
+                ) : (
+                  filteredOthers.map((f) => renderFriendRow(f))
+                )}
+              </>
             )}
           </div>
         </div>

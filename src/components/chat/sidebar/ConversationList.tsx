@@ -1,9 +1,22 @@
 "use client";
 
-import { Search, MessageSquare } from "lucide-react";
+import { useRef, useState } from "react";
+import Link from "next/link";
+import {
+  Search,
+  MessageSquare,
+  MoreVertical,
+  Mail,
+  User,
+  Ban,
+  Archive,
+  Trash2,
+  Flag,
+} from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
 import { Badge } from "@/components/chat/Badge";
+import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import type { Conversation, FilterChip } from "@/lib/chat/types";
 
 function getInitials(name: string) {
@@ -24,16 +37,108 @@ function formatTime(iso: string | null): string {
   return new Date(iso).toLocaleDateString("vi-VN");
 }
 
+interface ConversationItemMenuProps {
+  conversation: Conversation;
+  onClose: () => void;
+  onMarkUnread: () => void;
+  onBlock: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}
+
+function ConversationItemMenu({
+  conversation,
+  onClose,
+  onMarkUnread,
+  onBlock,
+  onArchive,
+  onDelete,
+  onReport,
+}: ConversationItemMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useOutsideClickRefs([ref], onClose);
+
+  const { isSelf, isGroup } = conversation;
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1 z-20 w-48 bg-white rounded-xl shadow-xl border border-surface-100 py-1 overflow-hidden"
+    >
+      {!isSelf && (
+        <button
+          onClick={onMarkUnread}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+        >
+          <Mail size={13} className="text-text-muted shrink-0" />
+          Đánh dấu chưa đọc
+        </button>
+      )}
+      {!isSelf && !isGroup && conversation.otherUsername && (
+        <Link
+          href={`/profile/${conversation.otherUsername}`}
+          onClick={onClose}
+          className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+        >
+          <User size={13} className="text-text-muted shrink-0" />
+          Trang cá nhân
+        </Link>
+      )}
+      {!isSelf && !isGroup && (
+        <button
+          onClick={onBlock}
+          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+        >
+          <Ban size={13} className="text-text-muted shrink-0" />
+          Chặn
+        </button>
+      )}
+      <button
+        onClick={onArchive}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+      >
+        <Archive size={13} className="text-text-muted shrink-0" />
+        Lưu trữ
+      </button>
+      <button
+        onClick={onDelete}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
+      >
+        <Trash2 size={13} className="text-text-muted shrink-0" />
+        Xóa
+      </button>
+      {!isSelf && (
+        <>
+          <div className="h-px bg-surface-100 my-0.5" />
+          <button
+            onClick={onReport}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Flag size={13} className="shrink-0" />
+            Báo cáo
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface ConversationListProps {
   conversations: Conversation[];
   activeId: string | null;
-  onSelect: (id: string) => void;
   searchQuery: string;
-  onSearchChange: (q: string) => void;
   activeFilter: FilterChip;
-  onFilterChange: (f: FilterChip) => void;
   totalUnread: number;
   loading?: boolean;
+  onSelect: (id: string) => void;
+  onSearchChange: (q: string) => void;
+  onFilterChange: (f: FilterChip) => void;
+  onMarkUnread: (id: string) => void;
+  onBlock: (id: string) => void;
+  onArchive: (id: string) => void;
+  onDelete: (id: string) => void;
+  onReport: (id: string) => void;
 }
 
 const FILTER_CHIPS: { key: FilterChip; label: string }[] = [
@@ -52,7 +157,24 @@ export function ConversationList({
   onFilterChange,
   totalUnread,
   loading,
+  onMarkUnread,
+  onBlock,
+  onArchive,
+  onDelete,
+  onReport,
 }: ConversationListProps) {
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  const handleDeleteClick = (conv: Conversation) => {
+    if (conv.isGroup) {
+      const ok = window.confirm(
+        "Xóa cuộc trò chuyện nhóm này sẽ giải tán nhóm cho tất cả thành viên. Bạn có chắc chắn?",
+      );
+      if (!ok) return;
+    }
+    onDelete(conv.id);
+  };
+
   return (
     <div className="w-[268px] shrink-0 border-r border-surface-200 bg-white flex flex-col">
       <div className="px-4 pt-4 pb-3 border-b border-surface-100">
@@ -132,73 +254,122 @@ export function ConversationList({
             )}
           </div>
         ) : (
-          conversations.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              className={clsx(
-                "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
-                activeId === conv.id ? "bg-primary/10" : "hover:bg-surface-50",
-              )}
-            >
-              <div className="relative shrink-0">
-                <Avatar
-                  src={conv.avatarUrl ?? undefined}
-                  initials={getInitials(conv.name)}
-                  size="md"
-                  shape="circle"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <p
-                      className={clsx(
-                        "text-xs truncate",
-                        conv.unreadCount > 0 ? "font-bold" : "font-semibold",
-                        "text-text-primary",
-                      )}
-                    >
-                      {conv.name}
-                    </p>
-                    {conv.isPending && (
-                      <span className="shrink-0 text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                        Chờ
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={clsx(
-                      "text-[10px] shrink-0 ml-1",
-                      conv.unreadCount > 0
-                        ? "text-primary font-semibold"
-                        : "text-text-muted",
-                    )}
-                  >
-                    {formatTime(conv.lastMessageAt)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p
-                    className={clsx(
-                      "text-[11px] truncate",
-                      conv.unreadCount > 0
-                        ? "text-text-secondary font-medium"
-                        : "text-text-muted",
-                    )}
-                  >
-                    {conv.lastMessage}
-                  </p>
-                  <Badge
-                    count={conv.unreadCount}
-                    variant="unread"
+          conversations.map((conv) => {
+            const menuOpen = menuOpenId === conv.id;
+            return (
+              <div
+                key={conv.id}
+                onClick={() => onSelect(conv.id)}
+                className={clsx(
+                  "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer group relative",
+                  activeId === conv.id
+                    ? "bg-primary/10"
+                    : "hover:bg-surface-50",
+                )}
+              >
+                <div className="relative shrink-0">
+                  <Avatar
+                    src={conv.avatarUrl ?? undefined}
+                    initials={getInitials(conv.name)}
                     size="md"
-                    className="ml-1"
+                    shape="circle"
                   />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p
+                        className={clsx(
+                          "text-xs truncate",
+                          conv.unreadCount > 0 ? "font-bold" : "font-semibold",
+                          "text-text-primary",
+                        )}
+                      >
+                        {conv.name}
+                      </p>
+                      {conv.isPending && (
+                        <span className="shrink-0 text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                          Chờ
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={clsx(
+                        "text-[10px] shrink-0 ml-1",
+                        conv.unreadCount > 0
+                          ? "text-primary font-semibold"
+                          : "text-text-muted",
+                      )}
+                    >
+                      {formatTime(conv.lastMessageAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p
+                      className={clsx(
+                        "text-[11px] truncate",
+                        conv.unreadCount > 0
+                          ? "text-text-secondary font-medium"
+                          : "text-text-muted",
+                      )}
+                    >
+                      {conv.lastMessage}
+                    </p>
+                    <Badge
+                      count={conv.unreadCount}
+                      variant="unread"
+                      size="md"
+                      className="ml-1"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  className="relative shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => setMenuOpenId(menuOpen ? null : conv.id)}
+                    className={clsx(
+                      "p-1.5 rounded-full hover:bg-surface-200 text-text-muted transition-colors",
+                      menuOpen && "bg-surface-200",
+                      menuOpen || activeId === conv.id
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100",
+                    )}
+                  >
+                    <MoreVertical size={15} />
+                  </button>
+                  {menuOpen && (
+                    <ConversationItemMenu
+                      conversation={conv}
+                      onClose={() => setMenuOpenId(null)}
+                      onMarkUnread={() => {
+                        setMenuOpenId(null);
+                        onMarkUnread(conv.id);
+                      }}
+                      onBlock={() => {
+                        setMenuOpenId(null);
+                        onBlock(conv.id);
+                      }}
+                      onArchive={() => {
+                        setMenuOpenId(null);
+                        onArchive(conv.id);
+                      }}
+                      onDelete={() => {
+                        setMenuOpenId(null);
+                        handleDeleteClick(conv);
+                      }}
+                      onReport={() => {
+                        setMenuOpenId(null);
+                        onReport(conv.id);
+                      }}
+                    />
+                  )}
+                </div>
               </div>
-            </button>
-          ))
+            );
+          })
         )}
       </div>
     </div>
