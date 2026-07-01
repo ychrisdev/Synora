@@ -11,6 +11,7 @@ export function useComments(
 ) {
   const { data: session } = useSession();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState<{
     id: string;
     name: string;
@@ -83,11 +84,13 @@ export function useComments(
   }, []);
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/posts/${postId}/comments`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setComments(data.map(mapComment));
-      });
+      })
+      .finally(() => setLoading(false));
   }, [postId, mapComment]);
 
   const handleCommentLike = useCallback(
@@ -364,6 +367,7 @@ export function useComments(
   return {
     comments,
     sortedComments,
+    loading,
     getVisibleCount,
     replyingToId: replyingTo?.id ?? null,
     replyingToName: replyingTo?.name ?? null,

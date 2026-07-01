@@ -11,11 +11,13 @@ export default function ReplyInput({
   isSelf,
   onSubmit,
   onCancel,
+  disabled = false,
 }: {
   replyTo: string;
   isSelf: boolean;
   onSubmit: (text: string) => void;
   onCancel: () => void;
+  disabled?: boolean;
 }) {
   const mention = useRef(isSelf ? "" : `@${replyTo} `).current;
   const [text, setText] = useState(mention);
@@ -39,9 +41,11 @@ export default function ReplyInput({
     }
   }, [mention]);
 
-  const hasContent = text.startsWith(mention)
-    ? text.slice(mention.length).trim().length > 0
-    : text.trim().length > 0;
+  const hasContent =
+    !disabled &&
+    (text.startsWith(mention)
+      ? text.slice(mention.length).trim().length > 0
+      : text.trim().length > 0);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.value.startsWith(mention)) setText(mention);
@@ -62,6 +66,7 @@ export default function ReplyInput({
           ref={inputRef}
           value={text}
           onChange={handleChange}
+          disabled={disabled}
           onKeyDown={(e) => {
             if (e.key === "Enter" && hasContent) {
               e.preventDefault();
@@ -70,7 +75,7 @@ export default function ReplyInput({
             if (e.key === "Escape") onCancel();
           }}
           placeholder={`Trả lời ${replyTo}...`}
-          className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-secondary"
+          className="flex-1 text-xs bg-transparent outline-none text-text-primary placeholder:text-text-secondary disabled:opacity-60"
         />
         <button
           onClick={() => hasContent && onSubmit(text.trim())}
