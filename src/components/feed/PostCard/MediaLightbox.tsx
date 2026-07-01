@@ -58,6 +58,7 @@ export default function MediaLightbox({
   const {
     comments,
     sortedComments,
+    loading: commentsLoading,
     getVisibleCount,
     replyingToId,
     replyingToName,
@@ -306,6 +307,7 @@ export default function MediaLightbox({
             onHideComment={hideComment}
             onCountChange={onCountChange}
             onAuthRequired={setAuthModal}
+            disabled={commentsLoading}
           />
         </div>
 
@@ -315,6 +317,7 @@ export default function MediaLightbox({
               onSubmit={async (payload) => {
                 await submitComment(payload);
               }}
+              disabled={commentsLoading}
             />
           ) : (
             <button

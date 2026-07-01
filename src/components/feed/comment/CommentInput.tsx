@@ -171,8 +171,10 @@ export function CommentMediaThumb({
 
 export default function CommentInput({
   onSubmit,
+  disabled = false,
 }: {
   onSubmit: (payload: CommentPayload) => Promise<void>;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState("");
   const [attachment, setAttachment] = useState<AttachedFile | null>(null);
@@ -288,7 +290,7 @@ export default function CommentInput({
     setUploadError(null);
   };
 
-  const canSubmit = (!!text.trim() || !!attachment) && !uploading;
+  const canSubmit = (!!text.trim() || !!attachment) && !uploading && !disabled;
 
   return (
     <div className="flex gap-2.5">
@@ -351,6 +353,7 @@ export default function CommentInput({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
+            disabled={disabled}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -359,7 +362,7 @@ export default function CommentInput({
             }}
             placeholder="Viết bình luận..."
             rows={1}
-            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-secondary outline-none bg-transparent leading-relaxed max-h-28"
+            className="flex-1 resize-none text-sm text-text-primary placeholder:text-text-secondary outline-none bg-transparent leading-relaxed max-h-28 disabled:opacity-60"
             style={{ height: "auto" }}
             onInput={(e) => {
               const el = e.currentTarget;
@@ -377,7 +380,7 @@ export default function CommentInput({
             />
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={uploading}
+              disabled={uploading || disabled}
               className="p-1 text-text-secondary hover:text-primary transition-colors disabled:opacity-40"
               title="Đính kèm tệp"
             >
