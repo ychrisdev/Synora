@@ -124,6 +124,7 @@ export default function CommentList({
   onAuthRequired,
   targetCommentId,
   scrollContainer,
+  disabled = false,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -144,6 +145,7 @@ export default function CommentList({
   onAuthRequired?: (action: string) => void;
   targetCommentId?: string | null;
   scrollContainer?: React.RefObject<HTMLDivElement | null>;
+  disabled?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -194,7 +196,7 @@ export default function CommentList({
   return (
     <>
       {comments.length === 0 && (
-        <p className="text-center text-sm text-text-secondary py-4">
+        <p className="text-center text-sm text-text-secondary py-10">
           Chưa có bình luận nào. Hãy là người đầu tiên!
         </p>
       )}
@@ -432,9 +434,15 @@ export default function CommentList({
                               onAuthRequired?.("trả lời bình luận");
                               return;
                             }
+                            if (disabled) return;
                             onToggleReply(c.id, c.author.name);
                           }}
-                          className="text-[11px] font-medium text-text-secondary hover:text-text-secondary px-2 py-0.5 rounded transition-colors"
+                          className={clsx(
+                            "text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                            disabled
+                              ? "text-text-muted cursor-not-allowed"
+                              : "text-text-secondary hover:text-text-secondary",
+                          )}
                         >
                           Trả lời
                         </button>
@@ -533,12 +541,13 @@ export default function CommentList({
                                   onAuthRequired?.("thích bình luận");
                                   return;
                                 }
+                                if (disabled) return;
                                 onLikeReply(c.id, r.id);
                               }}
                               className={clsx(
-                                "flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
-                                r.liked
-                                  ? "text-primary"
+                                "text-[11px] font-medium px-2 py-0.5 rounded transition-colors",
+                                disabled
+                                  ? "text-text-muted cursor-not-allowed"
                                   : "text-text-secondary hover:text-text-secondary",
                               )}
                             >
@@ -606,6 +615,7 @@ export default function CommentList({
                   onSubmitReply(c.id, text, replyingToName ?? c.author.name)
                 }
                 onCancel={onCancelReply}
+                disabled={disabled}
               />
             )}
           </div>
