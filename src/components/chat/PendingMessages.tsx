@@ -22,6 +22,7 @@ import {
 } from "@/lib/chat/utils";
 import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { PendingConversation, Conversation } from "@/lib/chat/types";
 
 type Tab = "pending" | "archived";
@@ -196,6 +197,13 @@ export function PendingMessages({
   const [archivedMenuOpenId, setArchivedMenuOpenId] = useState<string | null>(
     null,
   );
+  const [confirmAction, setConfirmAction] = useState<
+    | { type: "deletePending"; id: string; name: string }
+    | { type: "deleteArchived"; conv: Conversation }
+    | { type: "unarchive"; conv: Conversation }
+    | null
+  >(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -285,6 +293,23 @@ export function PendingMessages({
       });
     } catch {
       showToast("Không thể đánh dấu chưa đọc", "error");
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    setConfirmLoading(true);
+    try {
+      if (confirmAction.type === "deletePending") {
+        await handleDelete(confirmAction.id);
+      } else if (confirmAction.type === "deleteArchived") {
+        await handleArchivedDelete(confirmAction.conv);
+      } else {
+        await handleUnarchive(confirmAction.conv);
+      }
+    } finally {
+      setConfirmLoading(false);
+      setConfirmAction(null);
     }
   };
 
@@ -497,7 +522,13 @@ export function PendingMessages({
                                 username={msg.senderUsername}
                                 onClose={() => setMenuOpenId(null)}
                                 onBlock={handleBlock}
-                                onDelete={() => handleDelete(msg.id)}
+                                onDelete={() =>
+                                  setConfirmAction({
+                                    type: "deletePending",
+                                    id: msg.id,
+                                    name: msg.sender,
+                                  })
+                                }
                                 onReport={handleReport}
                               />
                             )}
@@ -600,7 +631,7 @@ export function PendingMessages({
                                 onClose={() => setArchivedMenuOpenId(null)}
                                 onUnarchive={() => {
                                   setArchivedMenuOpenId(null);
-                                  handleUnarchive(conv);
+                                  setConfirmAction({ type: "unarchive", conv });
                                 }}
                                 onMarkUnread={() => {
                                   setArchivedMenuOpenId(null);
@@ -608,7 +639,10 @@ export function PendingMessages({
                                 }}
                                 onDelete={() => {
                                   setArchivedMenuOpenId(null);
-                                  handleArchivedDelete(conv);
+                                  setConfirmAction({
+                                    type: "deleteArchived",
+                                    conv,
+                                  });
                                 }}
                                 onReport={() => {
                                   setArchivedMenuOpenId(null);
@@ -629,6 +663,57 @@ export function PendingMessages({
             )}
           </div>
         </div>
+      )}
+      {confirmAction && (
+        <ConfirmDialog
+          icon={
+            confirmAction.type === "unarchive" ? (
+              <Archive size={20} className="text-primary" />
+            ) : (
+              <Trash2 size={20} className="text-red-500" />
+            )
+          }
+          iconBgClass={
+            confirmAction.type === "unarchive" ? "bg-primary/10" : "bg-red-100"
+          }
+          title={
+            confirmAction.type === "unarchive"
+              ? "Bỏ lưu trữ cuộc trò chuyện?"
+              : confirmAction.type === "deletePending"
+                ? "Xóa tin nhắn chờ?"
+                : "Xóa cuộc trò chuyện?"
+          }
+          description={
+            confirmAction.type === "unarchive" ? (
+              <>
+                Cuộc trò chuyện với{" "}
+                <span className="font-medium text-text-secondary">
+                  {confirmAction.conv.name}
+                </span>{" "}
+                sẽ được chuyển về danh sách tin nhắn chính.
+              </>
+            ) : (
+              <>
+                Toàn bộ tin nhắn với{" "}
+                <span className="font-medium text-text-secondary">
+                  {confirmAction.type === "deletePending"
+                    ? confirmAction.name
+                    : confirmAction.conv.name}
+                </span>{" "}
+                sẽ bị xóa. Không thể hoàn tác.
+              </>
+            )
+          }
+          confirmLabel={
+            confirmAction.type === "unarchive" ? "Bỏ lưu trữ" : "Xóa"
+          }
+          confirmVariant={
+            confirmAction.type === "unarchive" ? "primary" : "danger"
+          }
+          loading={confirmLoading}
+          onConfirm={handleConfirmAction}
+          onCancel={() => setConfirmAction(null)}
+        />
       )}
     </>
   );

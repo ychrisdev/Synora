@@ -166,12 +166,6 @@ export function ConversationList({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const handleDeleteClick = (conv: Conversation) => {
-    if (conv.isGroup) {
-      const ok = window.confirm(
-        "Xóa cuộc trò chuyện nhóm này sẽ giải tán nhóm cho tất cả thành viên. Bạn có chắc chắn?",
-      );
-      if (!ok) return;
-    }
     onDelete(conv.id);
   };
 

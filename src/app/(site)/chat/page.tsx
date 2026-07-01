@@ -22,6 +22,8 @@ import {
   Smile,
   X,
   Pin,
+  Trash2,
+  Archive,
 } from "lucide-react";
 import { clsx } from "clsx";
 import type {
@@ -58,6 +60,7 @@ import { PinnedMessagesBar } from "@/components/chat/PinnedMessagesBar";
 import { PendingMessages } from "@/components/chat/PendingMessages";
 import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 function getInitials(name: string) {
   return name
@@ -148,6 +151,11 @@ export default function ChatPage() {
   const startedDmUsernameRef = useRef<string | null>(null);
   const [pendingActionLoading, setPendingActionLoading] = useState(false);
   const [pendingRefreshKey, setPendingRefreshKey] = useState(0);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "delete" | "archive";
+    conv: Conversation;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const convListRef = useRef<Conversation[]>([]);
   const loadPinned = useCallback(async (convId: string) => {
     try {
@@ -966,6 +974,31 @@ export default function ChatPage() {
     showToast("Chức năng chặn đang được phát triển", "error");
   };
 
+  const requestDeleteConv = (id: string) => {
+    const conv = convList.find((c) => c.id === id);
+    if (conv) setConfirmAction({ type: "delete", conv });
+  };
+
+  const requestArchiveConv = (id: string) => {
+    const conv = convList.find((c) => c.id === id);
+    if (conv) setConfirmAction({ type: "archive", conv });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    setConfirmLoading(true);
+    try {
+      if (confirmAction.type === "delete") {
+        await handleDeleteConv(confirmAction.conv.id);
+      } else {
+        await handleArchiveConv(confirmAction.conv.id);
+      }
+    } finally {
+      setConfirmLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
   const handleStartDM = useCallback(
     async (_userId: string, username: string) => {
       try {
@@ -1150,8 +1183,8 @@ export default function ChatPage() {
         loading={convLoading}
         onMarkUnread={handleMarkUnread}
         onBlock={handleBlockConv}
-        onArchive={handleArchiveConv}
-        onDelete={handleDeleteConv}
+        onArchive={requestArchiveConv}
+        onDelete={requestDeleteConv}
         onReport={handleReportConv}
       />
 
@@ -1633,6 +1666,63 @@ export default function ChatPage() {
           excludeConversationId={activeId!}
           onClose={() => setForwardingMsg(null)}
           onConfirm={handleForwardConfirm}
+        />
+      )}
+      {confirmAction && (
+        <ConfirmDialog
+          icon={
+            confirmAction.type === "delete" ? (
+              <Trash2 size={20} className="text-red-500" />
+            ) : (
+              <Archive size={20} className="text-primary" />
+            )
+          }
+          iconBgClass={
+            confirmAction.type === "delete" ? "bg-red-100" : "bg-primary/10"
+          }
+          title={
+            confirmAction.type === "delete"
+              ? confirmAction.conv.isGroup
+                ? "Giải tán nhóm?"
+                : "Xóa cuộc trò chuyện?"
+              : "Lưu trữ cuộc trò chuyện?"
+          }
+          description={
+            confirmAction.type === "delete" ? (
+              confirmAction.conv.isGroup ? (
+                <>
+                  Xóa cuộc trò chuyện nhóm{" "}
+                  <span className="font-medium text-text-secondary">
+                    {confirmAction.conv.name}
+                  </span>{" "}
+                  sẽ giải tán nhóm cho tất cả thành viên. Không thể hoàn tác.
+                </>
+              ) : (
+                <>
+                  Toàn bộ tin nhắn với{" "}
+                  <span className="font-medium text-text-secondary">
+                    {confirmAction.conv.name}
+                  </span>{" "}
+                  sẽ bị xóa. Không thể hoàn tác.
+                </>
+              )
+            ) : (
+              <>
+                Bạn có thể tìm lại cuộc trò chuyện với{" "}
+                <span className="font-medium text-text-secondary">
+                  {confirmAction.conv.name}
+                </span>{" "}
+                trong mục đã lưu trữ bất cứ lúc nào.
+              </>
+            )
+          }
+          confirmLabel={confirmAction.type === "delete" ? "Xóa" : "Lưu trữ"}
+          confirmVariant={
+            confirmAction.type === "delete" ? "danger" : "primary"
+          }
+          loading={confirmLoading}
+          onConfirm={handleConfirmAction}
+          onCancel={() => setConfirmAction(null)}
         />
       )}
     </div>

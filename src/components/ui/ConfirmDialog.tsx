@@ -72,13 +72,6 @@ export function ConfirmDialog({
         </p>
         <div className="flex gap-2">
           <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex-1 py-2 text-sm font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cancelLabel}
-          </button>
-          <button
             onClick={onConfirm}
             disabled={loading}
             className={clsx(
@@ -87,6 +80,13 @@ export function ConfirmDialog({
             )}
           >
             {loading ? "Đang xử lý..." : resolvedConfirmLabel}
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2 text-sm font-medium text-text-secondary bg-surface-100 hover:bg-surface-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cancelLabel}
           </button>
         </div>
       </div>
