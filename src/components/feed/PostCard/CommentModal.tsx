@@ -54,6 +54,7 @@ export default function CommentModal({
   const {
     comments,
     sortedComments,
+    loading: commentsLoading,
     getVisibleCount,
     replyingToId,
     replyingToName,
@@ -109,7 +110,7 @@ export default function CommentModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh] h-[90vh]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[90vh]">
         <div className="flex items-start gap-3 px-4 pt-4 pb-3 shrink-0">
           <NextLink
             href={
@@ -282,12 +283,16 @@ export default function CommentModal({
             onAuthRequired={onAuthRequired}
             scrollContainer={scrollContainerRef}
             targetCommentId={targetCommentId}
+            disabled={commentsLoading}
           />
         </div>
 
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
           {status === "authenticated" ? (
-            <CommentInput onSubmit={handleSubmitComment} />
+            <CommentInput
+              onSubmit={handleSubmitComment}
+              disabled={commentsLoading}
+            />
           ) : (
             <button
               onClick={() => onAuthRequired?.("bình luận")}

@@ -6,6 +6,7 @@ import {
   ThumbsUp,
   MessageCircle,
   Share2,
+  Trash2,
   Globe,
   Users as UsersIcon,
   Lock as LockIcon,
@@ -26,7 +27,7 @@ import EditPostComposer from "./PostCard/EditPostComposer";
 import MediaLightbox from "./PostCard/MediaLightbox";
 import CommentModal from "./PostCard/CommentModal";
 import ReportPostModal from "./PostCard/ReportPostModal";
-import { DeleteConfirmDialog } from "./comment/CommentList";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function PostCard({
   post,
@@ -387,7 +388,13 @@ export default function PostCard({
       )}
 
       {showDeleteConfirm && (
-        <DeleteConfirmDialog
+        <ConfirmDialog
+          icon={<Trash2 size={20} className="text-red-500" />}
+          iconBgClass="bg-red-100"
+          title="Xóa bài viết?"
+          description="Bài viết sẽ bị xóa vĩnh viễn và không thể khôi phục."
+          confirmLabel="Xóa"
+          confirmVariant="danger"
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
         />
