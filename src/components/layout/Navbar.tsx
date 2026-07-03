@@ -10,6 +10,7 @@ import { Bell, Search, MessageCircle, X, Clock, Loader2 } from "lucide-react";
 import { NotifRow } from "@/components/notifications/NotifRow";
 import type { NotifItem } from "@/lib/notifications/types";
 import { emitUnreadCount } from "@/lib/notifications/hooks";
+import { useUnreadChatCount } from "@/lib/chat/hooks";
 import Avatar from "@/components/ui/Avatar";
 
 const HISTORY_KEY = (userId: string) => `synora_search_history_${userId}`;
@@ -197,6 +198,7 @@ export default function Navbar({
   const email = session?.user?.email ?? "";
   const avatarUrl = session?.user?.image;
   const userId = session?.user?.id ?? "guest";
+  const { count: chatUnread } = useUnreadChatCount(isLoggedIn);
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0])
@@ -393,7 +395,13 @@ export default function Navbar({
             title="Tin nhắn"
           >
             <MessageCircle size={18} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
+            {chatUnread > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-primary rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
+                <span className="text-[9px] font-bold text-white leading-none">
+                  {chatUnread > 99 ? "99+" : chatUnread}
+                </span>
+              </span>
+            )}
           </Link>
         )}
 
@@ -410,7 +418,7 @@ export default function Navbar({
             >
               <Bell size={18} />
               {totalUnread > 0 && (
-                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-primary rounded-full border border-white flex items-center justify-center px-1 shadow-sm">
                   <span className="text-[9px] font-bold text-white leading-none">
                     {totalUnread > 99 ? "99+" : totalUnread}
                   </span>
@@ -426,7 +434,7 @@ export default function Navbar({
                       Thông báo
                     </span>
                     {totalUnread > 0 && (
-                      <span className="text-[10px] font-bold text-white bg-red-500 rounded-full px-1.5 py-0.5 leading-none">
+                      <span className="text-[10px] font-bold text-white bg-primary rounded-full px-1.5 py-0.5 leading-none">
                         {totalUnread}
                       </span>
                     )}

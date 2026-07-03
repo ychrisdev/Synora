@@ -609,18 +609,25 @@ export function PendingMessages({
                               <p className="text-xs font-bold text-text-primary truncate">
                                 {conv.name}
                               </p>
-                              <span className="flex items-center gap-1.5 shrink-0 ml-1">
-                                <span className="text-[10px] text-text-muted">
-                                  {formatTime(conv.lastMessageAt)}
-                                </span>
-                                {conv.unreadCount > 0 && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                                )}
+                              <span className="text-[10px] text-text-muted shrink-0 ml-1">
+                                {formatTime(conv.lastMessageAt)}
                               </span>
                             </div>
-                            <p className="text-[11px] text-text-muted truncate">
-                              {conv.lastMessage}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-[11px] text-text-muted truncate">
+                                {conv.lastMessage}
+                              </p>
+                              {conv.unreadCount > 0 && !conv.lastMessageAt ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 ml-1" />
+                              ) : (
+                                <Badge
+                                  count={conv.unreadCount}
+                                  variant="unread"
+                                  size="md"
+                                  className="ml-1"
+                                />
+                              )}
+                            </div>
                           </div>
                           <div
                             className="relative shrink-0"
