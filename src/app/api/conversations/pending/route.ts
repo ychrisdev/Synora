@@ -14,10 +14,12 @@ export async function GET(_req: NextRequest) {
   const pending = await prisma.conversationMember.findMany({
     where: { userId, isAccepted: false },
     select: {
+      hiddenAt: true,
       conversation: {
         select: {
           id: true,
           isGroup: true,
+          lastMessageAt: true,
           members: {
             where: { userId: { not: userId } },
             take: 1,
@@ -57,7 +59,15 @@ export async function GET(_req: NextRequest) {
     orderBy: { joinedAt: "desc" },
   });
 
-  const result = pending.map((m) => {
+  // Chỉ hiện tin nhắn chờ chưa bị ẩn, hoặc đã bị ẩn nhưng đối phương
+  // vừa nhắn thêm sau thời điểm ẩn.
+  const visible = pending.filter((m) => {
+    if (!m.hiddenAt) return true;
+    const lastMsgAt = m.conversation.lastMessageAt;
+    return !!lastMsgAt && lastMsgAt > m.hiddenAt;
+  });
+
+  const result = visible.map((m) => {
     const conv = m.conversation;
     const other = conv.members[0]?.user;
     const lastMsg = conv.messages[0];

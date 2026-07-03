@@ -35,13 +35,15 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (action === "accept") {
     await prisma.conversationMember.update({
       where: { conversationId_userId: { conversationId, userId } },
-      data: { isAccepted: true },
+      data: { isAccepted: true, hiddenAt: null },
     });
     return NextResponse.json({ accepted: true });
   }
 
-  await prisma.conversationMember.delete({
+  const now = new Date();
+  await prisma.conversationMember.update({
     where: { conversationId_userId: { conversationId, userId } },
+    data: { hiddenAt: now, clearedAt: now },
   });
   return NextResponse.json({ rejected: true });
 }

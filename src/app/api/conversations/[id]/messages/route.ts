@@ -97,7 +97,12 @@ export async function GET(req: NextRequest, { params }: Params) {
   const limit = Math.min(Number(searchParams.get("limit") ?? 30), 50);
 
   const messages = await prisma.message.findMany({
-    where: { conversationId },
+    where: {
+      conversationId,
+      ...(membership.clearedAt
+        ? { createdAt: { gt: membership.clearedAt } }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -106,7 +111,6 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const hasMore = messages.length > limit;
   if (hasMore) messages.pop();
-
   messages.reverse();
 
   await prisma.conversationMember.update({
@@ -115,7 +119,6 @@ export async function GET(req: NextRequest, { params }: Params) {
   });
 
   const nextCursor = hasMore ? messages[0]?.id : null;
-
   return NextResponse.json({ messages, nextCursor });
 }
 

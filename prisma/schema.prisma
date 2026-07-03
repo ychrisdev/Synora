@@ -384,6 +384,7 @@ model ConversationMember {
   markedUnreadAt DateTime?
   isArchived     Boolean      @default(false)
   hiddenAt       DateTime?
+  clearedAt      DateTime?
 
   joinedAt       DateTime     @default(now())
 

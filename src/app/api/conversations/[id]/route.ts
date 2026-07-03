@@ -93,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-export async function DELETE(req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -107,56 +107,12 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   if (!membership)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const conversation = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    select: {
-      isGroup: true,
-      avatarKey: true,
-      messages: {
-        select: { attachments: { select: { key: true } } },
-      },
-    },
+  const now = new Date();
+
+  await prisma.conversationMember.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { hiddenAt: now, clearedAt: now },
   });
-  if (!conversation)
-    return NextResponse.json(
-      { error: "Không tìm thấy cuộc trò chuyện" },
-      { status: 404 },
-    );
 
-  if (!conversation.isGroup) {
-    await prisma.conversationMember.update({
-      where: { conversationId_userId: { conversationId, userId } },
-      data: { hiddenAt: new Date() },
-    });
-    return NextResponse.json({ hidden: true });
-  }
-
-  if (!membership.isLeader)
-    return NextResponse.json(
-      { error: "Chỉ trưởng nhóm mới có thể giải tán nhóm" },
-      { status: 403 },
-    );
-
-  const attachmentKeys = conversation.messages.flatMap((m) =>
-    m.attachments.map((a) => a.key),
-  );
-  const allKeys = [
-    ...attachmentKeys,
-    ...(conversation.avatarKey ? [conversation.avatarKey] : []),
-  ];
-
-  await prisma.conversation.delete({ where: { id: conversationId } });
-
-  if (allKeys.length > 0) {
-    try {
-      await utapi.deleteFiles(allKeys);
-    } catch (err) {
-      console.error(
-        "Xóa file trên UploadThing khi giải tán nhóm thất bại:",
-        err,
-      );
-    }
-  }
-
-  return NextResponse.json({ disbanded: true });
+  return NextResponse.json({ hidden: true });
 }
