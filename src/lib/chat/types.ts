@@ -23,6 +23,7 @@ export type PendingConversation = {
   content: string | null;
   createdAt: string | null;
   messageCount: number;
+  isHidden?: boolean
 };
 
 export type GroupMember = {

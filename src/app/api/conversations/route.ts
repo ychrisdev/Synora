@@ -8,6 +8,7 @@ import { areFriends } from "@/lib/chat/friends";
 export async function GET(_req: NextRequest) {
   const { searchParams } = new URL(_req.url);
   const showArchived = searchParams.get("archived") === "true";
+  const q = searchParams.get("q")?.trim().toLowerCase() || null;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
@@ -67,8 +68,12 @@ export async function GET(_req: NextRequest) {
     orderBy: { conversation: { lastMessageAt: "desc" } },
   });
 
+  // Khi có từ khóa tìm kiếm (q), bỏ qua bộ lọc "ẩn" để có thể tìm lại
+  // những đoạn chat đã bị xóa (ẩn). Khi không tìm kiếm, giữ nguyên rule cũ:
+  // đoạn chat đã ẩn chỉ hiện lại khi có tin nhắn mới sau thời điểm ẩn.
   const visibleMemberships = memberships.filter((m) => {
     if (!m.hiddenAt) return true;
+    if (q) return true;
     const lastMsgAt = m.conversation.lastMessageAt;
     return !!lastMsgAt && lastMsgAt > m.hiddenAt;
   });
@@ -220,11 +225,16 @@ export async function GET(_req: NextRequest) {
         lastMessageAt: conv.lastMessageAt,
         unreadCount,
         memberCount: conv._count.members,
+        isHidden: !!m.hiddenAt,
       };
     }),
   );
 
-  return NextResponse.json(result);
+  const filtered = q
+    ? result.filter((c) => c.name.toLowerCase().includes(q))
+    : result;
+
+  return NextResponse.json(filtered);
 }
 
 export async function POST(req: NextRequest) {

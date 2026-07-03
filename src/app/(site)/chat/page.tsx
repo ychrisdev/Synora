@@ -46,11 +46,11 @@ import {
   fetchPinnedMessages,
   buildAttachmentLabel,
   respondPendingConversation,
+  searchConversations,
 } from "@/lib/chat/utils";
-import { groupMembers } from "@/lib/chat/data";
+import { emitChatUnreadCount } from "@/lib/chat/hooks";
 import { useUploadThing } from "@/lib/uploadthing";
 import { MessageBubble } from "@/components/chat/MessageBubble";
-import { Badge } from "@/components/chat/Badge";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
 import { ConversationList } from "@/components/chat/sidebar/ConversationList";
@@ -77,7 +77,8 @@ function appendLocalOnlyConversations(
 ): Conversation[] {
   const localOnly = prevList.filter(
     (c) =>
-      (c.isPending || c.isArchived) && !serverList.some((sc) => sc.id === c.id),
+      (c.isPending || c.isArchived || c.isHidden) &&
+      !serverList.some((sc) => sc.id === c.id),
   );
   return [...serverList, ...localOnly];
 }
@@ -157,6 +158,8 @@ export default function ChatPage() {
   } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const convListRef = useRef<Conversation[]>([]);
+  const [hiddenResults, setHiddenResults] = useState<Conversation[]>([]);
+  const [searchingHidden, setSearchingHidden] = useState(false);
   const loadPinned = useCallback(async (convId: string) => {
     try {
       const data = await fetchPinnedMessages(convId);
@@ -321,6 +324,37 @@ export default function ChatPage() {
     }
   }, [pendingJumpId, messages, nextCursor, loadingMore]);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setHiddenResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearchingHidden(true);
+    const t = setTimeout(async () => {
+      try {
+        const all = await searchConversations(q);
+        if (cancelled) return;
+        const hidden = all.filter(
+          (c) =>
+            c.isHidden &&
+            !convListRef.current.some((v) => v.id === c.id && !v.isHidden),
+        );
+        setHiddenResults(hidden);
+      } catch {
+        if (!cancelled) setHiddenResults([]);
+      } finally {
+        if (!cancelled) setSearchingHidden(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [searchQuery]);
+
   const handleForwardConfirm = async (targetConversationId: string) => {
     if (!forwardingMsg || !activeId) return;
     await forwardMessage(activeId, forwardingMsg.id, targetConversationId);
@@ -413,11 +447,15 @@ export default function ChatPage() {
         const activeIsArchived = convListRef.current.some(
           (c) => c.id === activeId && c.isArchived,
         );
+        const activeIsHidden = convListRef.current.some(
+          (c) => c.id === activeId && c.isHidden,
+        );
         const activeStillExists =
           !activeId ||
           serverConvs.some((c) => c.id === activeId) ||
           activeIsLocalPending ||
-          activeIsArchived;
+          activeIsArchived ||
+          activeIsHidden;
         setConvList((prev) => {
           const merged = serverConvs.map((serverConv) => {
             const localConv = prev.find((c) => c.id === serverConv.id);
@@ -837,6 +875,18 @@ export default function ChatPage() {
     );
   };
 
+  const handleSelectHiddenConv = (conv: Conversation) => {
+    setConvList((prev) => {
+      if (prev.some((c) => c.id === conv.id)) return prev;
+      return [...prev, { ...conv, isHidden: true }];
+    });
+    setActiveId(conv.id);
+    setInfoOpen(false);
+    setReplyingTo(null);
+    setPinNotices([]);
+    setHasNewMessage(false);
+  };
+
   const handleConvCreated = (convId: string) => {
     fetchConversations();
     setActiveId(convId);
@@ -1130,6 +1180,7 @@ export default function ChatPage() {
     if (c.isDraft) return false;
     if (c.isPending) return false;
     if (c.isArchived) return false;
+    if (c.isHidden) return false;
     if (!c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (activeFilter === "unread") return c.unreadCount > 0;
     if (activeFilter === "group") return c.isGroup;
@@ -1140,6 +1191,10 @@ export default function ChatPage() {
     (sum, c) => (c.isArchived ? sum : sum + c.unreadCount),
     0,
   );
+
+  useEffect(() => {
+    emitChatUnreadCount(totalUnread);
+  }, [totalUnread]);
   const currentConv = convList.find((c) => c.id === activeId) ?? null;
 
   return (
@@ -1153,21 +1208,13 @@ export default function ChatPage() {
           <Home size={16} />
         </Link>
         <div className="h-px w-6 bg-surface-200 my-1" />
-        <div className="relative">
-          <button
-            onClick={() => setNewConvOpen(true)}
-            className="w-9 h-9 rounded-xl bg-surface-100 hover:bg-primary/10 flex items-center justify-center text-text-muted hover:text-primary transition-colors"
-            title="Tạo trò chuyện mới"
-          >
-            <Edit size={16} />
-          </button>
-          <Badge
-            count={totalUnread}
-            variant="unread"
-            size="sm"
-            className="absolute -top-1 -right-1 pointer-events-none"
-          />
-        </div>
+        <button
+          onClick={() => setNewConvOpen(true)}
+          className="w-9 h-9 rounded-xl bg-surface-100 hover:bg-primary/10 flex items-center justify-center text-text-muted hover:text-primary transition-colors"
+          title="Tạo trò chuyện mới"
+        >
+          <Edit size={16} />
+        </button>
         <PendingMessages
           refreshKey={pendingRefreshKey}
           onMarkUnread={handleToggleReadStatus}
@@ -1221,6 +1268,9 @@ export default function ChatPage() {
 
       <ConversationList
         conversations={filtered}
+        hiddenResults={hiddenResults}
+        searchingHidden={searchingHidden}
+        onSelectHidden={handleSelectHiddenConv}
         activeId={activeId}
         onSelect={handleSelectConv}
         searchQuery={searchQuery}
@@ -1730,30 +1780,18 @@ export default function ChatPage() {
           }
           title={
             confirmAction.type === "delete"
-              ? confirmAction.conv.isGroup
-                ? "Giải tán nhóm?"
-                : "Xóa cuộc trò chuyện?"
+              ? "Xóa cuộc trò chuyện?"
               : "Lưu trữ cuộc trò chuyện?"
           }
           description={
             confirmAction.type === "delete" ? (
-              confirmAction.conv.isGroup ? (
-                <>
-                  Xóa cuộc trò chuyện nhóm{" "}
-                  <span className="font-medium text-text-secondary">
-                    {confirmAction.conv.name}
-                  </span>{" "}
-                  sẽ giải tán nhóm cho tất cả thành viên. Không thể hoàn tác.
-                </>
-              ) : (
-                <>
-                  Toàn bộ tin nhắn với{" "}
-                  <span className="font-medium text-text-secondary">
-                    {confirmAction.conv.name}
-                  </span>{" "}
-                  sẽ bị xóa. Không thể hoàn tác.
-                </>
-              )
+              <>
+                Cuộc trò chuyện với{" "}
+                <span className="font-medium text-text-secondary">
+                  {confirmAction.conv.name}
+                </span>{" "}
+                sẽ biến mất khỏi danh sách của bạn.
+              </>
             ) : (
               <>
                 Bạn có thể tìm lại cuộc trò chuyện với{" "}

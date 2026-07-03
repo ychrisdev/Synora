@@ -12,6 +12,8 @@ import {
   Archive,
   Trash2,
   Flag,
+  History,
+  Loader2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
@@ -141,6 +143,9 @@ interface ConversationListProps {
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
   onReport: (id: string) => void;
+  hiddenResults?: Conversation[];
+  searchingHidden?: boolean;
+  onSelectHidden?: (conv: Conversation) => void;
 }
 
 const FILTER_CHIPS: { key: FilterChip; label: string }[] = [
@@ -164,12 +169,17 @@ export function ConversationList({
   onArchive,
   onDelete,
   onReport,
+  hiddenResults = [],
+  searchingHidden = false,
+  onSelectHidden,
 }: ConversationListProps) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const handleDeleteClick = (conv: Conversation) => {
     onDelete(conv.id);
   };
+
+  const isSearching = searchQuery.trim().length > 0;
 
   return (
     <div className="w-[268px] shrink-0 border-r border-surface-200 bg-white flex flex-col">
@@ -206,7 +216,7 @@ export function ConversationList({
             {chip.key === "unread" &&
               totalUnread > 0 &&
               activeFilter !== "unread" && (
-                <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full">
+                <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 text-[9px] font-bold text-white bg-primary rounded-full">
                   {totalUnread}
                 </span>
               )}
@@ -230,7 +240,8 @@ export function ConversationList({
               </div>
             ))}
           </div>
-        ) : conversations.length === 0 ? (
+        ) : conversations.length === 0 &&
+          (!isSearching || hiddenResults.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 gap-2">
             <MessageSquare size={28} className="text-surface-300" />
             <p className="text-xs text-text-muted text-center">
@@ -370,6 +381,51 @@ export function ConversationList({
               </div>
             );
           })
+        )}
+
+        {isSearching && (searchingHidden || hiddenResults.length > 0) && (
+          <div className="border-t border-surface-100 mt-1 pt-1">
+            <div className="flex items-center gap-1.5 px-4 py-2">
+              <History size={11} className="text-text-muted" />
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                Đoạn chat đã xóa
+              </p>
+              {searchingHidden && (
+                <Loader2
+                  size={11}
+                  className="animate-spin text-text-muted ml-auto"
+                />
+              )}
+            </div>
+            {!searchingHidden && hiddenResults.length === 0 ? (
+              <p className="text-[11px] text-text-muted px-4 pb-3">
+                Không tìm thấy đoạn chat đã xóa nào khớp
+              </p>
+            ) : (
+              hiddenResults.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => onSelectHidden?.(conv)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-50 transition-colors opacity-70 hover:opacity-100"
+                >
+                  <Avatar
+                    src={conv.avatarUrl ?? undefined}
+                    initials={getInitials(conv.name)}
+                    size="md"
+                    shape="circle"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-text-primary truncate">
+                      {conv.name}
+                    </p>
+                    <p className="text-[11px] text-text-muted truncate">
+                      {conv.lastMessage || "Đã xóa khỏi danh sách của bạn"}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>

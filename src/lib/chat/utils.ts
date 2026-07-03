@@ -8,6 +8,7 @@ import type {
   ReactionGroup,
   PinnedMessage,
   GroupMember,
+  Conversation,
 } from "./types";
 
 export const RECALL_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -442,8 +443,8 @@ export async function leaveGroup(
 }
 
 export async function disbandGroup(conversationId: string): Promise<void> {
-  const res = await fetch(`/api/conversations/${conversationId}`, {
-    method: "DELETE",
+  const res = await fetch(`/api/conversations/${conversationId}/disband`, {
+    method: "POST",
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -451,7 +452,9 @@ export async function disbandGroup(conversationId: string): Promise<void> {
   }
 }
 
-export async function fetchPendingConversations(): Promise<PendingConversation[]> {
+export async function fetchPendingConversations(): Promise<
+  PendingConversation[]
+> {
   const res = await fetch("/api/conversations/pending");
   if (!res.ok) throw new Error("Không thể tải tin nhắn chờ");
   return res.json();
@@ -467,4 +470,10 @@ export async function respondPendingConversation(
     body: JSON.stringify({ action }),
   });
   if (!res.ok) throw new Error("Có lỗi xảy ra");
+}
+
+export async function searchConversations(q: string): Promise<Conversation[]> {
+  const res = await fetch(`/api/conversations?q=${encodeURIComponent(q)}`);
+  if (!res.ok) return [];
+  return res.json();
 }
