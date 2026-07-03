@@ -129,7 +129,7 @@ function ArchivedItemMenu({
           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
         >
           <Mail size={13} className="text-text-muted shrink-0" />
-          Đánh dấu chưa đọc
+          {conv.unreadCount > 0 ? "Đánh dấu đã đọc" : "Đánh dấu chưa đọc"}
         </button>
       )}
       {!conv.isSelf && !conv.isGroup && conv.otherUsername && (
@@ -177,12 +177,14 @@ export function PendingMessages({
   onDeleted,
   onClose,
   onUnarchived,
+  onMarkUnread,
   refreshKey,
 }: {
   onOpen?: (conv: OpenPendingPayload) => void;
   onDeleted?: (conversationId: string) => void;
   onClose?: () => void;
   onUnarchived?: (conversationId: string) => void;
+  onMarkUnread?: (conversationId: string, isCurrentlyUnread: boolean) => void;
   refreshKey?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -286,14 +288,19 @@ export function PendingMessages({
     }
   };
 
-  const handleArchivedMarkUnread = async (convId: string) => {
-    try {
-      await fetch(`/api/conversations/${convId}/mark-unread`, {
-        method: "POST",
-      });
-    } catch {
-      showToast("Không thể đánh dấu chưa đọc", "error");
-    }
+  const handleArchivedToggleRead = (conv: Conversation) => {
+    const isCurrentlyUnread = conv.unreadCount > 0;
+    setArchivedItems((prev) =>
+      prev.map((c) =>
+        c.id === conv.id
+          ? {
+              ...c,
+              unreadCount: isCurrentlyUnread ? 0 : Math.max(c.unreadCount, 1),
+            }
+          : c,
+      ),
+    );
+    onMarkUnread?.(conv.id, isCurrentlyUnread);
   };
 
   const handleConfirmAction = async () => {
@@ -602,8 +609,13 @@ export function PendingMessages({
                               <p className="text-xs font-bold text-text-primary truncate">
                                 {conv.name}
                               </p>
-                              <span className="text-[10px] text-text-muted shrink-0 ml-1">
-                                {formatTime(conv.lastMessageAt)}
+                              <span className="flex items-center gap-1.5 shrink-0 ml-1">
+                                <span className="text-[10px] text-text-muted">
+                                  {formatTime(conv.lastMessageAt)}
+                                </span>
+                                {conv.unreadCount > 0 && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                                )}
                               </span>
                             </div>
                             <p className="text-[11px] text-text-muted truncate">
@@ -635,7 +647,7 @@ export function PendingMessages({
                                 }}
                                 onMarkUnread={() => {
                                   setArchivedMenuOpenId(null);
-                                  handleArchivedMarkUnread(conv.id);
+                                  handleArchivedToggleRead(conv);
                                 }}
                                 onDelete={() => {
                                   setArchivedMenuOpenId(null);

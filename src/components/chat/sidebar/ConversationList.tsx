@@ -72,7 +72,9 @@ function ConversationItemMenu({
           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-text-primary hover:bg-surface-50 transition-colors"
         >
           <Mail size={13} className="text-text-muted shrink-0" />
-          Đánh dấu chưa đọc
+          {conversation.unreadCount > 0
+            ? "Đánh dấu đã đọc"
+            : "Đánh dấu chưa đọc"}
         </button>
       )}
       {!isSelf && !isGroup && conversation.otherUsername && (
@@ -134,7 +136,7 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
   onSearchChange: (q: string) => void;
   onFilterChange: (f: FilterChip) => void;
-  onMarkUnread: (id: string) => void;
+  onMarkUnread: (id: string, isCurrentlyUnread: boolean) => void;
   onBlock: (id: string) => void;
   onArchive: (id: string) => void;
   onDelete: (id: string) => void;
@@ -204,7 +206,7 @@ export function ConversationList({
             {chip.key === "unread" &&
               totalUnread > 0 &&
               activeFilter !== "unread" && (
-                <span className="ml-1 text-[9px] text-amber-600 font-bold">
+                <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-[14px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full">
                   {totalUnread}
                 </span>
               )}
@@ -309,12 +311,16 @@ export function ConversationList({
                     >
                       {conv.lastMessage}
                     </p>
-                    <Badge
-                      count={conv.unreadCount}
-                      variant="unread"
-                      size="md"
-                      className="ml-1"
-                    />
+                    {conv.unreadCount > 0 && !conv.lastMessageAt ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 ml-1" />
+                    ) : (
+                      <Badge
+                        count={conv.unreadCount}
+                        variant="unread"
+                        size="md"
+                        className="ml-1"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -340,7 +346,7 @@ export function ConversationList({
                       onClose={() => setMenuOpenId(null)}
                       onMarkUnread={() => {
                         setMenuOpenId(null);
-                        onMarkUnread(conv.id);
+                        onMarkUnread(conv.id, conv.unreadCount > 0);
                       }}
                       onBlock={() => {
                         setMenuOpenId(null);

@@ -343,7 +343,6 @@ export default function ChatPage() {
         });
         return appendLocalOnlyConversations(merged, prev);
       });
-      if (!activeIdRef.current && data.length > 0) setActiveId(data[0].id);
     } finally {
       setConvLoading(false);
     }
@@ -856,11 +855,24 @@ export default function ChatPage() {
 
   const handleMarkUnread = useCallback(
     async (id: string) => {
+      const wasActive = activeIdRef.current === id;
+
       setConvList((prev) =>
         prev.map((c) =>
           c.id === id ? { ...c, unreadCount: Math.max(c.unreadCount, 1) } : c,
         ),
       );
+
+      if (wasActive) {
+        setActiveId(null);
+        setMessages([]);
+        setNextCursor(null);
+        setInfoOpen(false);
+        setReplyingTo(null);
+        setPinNotices([]);
+        setHasNewMessage(false);
+      }
+
       try {
         const res = await fetch(`/api/conversations/${id}/mark-unread`, {
           method: "POST",
@@ -868,10 +880,42 @@ export default function ChatPage() {
         if (!res.ok) throw new Error();
       } catch {
         showToast("Không thể đánh dấu chưa đọc", "error");
+        setConvList((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
+        );
+        if (wasActive) setActiveId(id);
         fetchConversations();
       }
     },
     [fetchConversations, showToast],
+  );
+
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      setConvList((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
+      );
+      try {
+        const res = await fetch(`/api/conversations/${id}/mark-unread`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ read: true }),
+        });
+        if (!res.ok) throw new Error();
+      } catch {
+        showToast("Không thể đánh dấu đã đọc", "error");
+        fetchConversations();
+      }
+    },
+    [fetchConversations, showToast],
+  );
+
+  const handleToggleReadStatus = useCallback(
+    (id: string, isCurrentlyUnread: boolean) => {
+      if (isCurrentlyUnread) handleMarkRead(id);
+      else handleMarkUnread(id);
+    },
+    [handleMarkRead, handleMarkUnread],
   );
 
   const handleArchiveConv = useCallback(
@@ -1092,7 +1136,10 @@ export default function ChatPage() {
     return true;
   });
 
-  const totalUnread = convList.reduce((sum, c) => sum + c.unreadCount, 0);
+  const totalUnread = convList.reduce(
+    (sum, c) => (c.isArchived ? sum : sum + c.unreadCount),
+    0,
+  );
   const currentConv = convList.find((c) => c.id === activeId) ?? null;
 
   return (
@@ -1123,6 +1170,7 @@ export default function ChatPage() {
         </div>
         <PendingMessages
           refreshKey={pendingRefreshKey}
+          onMarkUnread={handleToggleReadStatus}
           onUnarchived={(id) => {
             fetchConversations();
           }}
@@ -1181,7 +1229,7 @@ export default function ChatPage() {
         onFilterChange={setActiveFilter}
         totalUnread={totalUnread}
         loading={convLoading}
-        onMarkUnread={handleMarkUnread}
+        onMarkUnread={handleToggleReadStatus}
         onBlock={handleBlockConv}
         onArchive={requestArchiveConv}
         onDelete={requestDeleteConv}
