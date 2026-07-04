@@ -158,6 +158,7 @@ export default function ChatPage() {
   } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const convListRef = useRef<Conversation[]>([]);
+  const convRequestSeqRef = useRef(0);
   const [hiddenResults, setHiddenResults] = useState<Conversation[]>([]);
   const [searchingHidden, setSearchingHidden] = useState(false);
   const loadPinned = useCallback(async (convId: string) => {
@@ -365,10 +366,12 @@ export default function ChatPage() {
   const handleJumpToReply = (id: string) => setPendingJumpId(id);
 
   const fetchConversations = useCallback(async () => {
+    const seq = ++convRequestSeqRef.current;
     try {
       const res = await fetch("/api/conversations");
       if (!res.ok) return;
       const data: Conversation[] = await res.json();
+      if (seq !== convRequestSeqRef.current) return;
       setConvList((prev) => {
         const merged = data.map((serverConv) => {
           const localConv = prev.find((c) => c.id === serverConv.id);
@@ -437,8 +440,9 @@ export default function ChatPage() {
 
   const pollMessages = useCallback(async () => {
     try {
+      const seq = ++convRequestSeqRef.current;
       const convRes = await fetch("/api/conversations");
-      if (convRes.ok) {
+      if (convRes.ok && seq === convRequestSeqRef.current) {
         const serverConvs: Conversation[] = await convRes.json();
         const activeId = activeIdRef.current;
         const activeIsLocalPending = convListRef.current.some(
