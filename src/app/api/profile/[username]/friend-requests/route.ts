@@ -85,27 +85,38 @@ export async function POST(
     );
 
   if (action === "accept") {
-    await prisma.$transaction([
-      prisma.friendRequest.update({
-        where: { id: requestId },
-        data: { status: "ACCEPTED" },
-      }),
-      prisma.follow.deleteMany({
-        where: {
-          followerId: request.senderId,
-          followingId: request.receiverId,
-        },
-      }),
-      prisma.notification.create({
-        data: {
-          recipientId: request.senderId,
-          actorId: request.receiverId,
-          type: "FRIEND_ACCEPT",
-        },
-      }),
-    ]);
-    return NextResponse.json({ success: true, action: "accepted" });
-  }
+  const dmKey = [request.senderId, request.receiverId].sort().join("_");
+
+  await prisma.$transaction([
+    prisma.friendRequest.update({
+      where: { id: requestId },
+      data: { status: "ACCEPTED" },
+    }),
+    prisma.follow.deleteMany({
+      where: {
+        followerId: request.senderId,
+        followingId: request.receiverId,
+      },
+    }),
+    prisma.notification.create({
+      data: {
+        recipientId: request.senderId,
+        actorId: request.receiverId,
+        type: "FRIEND_ACCEPT",
+      },
+    }),
+    prisma.conversationMember.updateMany({
+      where: {
+        conversation: { dmKey },
+        userId: { in: [request.senderId, request.receiverId] },
+        isAccepted: false,
+      },
+      data: { isAccepted: true },
+    }),
+  ]);
+
+  return NextResponse.json({ success: true, action: "accepted" });
+}
 
   await prisma.$transaction([
     prisma.friendRequest.update({
