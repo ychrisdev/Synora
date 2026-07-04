@@ -68,9 +68,6 @@ export async function GET(_req: NextRequest) {
     orderBy: { conversation: { lastMessageAt: "desc" } },
   });
 
-  // Khi có từ khóa tìm kiếm (q), bỏ qua bộ lọc "ẩn" để có thể tìm lại
-  // những đoạn chat đã bị xóa (ẩn). Khi không tìm kiếm, giữ nguyên rule cũ:
-  // đoạn chat đã ẩn chỉ hiện lại khi có tin nhắn mới sau thời điểm ẩn.
   const visibleMemberships = memberships.filter((m) => {
     if (!m.hiddenAt) return true;
     if (q) return true;
@@ -264,6 +261,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const trimmedName = name.trim();
+
+      const duplicateGroup = await prisma.conversation.findFirst({
+        where: {
+          isGroup: true,
+          name: { equals: trimmedName, mode: "insensitive" },
+          members: { some: { userId, isLeader: true } },
+        },
+        select: { id: true },
+      });
+      if (duplicateGroup) {
+        return NextResponse.json(
+          { error: "Bạn đã là trưởng nhóm của một nhóm có tên này rồi" },
+          { status: 409 },
+        );
+      }
+
       const members = await prisma.user.findMany({
         where: { username: { in: usernames } },
         select: { id: true },
@@ -282,7 +296,7 @@ export async function POST(req: NextRequest) {
       const conversation = await prisma.conversation.create({
         data: {
           isGroup: true,
-          name: name.trim(),
+          name: trimmedName,
           members: {
             create: memberIds.map((id) => ({
               userId: id,

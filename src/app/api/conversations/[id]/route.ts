@@ -46,6 +46,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       { status: 400 },
     );
 
+  let trimmedName: string | undefined;
+  if (name !== undefined) {
+    trimmedName = name.trim();
+    const duplicateGroup = await prisma.conversation.findFirst({
+      where: {
+        id: { not: conversationId },
+        isGroup: true,
+        name: { equals: trimmedName, mode: "insensitive" },
+        members: { some: { userId, isLeader: true } },
+      },
+      select: { id: true },
+    });
+    if (duplicateGroup) {
+      return NextResponse.json(
+        { error: "Bạn đã là trưởng nhóm của một nhóm có tên này rồi" },
+        { status: 409 },
+      );
+    }
+  }
+
   const actor = await prisma.user.findUnique({
     where: { id: userId },
     select: { username: true, profile: { select: { displayName: true } } },
@@ -53,8 +73,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const actorName = actor?.profile?.displayName ?? actor?.username ?? "Ai đó";
 
   const systemContent =
-    name !== undefined
-      ? `${actorName} đã đổi tên nhóm thành "${name.trim()}"`
+    trimmedName !== undefined
+      ? `${actorName} đã đổi tên nhóm thành "${trimmedName}"`
       : `${actorName} đã đổi ảnh nhóm`;
 
   const now = new Date();
@@ -66,7 +86,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: {
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
         ...(avatarKey !== undefined ? { avatarKey } : {}),
-        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(trimmedName !== undefined ? { name: trimmedName } : {}),
         lastMessageAt: now,
       },
       select: { id: true, name: true, avatarUrl: true },
