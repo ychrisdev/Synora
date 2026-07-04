@@ -30,8 +30,9 @@ import {
 import { clsx } from "clsx";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import Avatar from "@/components/ui/Avatar";
-import { useOutsideClick } from "@/lib/chat/hooks";
 import { useToast } from "@/components/ui/Toast";
+import { RoleBadge } from "@/components/chat/RoleBadge";
+import { useOutsideClick } from "@/lib/chat/hooks";
 import { useUploadThing } from "@/lib/uploadthing";
 import {
   fetchConversationAttachments,
@@ -590,12 +591,7 @@ function MembersModal({
                       <p className="text-sm font-semibold text-text-primary truncate">
                         {isMe ? `${m.displayName} (Bạn)` : m.displayName}
                       </p>
-                      {m.isLeader && (
-                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full leading-none">
-                          <Crown size={8} />
-                          Trưởng nhóm
-                        </span>
-                      )}
+                      <RoleBadge isLeader={m.isLeader} />
                     </div>
                     <p className="text-xs text-text-muted mt-0.5">
                       @{m.username}
