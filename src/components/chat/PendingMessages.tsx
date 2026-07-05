@@ -43,6 +43,7 @@ export type OpenPendingPayload = {
   otherUsername: string;
   lastMessage: string;
   lastMessageAt: string | null;
+  kind: "pending" | "archived";
 };
 
 function PendingItemMenu({
@@ -179,6 +180,7 @@ export function PendingMessages({
   onUnarchived,
   onMarkUnread,
   refreshKey,
+  closeDrawerSignal,
 }: {
   onOpen?: (conv: OpenPendingPayload) => void;
   onDeleted?: (conversationId: string) => void;
@@ -186,6 +188,7 @@ export function PendingMessages({
   onUnarchived?: (conversationId: string) => void;
   onMarkUnread?: (conversationId: string, isCurrentlyUnread: boolean) => void;
   refreshKey?: number;
+  closeDrawerSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("pending");
@@ -238,6 +241,17 @@ export function PendingMessages({
     return () => window.removeEventListener("keydown", handleKey);
   }, [open, onClose]);
 
+  const isFirstCloseSignal = useRef(true);
+
+  useEffect(() => {
+    if (closeDrawerSignal === undefined) return;
+    if (isFirstCloseSignal.current) {
+      isFirstCloseSignal.current = false;
+      return;
+    }
+    setOpen(false);
+  }, [closeDrawerSignal]);
+
   const handleDelete = async (id: string) => {
     setActionLoadingId(id);
     try {
@@ -283,6 +297,7 @@ export function PendingMessages({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Có lỗi xảy ra");
       setArchivedItems((prev) => prev.filter((c) => c.id !== conv.id));
+      onDeleted?.(conv.id);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Không thể xóa", "error");
     }
@@ -338,6 +353,7 @@ export function PendingMessages({
       otherUsername: msg.senderUsername,
       lastMessage: msg.content ?? "",
       lastMessageAt: msg.createdAt,
+      kind: "pending",
     });
   };
 
@@ -594,6 +610,7 @@ export function PendingMessages({
                               otherUsername: conv.otherUsername ?? "",
                               lastMessage: conv.lastMessage,
                               lastMessageAt: conv.lastMessageAt,
+                              kind: "archived",
                             });
                           }}
                           className="flex items-center gap-3 px-4 py-3.5 hover:bg-surface-50 transition-colors cursor-pointer border-b border-surface-50 last:border-b-0 group relative"

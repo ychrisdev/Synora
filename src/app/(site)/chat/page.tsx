@@ -152,6 +152,7 @@ export default function ChatPage() {
   const startedDmUsernameRef = useRef<string | null>(null);
   const [pendingActionLoading, setPendingActionLoading] = useState(false);
   const [pendingRefreshKey, setPendingRefreshKey] = useState(0);
+  const [closeDrawerSignal, setCloseDrawerSignal] = useState(0);
   const [confirmAction, setConfirmAction] = useState<{
     type: "delete" | "archive";
     conv: Conversation;
@@ -159,6 +160,7 @@ export default function ChatPage() {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const convListRef = useRef<Conversation[]>([]);
   const convRequestSeqRef = useRef(0);
+  const isPreviewingPendingRef = useRef(false);
   const [hiddenResults, setHiddenResults] = useState<Conversation[]>([]);
   const [searchingHidden, setSearchingHidden] = useState(false);
   const loadPinned = useCallback(async (convId: string) => {
@@ -1037,8 +1039,10 @@ export default function ChatPage() {
     setPendingActionLoading(true);
     try {
       await respondPendingConversation(activeId, "accept");
+      isPreviewingPendingRef.current = false;
       await fetchConversations();
       setPendingRefreshKey((k) => k + 1);
+      setCloseDrawerSignal((k) => k + 1);
     } catch (e) {
       showToast(
         e instanceof Error ? e.message : "Không thể mở nhắn tin",
@@ -1221,13 +1225,26 @@ export default function ChatPage() {
         </button>
         <PendingMessages
           refreshKey={pendingRefreshKey}
+          closeDrawerSignal={closeDrawerSignal}
           onMarkUnread={handleToggleReadStatus}
           onUnarchived={(id) => {
             fetchConversations();
+            if (activeIdRef.current === id) {
+              isPreviewingPendingRef.current = false;
+            }
           }}
           onOpen={(conv) => {
+            isPreviewingPendingRef.current = true;
             setConvList((prev) => {
-              if (prev.some((c) => c.id === conv.id)) return prev;
+              const patch = {
+                isPending: conv.kind === "pending",
+                isArchived: conv.kind === "archived",
+              };
+              if (prev.some((c) => c.id === conv.id)) {
+                return prev.map((c) =>
+                  c.id === conv.id ? { ...c, ...patch } : c,
+                );
+              }
               return [
                 ...prev,
                 {
@@ -1239,7 +1256,7 @@ export default function ChatPage() {
                   lastMessage: conv.lastMessage || "",
                   lastMessageAt: conv.lastMessageAt,
                   unreadCount: 0,
-                  isArchived: true,
+                  ...patch,
                 },
               ];
             });
@@ -1250,12 +1267,15 @@ export default function ChatPage() {
             setHasNewMessage(false);
           }}
           onClose={() => {
-            const currentConv = convListRef.current.find(
-              (c) => c.id === activeIdRef.current,
-            );
-            if (currentConv?.isPending) {
+            if (isPreviewingPendingRef.current) {
+              isPreviewingPendingRef.current = false;
               setActiveId(null);
               setMessages([]);
+              setNextCursor(null);
+              setInfoOpen(false);
+              setReplyingTo(null);
+              setPinNotices([]);
+              setHasNewMessage(false);
             }
           }}
           onDeleted={(id) => {
@@ -1625,6 +1645,8 @@ export default function ChatPage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ archived: false }),
                       });
+                      isPreviewingPendingRef.current = false;
+                      setCloseDrawerSignal((k) => k + 1)
                       setConvList((prev) =>
                         prev.map((c) =>
                           c.id === activeId ? { ...c, isArchived: false } : c,
