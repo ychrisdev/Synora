@@ -18,11 +18,13 @@ export default function MainLayout({
     hideAll ||
     pathname.startsWith("/search") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/friends");
+    pathname.startsWith("/friends") ||
+    pathname.startsWith("/settings");
   const isFullWidth =
     pathname.startsWith("/search") ||
     pathname.startsWith("/profile") ||
-    pathname.startsWith("/friends");
+    pathname.startsWith("/friends") ||
+    pathname.startsWith("/settings");
 
   if (hideAll) return <>{children}</>;
 
