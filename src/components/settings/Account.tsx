@@ -29,7 +29,11 @@ function formatScheduledDate(requestedAt: string): string {
 
 export function AccountSection() {
   const { showToast } = useToast();
+<<<<<<< HEAD
   const [email] = useState("user@example.com");x
+=======
+  const [email] = useState("user@example.com");
+>>>>>>> 18f88ab (feat(settings): add initial settings page and reusable components)
   const [editingEmail, setEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState(email);
 
