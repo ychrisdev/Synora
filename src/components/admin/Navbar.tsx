@@ -1,0 +1,80 @@
+"use client";
+import { useState, useRef, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
+import { Search, LogOut, ShieldCheck } from "lucide-react";
+import Avatar from "@/components/ui/Avatar";
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Administrator",
+  SUPPORT: "Support",
+};
+
+export default function Navbar() {
+  const { data: session } = useSession();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const displayName = session?.user?.name ?? "Admin";
+  const avatarUrl = session?.user?.image;
+  const initials = displayName.slice(0, 2).toUpperCase();
+  const roleLabel = ROLE_LABELS[session?.user?.role ?? ""] ?? "Admin";
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-20">
+      <div className="flex items-center gap-2 bg-slate-100 rounded-full px-3.5 py-1.5 w-[320px]">
+        <Search size={14} className="text-slate-400 shrink-0" />
+        <input
+          type="text"
+          placeholder="Tìm kiếm người dùng, bài viết, nhóm..."
+          className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+    <div ref={ref} className="relative">
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <Avatar
+              src={avatarUrl}
+              name={displayName}
+              initials={initials}
+              size="sm"
+            />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute top-full right-0 mt-2 w-[200px] bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <p className="text-sm font-semibold text-slate-900 truncate">
+                  {displayName}
+                </p>
+                <p className="text-[11px] text-slate-400 truncate">
+                  {session?.user?.email}
+                </p>
+              </div>
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-red-50 transition-colors"
+              >
+                <LogOut size={14} className="text-red-500" />
+                <span className="text-sm text-red-500 font-medium">
+                  Đăng xuất
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
