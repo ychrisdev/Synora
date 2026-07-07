@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -28,10 +28,19 @@ export default function LoginPage() {
       redirect: false,
     });
 
+    if (result?.error) {
+      setLoading(false);
+      setError("Email hoặc mật khẩu không đúng");
+      return;
+    }
+
+    const session = await getSession();
+    const role = session?.user?.role;
+
     setLoading(false);
 
-    if (result?.error) {
-      setError("Email hoặc mật khẩu không đúng");
+    if (role === "ADMIN" || role === "SUPPORT") {
+      router.push("/admin");
     } else {
       router.push("/feed");
     }
