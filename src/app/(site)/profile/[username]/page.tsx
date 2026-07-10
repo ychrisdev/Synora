@@ -17,7 +17,7 @@ import { SuggestionsWidget } from "@/components/profile/widgets/SuggestionsWidge
 import { RecentDocsWidget } from "@/components/profile/widgets/RecentDocsWidget";
 import { PROFILE_TABS } from "@/lib/profile/data";
 import type { ProfileTab } from "@/lib/profile/data";
-import { formatCount } from "@/lib/profile/utils";
+import { formatCount } from "@/lib/profile/utils";  
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -97,6 +97,7 @@ export default function ProfilePage() {
         onProfileSaved={refreshProfile}
         sessionUsername={session?.user?.username}
         onFriendStatusChanged={refreshProfile}
+        isAdmin={session?.user?.role === "ADMIN"}
       />
 
       <ProfileInfo

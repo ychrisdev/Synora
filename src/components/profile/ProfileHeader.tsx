@@ -31,6 +31,7 @@ interface ProfileHeaderProps {
   profileData?: any;
   onProfileSaved?: () => void;
   onFriendStatusChanged?: () => void;
+  isAdmin?: boolean;
 }
 
 export function ProfileHeader({
@@ -45,6 +46,7 @@ export function ProfileHeader({
   onProfileSaved,
   sessionUsername,
   onFriendStatusChanged,
+  isAdmin = false,
 }: ProfileHeaderProps) {
   const router = useRouter();
   const [status, setStatus] = useState<FriendStatus>(initialStatus);
@@ -58,6 +60,7 @@ export function ProfileHeader({
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleFollowToggle = async () => {
+    if (isAdmin) return;
     if (!sessionUsername) {
       setShowAuthModal(true);
       return;
@@ -162,105 +165,118 @@ export function ProfileHeader({
       </div>
 
       <div className="absolute -bottom-10 right-0 flex items-center gap-2">
-        <button className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors">
-          <Share2 size={13} /> Chia sẻ
-        </button>
+        {!isAdmin && (
+          <button className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors">
+            <Share2 size={13} /> Chia sẻ
+          </button>
+        )}
 
         {isOwner ? (
-          <>
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors"
-            >
-              <Pencil size={13} /> Chỉnh sửa
-            </button>
-          </>
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors"
+          >
+            <Pencil size={13} /> Chỉnh sửa
+          </button>
         ) : (
-          <>
-            <button
-              onClick={() => {
-                if (!sessionUsername) {
-                  setShowAuthModal(true);
-                  return;
-                }
-                router.push(`/chat?with=${username}`);
-              }}
-              className="flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-surface-50 transition-colors"
-            >
-              <MessageCircle size={13} /> Nhắn tin
-            </button>
-
-            {incomingRequestId && status !== "friends" ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowReplyMenu((p) => !p)}
-                  disabled={followLoading}
-                  className="flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors bg-primary text-white hover:bg-primary-700 disabled:opacity-70"
-                >
-                  Trả lời <ChevronDown size={13} />
-                </button>
-                {showReplyMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden z-20 min-w-[140px]">
-                    <button
-                      onClick={() => handleRequestAction("accept")}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-text-primary hover:bg-surface-50 transition-colors"
-                    >
-                      <UserCheck size={13} className="text-primary" /> Chấp nhận
-                    </button>
-                    <button
-                      onClick={() => handleRequestAction("reject")}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <span className="text-red-500">✕</span> Từ chối
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {showUnfriendConfirm && (
-                  <ConfirmDialog
-                    displayName={displayName}
-                    onConfirm={() => {
-                      setShowUnfriendConfirm(false);
-                      handleFollowToggle();
-                    }}
-                    onCancel={() => setShowUnfriendConfirm(false)}
-                  />
-                )}
-                <button
-                  onClick={
-                    status === "friends"
-                      ? () => setShowUnfriendConfirm(true)
-                      : handleFollowToggle
+          !isAdmin && (
+            <>
+              <button
+                onClick={() => {
+                  if (isAdmin) return;
+                  if (!sessionUsername) {
+                    setShowAuthModal(true);
+                    return;
                   }
-                  disabled={followLoading}
-                  className={clsx(
-                    "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-70",
-                    status === "friends"
-                      ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
-                      : status === "pending"
-                        ? "bg-surface-50 text-text-muted border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
-                        : "bg-primary text-white hover:bg-primary-700",
+                  router.push(`/chat?with=${username}`);
+                }}
+                disabled={isAdmin}
+                className={clsx(
+                  "flex items-center gap-1.5 border border-surface-200 bg-white text-text-secondary text-xs font-medium px-3 py-1.5 rounded-lg transition-colors",
+                  isAdmin
+                    ? "opacity-40 cursor-not-allowed"
+                    : "hover:bg-surface-50",
+                )}
+              >
+                <MessageCircle size={13} /> Nhắn tin
+              </button>
+
+              {incomingRequestId && status !== "friends" ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowReplyMenu((p) => !p)}
+                    disabled={followLoading}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors bg-primary text-white hover:bg-primary-700 disabled:opacity-70"
+                  >
+                    Trả lời <ChevronDown size={13} />
+                  </button>
+                  {showReplyMenu && (
+                    <div className="absolute right-0 top-full mt-1.5 bg-white border border-surface-200 rounded-xl shadow-lg overflow-hidden z-20 min-w-[140px]">
+                      <button
+                        onClick={() => handleRequestAction("accept")}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-text-primary hover:bg-surface-50 transition-colors"
+                      >
+                        <UserCheck size={13} className="text-primary" /> Chấp
+                        nhận
+                      </button>
+                      <button
+                        onClick={() => handleRequestAction("reject")}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <span className="text-red-500">✕</span> Từ chối
+                      </button>
+                    </div>
                   )}
-                >
-                  {status === "friends" ? (
-                    <>
-                      <UserCheck size={13} /> Bạn bè
-                    </>
-                  ) : status === "pending" ? (
-                    <>
-                      <Clock size={13} /> Đã gửi yêu cầu
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={13} /> Kết bạn
-                    </>
+                </div>
+              ) : (
+                <>
+                  {showUnfriendConfirm && (
+                    <ConfirmDialog
+                      displayName={displayName}
+                      onConfirm={() => {
+                        setShowUnfriendConfirm(false);
+                        handleFollowToggle();
+                      }}
+                      onCancel={() => setShowUnfriendConfirm(false)}
+                    />
                   )}
-                </button>
-              </>
-            )}
-          </>
+                  <button
+                    onClick={
+                      isAdmin
+                        ? undefined
+                        : status === "friends"
+                          ? () => setShowUnfriendConfirm(true)
+                          : handleFollowToggle
+                    }
+                    disabled={followLoading || isAdmin}
+                    className={clsx(
+                      "flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-70",
+                      isAdmin && "opacity-40 cursor-not-allowed",
+                      status === "friends"
+                        ? "bg-surface-100 text-text-secondary border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                        : status === "pending"
+                          ? "bg-surface-50 text-text-muted border border-surface-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+                          : "bg-primary text-white hover:bg-primary-700",
+                    )}
+                  >
+                    {status === "friends" ? (
+                      <>
+                        <UserCheck size={13} /> Bạn bè
+                      </>
+                    ) : status === "pending" ? (
+                      <>
+                        <Clock size={13} /> Đã gửi yêu cầu
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={13} /> Kết bạn
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </>
+          )
         )}
       </div>
 
