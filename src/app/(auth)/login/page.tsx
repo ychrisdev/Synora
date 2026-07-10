@@ -39,7 +39,7 @@ export default function LoginPage() {
 
     setLoading(false);
 
-    if (role === "ADMIN" || role === "SUPPORT") {
+    if (role === "ADMIN") {
       router.push("/admin");
     } else {
       router.push("/feed");

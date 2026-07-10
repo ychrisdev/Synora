@@ -15,7 +15,7 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  if (session.user.role !== "ADMIN" && session.user.role !== "SUPPORT") {
+  if (session.user.role !== "ADMIN") {
     redirect("/feed");
   }
 

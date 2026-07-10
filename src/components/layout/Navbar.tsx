@@ -1,6 +1,6 @@
 "use client";
 
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, Shield } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Session } from "next-auth";
 import { signOut } from "next-auth/react";
@@ -198,7 +198,9 @@ export default function Navbar({
   const email = session?.user?.email ?? "";
   const avatarUrl = session?.user?.image;
   const userId = session?.user?.id ?? "guest";
-  const { count: chatUnread } = useUnreadChatCount(isLoggedIn);
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN";
+  const { count: chatUnread } = useUnreadChatCount(isLoggedIn && !isAdmin);
   const initials = displayName
     .split(" ")
     .map((w: string) => w[0])
@@ -325,25 +327,24 @@ export default function Navbar({
 
   return (
     <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center z-30">
-      <Link
-        href="/feed"
-        className="flex items-center gap-2 w-[330px] shrink-0 px-4"
-      >
-        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M9 2L14 5.5V12.5L9 16L4 12.5V5.5L9 2Z"
-              stroke="white"
-              strokeWidth="1.5"
-              fill="none"
-            />
-            <circle cx="9" cy="9" r="2" fill="white" />
-          </svg>
-        </div>
-        <span className="text-lg font-bold text-slate-900 tracking-tight">
-          Synora
-        </span>
-      </Link>
+      <div className="w-[330px] shrink-0 px-4">
+        <Link href="/feed" className="inline-flex flex-none w-fit items-center gap-2">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path
+                d="M9 2L14 5.5V12.5L9 16L4 12.5V5.5L9 2Z"
+                stroke="white"
+                strokeWidth="1.5"
+                fill="none"
+              />
+              <circle cx="9" cy="9" r="2" fill="white" />
+            </svg>
+          </div>
+          <span className="text-lg font-bold text-slate-900 tracking-tight">
+            Synora
+          </span>
+        </Link>
+      </div>
 
       <div className="flex-1 flex items-center px-18">
         <div ref={searchRef} className="w-full max-w-[520px] relative">
@@ -388,7 +389,7 @@ export default function Navbar({
       </div>
 
       <div className="flex items-center gap-5 px-4 shrink-0">
-        {isLoggedIn && (
+        {isLoggedIn && !isAdmin && (
           <Link
             href="/chat"
             className="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-blue-500 transition-colors block"
@@ -405,7 +406,7 @@ export default function Navbar({
           </Link>
         )}
 
-        {isLoggedIn && (
+        {isLoggedIn && !isAdmin && (
           <div ref={bellRef} className="relative">
             <button
               onClick={handleBellOpen}
@@ -518,28 +519,45 @@ export default function Navbar({
                   </div>
                 </div>
                 <div className="p-1.5">
-                  <Link
-                    href={`/profile/${session?.user?.username}`}
-                    onClick={() => setAvatarOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                      <User size={13} className="text-blue-500" />
-                    </div>
-                    <span className="text-sm text-slate-700">
-                      Trang cá nhân
-                    </span>
-                  </Link>
-                  <Link
-                    href="/settings"
-                    onClick={() => setAvatarOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-                      <Settings size={13} className="text-emerald-500" />
-                    </div>
-                    <span className="text-sm text-slate-700">Cài đặt</span>
-                  </Link>
+                  {isAdmin ? (
+                    <Link
+                      href="/admin"
+                      onClick={() => setAvatarOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                        <Shield size={13} className="text-blue-500" />
+                      </div>
+                      <span className="text-sm text-slate-700">
+                        Trang quản trị
+                      </span>
+                    </Link>
+                  ) : (
+                    <>
+                      <Link
+                        href={`/profile/${session?.user?.username}`}
+                        onClick={() => setAvatarOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                          <User size={13} className="text-blue-500" />
+                        </div>
+                        <span className="text-sm text-slate-700">
+                          Trang cá nhân
+                        </span>
+                      </Link>
+                      <Link
+                        href="/settings"
+                        onClick={() => setAvatarOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                          <Settings size={13} className="text-emerald-500" />
+                        </div>
+                        <span className="text-sm text-slate-700">Cài đặt</span>
+                      </Link>
+                    </>
+                  )}
                   <div className="my-1 border-t border-slate-100" />
                   <button
                     onClick={() => {

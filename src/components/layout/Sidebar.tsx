@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Home,
   Compass,
@@ -17,7 +18,7 @@ const navItems = [
   { href: "/feed", icon: Home, label: "Trang chủ" },
   { href: "/explore", icon: Compass, label: "Khám phá" },
   { href: "/library", icon: BookOpen, label: "Tài liệu" },
-  { href: "/chat", icon: MessageCircle, label: "Chat" },
+  { href: "/chat", icon: MessageCircle, label: "Nhắn tin" },
   { href: "/notifications", icon: Bell, label: "Thông báo" },
   { href: "/community", icon: Users, label: "Cộng đồng" },
 ];
@@ -48,13 +49,18 @@ const groups = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const { count: unreadCount } = useUnreadNotifCount();
   const { count: chatUnread } = useUnreadChatCount(true);
+  const visibleNavItems = isAdmin
+    ? navItems.filter((i) => i.href !== "/chat" && i.href !== "/notifications")
+    : navItems;
 
   return (
     <aside className="fixed left-0 top-14 h-[calc(100vh-56px)] w-[330px] bg-white border-r border-surface-200 flex flex-col overflow-y-auto z-20">
       <nav className="flex flex-col gap-0.5 p-3">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           const badge =

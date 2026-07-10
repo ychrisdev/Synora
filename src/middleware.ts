@@ -4,13 +4,10 @@ import { NextResponse } from "next/server";
 export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
-    const token = req.nextauth.token;
+    const role = req.nextauth.token?.role;
 
-    if (pathname.startsWith("/admin")) {
-      const role = token?.role;
-      if (role !== "ADMIN" && role !== "SUPPORT") {
-        return NextResponse.redirect(new URL("/feed", req.url));
-      }
+    if (pathname.startsWith("/admin") && role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/feed", req.url));
     }
 
     return NextResponse.next();
