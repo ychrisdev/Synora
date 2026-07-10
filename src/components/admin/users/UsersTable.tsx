@@ -11,7 +11,7 @@ export type AdminUserRow = {
   username: string;
   email: string;
   avatarUrl: string | null;
-  role: "USER" | "SUPPORT" | "ADMIN";
+  role: "USER" | "ADMIN";
   status: "ACTIVE" | "SUSPENDED" | "BANNED";
   joinedAt: string;
   postCount: number;
@@ -19,7 +19,6 @@ export type AdminUserRow = {
 
 const ROLE_BADGE: Record<AdminUserRow["role"], string> = {
   USER: "bg-slate-100 text-slate-600",
-  SUPPORT: "bg-purple-50 text-purple-600",
   ADMIN: "bg-blue-50 text-blue-600",
 };
 

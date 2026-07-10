@@ -20,7 +20,7 @@ export type AdminActor = {
   name: string;
   username: string;
   avatarUrl: string | null;
-  role: "ADMIN" | "SUPPORT";
+  role: "ADMIN";
 };
 
 export type AuditLogEntry = {

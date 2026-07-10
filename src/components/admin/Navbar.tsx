@@ -6,7 +6,6 @@ import Avatar from "@/components/ui/Avatar";
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrator",
-  SUPPORT: "Support",
 };
 
 export default function Navbar() {

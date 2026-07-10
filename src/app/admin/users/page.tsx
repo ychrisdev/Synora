@@ -10,7 +10,7 @@ import { ShieldCheck, Ban, Clock } from "lucide-react";
 
 const MOCK_USERS: AdminUserRow[] = [
   { id: "1", name: "Nguyễn Văn A", username: "nva123", email: "a@example.com", avatarUrl: null, role: "USER", status: "ACTIVE", joinedAt: "12/03/2025", postCount: 45 },
-  { id: "2", name: "Trần Thị B", username: "ttb", email: "b@example.com", avatarUrl: null, role: "SUPPORT", status: "ACTIVE", joinedAt: "05/01/2025", postCount: 120 },
+  { id: "2", name: "Trần Thị B", username: "ttb", email: "b@example.com", avatarUrl: null, role: "USER", status: "ACTIVE", joinedAt: "05/01/2025", postCount: 120 },
   { id: "3", name: "Lê Văn C", username: "lvc2003", email: "c@example.com", avatarUrl: null, role: "USER", status: "SUSPENDED", joinedAt: "20/06/2025", postCount: 12 },
   { id: "4", name: "Phạm Thị D", username: "ptd_studio", email: "d@example.com", avatarUrl: null, role: "USER", status: "BANNED", joinedAt: "01/02/2024", postCount: 3 },
   { id: "5", name: "Hoàng Văn E", username: "hoangv", email: "e@example.com", avatarUrl: null, role: "ADMIN", status: "ACTIVE", joinedAt: "10/10/2023", postCount: 8 },

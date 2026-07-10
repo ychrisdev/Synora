@@ -15,7 +15,7 @@ const MOCK_SYSTEM: SystemNotification[] = [
 
 const MOCK_USER_NOTIFS: UserNotification[] = [
   { id: "u1", recipients: [{ id: "3", name: "Lê Văn C", username: "lvc2003", avatarUrl: null }], title: "Bài viết vi phạm tiêu chuẩn cộng đồng", content: "Bài viết của bạn đã bị ẩn do chứa nội dung vi phạm quy định về ngôn từ.", reason: "VIOLATION", sentAt: "06/07/2026", sentBy: "Admin" },
-  { id: "u2", recipients: [{ id: "4", name: "Phạm Thị D", username: "ptd_studio", avatarUrl: null }, { id: "1", name: "Nguyễn Văn A", username: "nva123", avatarUrl: null }], title: "Xác minh lại thông tin tài khoản", content: "Vui lòng cập nhật email xác thực để tránh bị hạn chế tính năng.", reason: "DATA_ISSUE", sentAt: "01/07/2026", sentBy: "Support" },
+  { id: "u2", recipients: [{ id: "4", name: "Phạm Thị D", username: "ptd_studio", avatarUrl: null }, { id: "1", name: "Nguyễn Văn A", username: "nva123", avatarUrl: null }], title: "Xác minh lại thông tin tài khoản", content: "Vui lòng cập nhật email xác thực để tránh bị hạn chế tính năng.", reason: "DATA_ISSUE", sentAt: "01/07/2026", sentBy: "Admin" },
 ];
 
 export default function AdminNotificationsPage() {

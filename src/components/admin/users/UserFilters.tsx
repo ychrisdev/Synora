@@ -4,14 +4,13 @@ import { clsx } from "clsx";
 
 export type UserFilterState = {
   query: string;
-  role: "ALL" | "USER" | "SUPPORT" | "ADMIN";
+  role: "ALL" | "USER" | "ADMIN";
   status: "ALL" | "ACTIVE" | "SUSPENDED" | "BANNED";
 };
 
 const ROLE_OPTIONS: { value: UserFilterState["role"]; label: string }[] = [
   { value: "ALL", label: "Tất cả vai trò" },
   { value: "USER", label: "User" },
-  { value: "SUPPORT", label: "Support" },
   { value: "ADMIN", label: "Admin" },
 ];
 
