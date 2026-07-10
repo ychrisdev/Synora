@@ -17,6 +17,7 @@ import UploadDocumentModal from "@/components/library/UploadDocumentModal";
 export default function LibraryPage() {
   const { data: session } = useSession();
   const isLoggedIn = !!session?.user;
+  const isAdmin = session?.user?.role === "ADMIN";
 
   const [activeType, setActiveType] = useState("Tất cả");
   const [activeLevel, setActiveLevel] = useState<LevelKey>("all");
@@ -121,7 +122,7 @@ export default function LibraryPage() {
   };
 
   const handleToggleSave = async (id: string) => {
-    if (!isLoggedIn) return;
+    if (!isLoggedIn || isAdmin) return;
     const res = await fetch(`/api/library/documents/${id}/save`, {
       method: "POST",
     });
@@ -159,7 +160,7 @@ export default function LibraryPage() {
           activeType={activeType}
           setActiveType={setActiveType}
           savedCount={savedIds.size}
-          isLoggedIn={isLoggedIn}
+          isLoggedIn={isLoggedIn && !isAdmin}
           onUpload={() => setUploadOpen(true)}
         />
 
@@ -190,6 +191,7 @@ export default function LibraryPage() {
                     onReport={handleReport}
                     onDownload={() => setRefreshKey((k) => k + 1)}
                     currentUserId={session?.user?.id}
+                    isAdmin={isAdmin}
                     onEdited={(updated) => {
                       setDocs((prev) =>
                         prev.map((d) =>

@@ -27,6 +27,7 @@ interface DocumentCardProps {
   currentUserId?: string;
   onEdited?: (updated: Partial<Document>) => void;
   onDeleted?: (id: string) => void;
+  isAdmin?: boolean;
 }
 
 function getGoogleViewerUrl(fileUrl: string) {
@@ -43,6 +44,7 @@ export default function DocumentCard({
   currentUserId,
   onEdited,
   onDeleted,
+  isAdmin = false,
 }: DocumentCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -153,15 +155,17 @@ export default function DocumentCard({
           </div>
 
           <div ref={menuRef} className="relative">
-            <button
-              onClick={() => setMenuOpen((p) => !p)}
-              aria-label="Tùy chọn"
-              className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-100 transition-colors"
-            >
-              <MoreHorizontal size={15} />
-            </button>
+            {!isAdmin && (
+              <button
+                onClick={() => setMenuOpen((p) => !p)}
+                aria-label="Tùy chọn"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-100 transition-colors"
+              >
+                <MoreHorizontal size={15} />
+              </button>
+            )}
 
-            {menuOpen && (
+            {!isAdmin && menuOpen && (
               <div className="absolute right-0 top-full mt-1 z-20 w-40 bg-white border border-surface-200 rounded-xl shadow-lg py-1 animate-in fade-in zoom-in-95 duration-150 origin-top-right">
                 {isLoggedIn ? (
                   <>
