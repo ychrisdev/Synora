@@ -88,6 +88,7 @@ type ScrollMode = "instant" | "smooth" | null;
 export default function ChatPage() {
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ?? "";
+  const isAdmin = session?.user?.role === "ADMIN";
 
   const [convList, setConvList] = useState<Conversation[]>([]);
   const [convLoading, setConvLoading] = useState(true);
@@ -696,6 +697,7 @@ export default function ChatPage() {
   };
 
   const handleSend = async () => {
+    if (isAdmin) return;
     if ((!input.trim() && pendingFiles.length === 0) || !activeId || sending)
       return;
     const isCurrentlyArchived =
@@ -1103,6 +1105,7 @@ export default function ChatPage() {
 
   const handleStartDM = useCallback(
     async (_userId: string, username: string) => {
+      if (isAdmin) return;
       try {
         const res = await fetch("/api/conversations", {
           method: "POST",
@@ -1218,7 +1221,13 @@ export default function ChatPage() {
         <div className="h-px w-6 bg-surface-200 my-1" />
         <button
           onClick={() => setNewConvOpen(true)}
-          className="w-9 h-9 rounded-xl bg-surface-100 hover:bg-primary/10 flex items-center justify-center text-text-muted hover:text-primary transition-colors"
+          disabled={isAdmin}
+          className={clsx(
+            "w-9 h-9 rounded-xl bg-surface-100 flex items-center justify-center text-text-muted transition-colors",
+            isAdmin
+              ? "opacity-40 cursor-not-allowed"
+              : "hover:bg-primary/10 hover:text-primary",
+          )}
           title="Tạo trò chuyện mới"
         >
           <Edit size={16} />
@@ -1646,7 +1655,7 @@ export default function ChatPage() {
                         body: JSON.stringify({ archived: false }),
                       });
                       isPreviewingPendingRef.current = false;
-                      setCloseDrawerSignal((k) => k + 1)
+                      setCloseDrawerSignal((k) => k + 1);
                       setConvList((prev) =>
                         prev.map((c) =>
                           c.id === activeId ? { ...c, isArchived: false } : c,
@@ -1709,14 +1718,14 @@ export default function ChatPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => docInputRef.current?.click()}
-                      disabled={uploadingFiles}
+                      disabled={uploadingFiles || isAdmin}
                       className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Paperclip size={17} />
                     </button>
                     <button
                       onClick={() => mediaInputRef.current?.click()}
-                      disabled={uploadingFiles}
+                      disabled={uploadingFiles || isAdmin}
                       className="p-2 text-text-secondary hover:bg-surface-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <ImageIcon size={17} />
@@ -1728,20 +1737,27 @@ export default function ChatPage() {
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        disabled={isAdmin}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             handleSend();
                           }
                         }}
-                        placeholder="Nhập tin nhắn..."
-                        className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                        placeholder={
+                          isAdmin
+                            ? "Quản trị viên không thể nhắn tin"
+                            : "Nhập tin nhắn..."
+                        }
+                        className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:cursor-not-allowed"
                       />
                     </div>
                     <button
                       onClick={handleSend}
                       disabled={
-                        (!input.trim() && pendingFiles.length === 0) || sending
+                        isAdmin ||
+                        (!input.trim() && pendingFiles.length === 0) ||
+                        sending
                       }
                       className="p-2 bg-primary text-white rounded-full hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
