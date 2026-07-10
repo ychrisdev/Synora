@@ -11,6 +11,7 @@ import SuggestedPeople from "@/components/ui/SuggestedPeople";
 
 export default function FeedPage() {
   const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
   const searchParams = useSearchParams();
   const router = useRouter();
   const targetPostId = searchParams.get("post");
@@ -228,7 +229,7 @@ export default function FeedPage() {
   return (
     <div className="flex w-full py-5 items-start">
       <div className="flex-1 flex flex-col gap-4 mx-auto max-w-[820px]">
-        {session && (
+        {session && session.user?.role !== "ADMIN" && (
           <PostComposer onPost={handlePost} currentUser={currentUser} />
         )}
         {loading ? (
@@ -262,7 +263,7 @@ export default function FeedPage() {
       </div>
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         <TrendingTopics />
-        <SuggestedPeople />
+        {!isAdmin && <SuggestedPeople />}
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ export default function MediaLightbox({
   onCountChange,
   onSyncCount,
   menuSlot,
+  isAdmin = false,
 }: {
   images: string[];
   mediaTypes?: string[];
@@ -49,6 +50,7 @@ export default function MediaLightbox({
   onCountChange?: (delta: number) => void;
   onSyncCount?: (count: number) => void;
   menuSlot?: React.ReactNode;
+  isAdmin?: boolean;
 }) {
   const [index, setIndex] = useState(initialIndex);
   const { data: session, status } = useSession();
@@ -73,6 +75,15 @@ export default function MediaLightbox({
     editComment,
     hideComment,
   } = useComments(post.id, sort);
+
+  const handleSubmitReply = (
+    commentId: string,
+    text: string,
+    replyTo: string,
+  ) => {
+    if (isAdmin) return;
+    submitReply(commentId, text, replyTo);
+  };
 
   const prev = () => setIndex((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIndex((i) => (i < images.length - 1 ? i + 1 : 0));
@@ -231,11 +242,13 @@ export default function MediaLightbox({
         <div className="flex items-center gap-1 px-3 py-1.5 border-y border-surface-100 shrink-0">
           <button
             onClick={onLike}
+            disabled={isAdmin}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
               liked
                 ? "text-primary font-semibold"
                 : "text-text-secondary hover:bg-surface-100",
+              isAdmin && "opacity-40 cursor-not-allowed",
             )}
           >
             <ThumbsUp
@@ -259,10 +272,12 @@ export default function MediaLightbox({
                 )}
             </span>
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
-            <Share2 size={15} />
-            <span>Chia sẻ</span>
-          </button>
+          {!isAdmin && (
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
+              <Share2 size={15} />
+              <span>Chia sẻ</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1 px-4 py-2 shrink-0">
@@ -294,7 +309,7 @@ export default function MediaLightbox({
             currentUserName={session?.user?.name ?? ""}
             onLike={handleCommentLike}
             onToggleReply={toggleReplyInput}
-            onSubmitReply={submitReply}
+            onSubmitReply={handleSubmitReply}
             onCancelReply={cancelReply}
             onLikeReply={handleReplyLike}
             postAuthorId={post.authorId}
@@ -308,11 +323,16 @@ export default function MediaLightbox({
             onCountChange={onCountChange}
             onAuthRequired={setAuthModal}
             disabled={commentsLoading}
+            isAdmin={isAdmin}
           />
         </div>
 
         <div className="border-t border-surface-100 px-4 py-3 shrink-0">
-          {status === "authenticated" ? (
+          {isAdmin ? (
+            <p className="w-full py-2.5 text-center text-xs font-medium text-text-secondary bg-surface-50 rounded-2xl">
+              Tài khoản quản trị không thể bình luận
+            </p>
+          ) : status === "authenticated" ? (
             <CommentInput
               onSubmit={async (payload) => {
                 await submitComment(payload);

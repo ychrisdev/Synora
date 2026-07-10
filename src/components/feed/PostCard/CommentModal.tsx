@@ -34,6 +34,7 @@ export default function CommentModal({
   onAuthRequired,
   menuSlot,
   targetCommentId,
+  isAdmin = false,
 }: {
   post: Post;
   liked: boolean;
@@ -45,6 +46,7 @@ export default function CommentModal({
   onAuthRequired?: (action: string) => void;
   menuSlot?: React.ReactNode;
   targetCommentId?: string | null;
+  isAdmin?: boolean;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<CommentSort>("default");
@@ -83,6 +85,7 @@ export default function CommentModal({
 
   const handleSubmitReply = useCallback(
     async (commentId: string, text: string, replyTo: string) => {
+      if (isAdmin) return;
       await submitReply(commentId, text, replyTo);
     },
     [submitReply],
@@ -101,6 +104,7 @@ export default function CommentModal({
         onClose={() => setLightboxIndex(null)}
         onCountChange={onCountChange}
         menuSlot={menuSlot}
+        isAdmin={isAdmin}
       />
     );
   }
@@ -190,11 +194,13 @@ export default function CommentModal({
         <div className="flex items-center gap-1 px-3 py-1 border-y border-surface-100 shrink-0">
           <button
             onClick={onLike}
+            disabled={isAdmin}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors",
               liked
                 ? "text-primary font-medium"
                 : "text-text-secondary hover:bg-surface-100",
+              isAdmin && "opacity-40 cursor-not-allowed",
             )}
           >
             <ThumbsUp
@@ -218,10 +224,12 @@ export default function CommentModal({
                 )}
             </span>
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
-            <Share2 size={15} />
-            <span>Chia sẻ</span>
-          </button>
+          {!isAdmin && (
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:bg-surface-100 transition-colors ml-auto">
+              <Share2 size={15} />
+              <span>Chia sẻ</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1 px-4 py-2 shrink-0">
@@ -284,11 +292,16 @@ export default function CommentModal({
             scrollContainer={scrollContainerRef}
             targetCommentId={targetCommentId}
             disabled={commentsLoading}
+            isAdmin={isAdmin}
           />
         </div>
 
         <div className="px-4 pb-4 pt-3 border-t border-surface-100 shrink-0">
-          {status === "authenticated" ? (
+          {isAdmin ? (
+            <p className="w-full py-2.5 text-center text-xs font-medium text-text-secondary bg-surface-50 rounded-2xl">
+              Tài khoản người quản trị không thể bình luận
+            </p>
+          ) : status === "authenticated" ? (
             <CommentInput
               onSubmit={handleSubmitComment}
               disabled={commentsLoading}

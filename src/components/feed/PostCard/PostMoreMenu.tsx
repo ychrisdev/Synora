@@ -21,6 +21,7 @@ export default function PostMoreMenu({
   onSave,
   onBlock,
   onReport,
+  isAdmin = false,
 }: {
   isOwner: boolean;
   isSaved?: boolean;
@@ -30,6 +31,7 @@ export default function PostMoreMenu({
   onSave: () => void;
   onBlock: () => void;
   onReport: () => void;
+  isAdmin?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -42,6 +44,8 @@ export default function PostMoreMenu({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  if (isAdmin) return null;
 
   type Item = {
     icon: React.ReactNode;

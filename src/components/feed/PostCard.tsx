@@ -75,8 +75,10 @@ export default function PostCard({
   const [authModal, setAuthModal] = useState<string | null>(null);
 
   const isOwner = session?.user?.id === post.authorId;
+  const isAdmin = session?.user?.role === "ADMIN";
 
   const handleLike = async () => {
+    if (isAdmin) return;
     if (!session?.user) {
       setAuthModal("thích bài viết");
       return;
@@ -92,6 +94,7 @@ export default function PostCard({
   };
 
   const handleSave = async () => {
+    if (isAdmin) return;
     if (!session?.user) {
       setAuthModal("lưu bài viết");
       return;
@@ -208,6 +211,7 @@ export default function PostCard({
     onSave: handleSave,
     onBlock: () => setBlockingName(post.author.name),
     onReport: () => setShowReportModal(true),
+    isAdmin,
   };
 
   return (
@@ -288,11 +292,13 @@ export default function PostCard({
           <div className="flex items-center gap-1">
             <button
               onClick={handleLike}
+              disabled={isAdmin}
               className={clsx(
                 "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all duration-150 select-none",
                 liked
                   ? "bg-primary-50 text-primary font-semibold"
                   : "text-text-secondary hover:bg-surface-100",
+                isAdmin && "opacity-40 cursor-not-allowed",
               )}
             >
               <ThumbsUp
@@ -312,10 +318,12 @@ export default function PostCard({
               <span>{commentCount}</span>
             </button>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors">
-            <Share2 size={15} />
-            Chia sẻ
-          </button>
+          {!isAdmin && (
+            <button className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-text-secondary rounded-lg hover:bg-surface-100 transition-colors">
+              <Share2 size={15} />
+              Chia sẻ
+            </button>
+          )}
         </div>
       </div>
 
@@ -333,6 +341,7 @@ export default function PostCard({
           onCountChange={(delta) =>
             setCommentCount((c) => Math.max(0, c + delta))
           }
+          isAdmin={isAdmin}
           menuSlot={
             <PostMoreMenu
               {...menuSlotProps}
@@ -362,6 +371,7 @@ export default function PostCard({
           }
           onAuthRequired={setAuthModal}
           targetCommentId={targetCommentId}
+          isAdmin={isAdmin}
           menuSlot={
             <PostMoreMenu
               {...menuSlotProps}

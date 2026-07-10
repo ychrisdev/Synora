@@ -125,6 +125,7 @@ export default function CommentList({
   targetCommentId,
   scrollContainer,
   disabled = false,
+  isAdmin = false,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -146,6 +147,7 @@ export default function CommentList({
   targetCommentId?: string | null;
   scrollContainer?: React.RefObject<HTMLDivElement | null>;
   disabled?: boolean;
+  isAdmin?: boolean;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -333,28 +335,30 @@ export default function CommentList({
                       })()}
                   </div>
                   <div className="absolute -right-8 top-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
-                    <CommentBubbleMenu
-                      role={
-                        currentUserId === c.authorId
-                          ? c.hidden
-                            ? "hidden-own"
-                            : "own"
-                          : currentUserId === postAuthorId
-                            ? "post-author"
-                            : "viewer"
-                      }
-                      authorName={c.author.name}
-                      onEdit={() => setEditingId(c.id)}
-                      onDelete={() => {
-                        setDeletingId(c.id);
-                        setDeletingType("comment");
-                        setDeletingParentId(null);
-                      }}
-                      isHidden={c.hidden}
-                      onHide={() => onHideComment(c.id)}
-                      onBlock={() => setBlockingName(c.author.name)}
-                      onReport={() => {}}
-                    />
+                    {!isAdmin && (
+                      <CommentBubbleMenu
+                        role={
+                          currentUserId === c.authorId
+                            ? c.hidden
+                              ? "hidden-own"
+                              : "own"
+                            : currentUserId === postAuthorId
+                              ? "post-author"
+                              : "viewer"
+                        }
+                        authorName={c.author.name}
+                        onEdit={() => setEditingId(c.id)}
+                        onDelete={() => {
+                          setDeletingId(c.id);
+                          setDeletingType("comment");
+                          setDeletingParentId(null);
+                        }}
+                        isHidden={c.hidden}
+                        onHide={() => onHideComment(c.id)}
+                        onBlock={() => setBlockingName(c.author.name)}
+                        onReport={() => {}}
+                      />
+                    )}
                   </div>
                 </div>
                 {editingId === c.id && (
@@ -407,7 +411,7 @@ export default function CommentList({
                         c.hidden && "opacity-50",
                       )}
                     >
-                      {!c.hidden && (
+                      {!c.hidden && !isAdmin && (
                         <button
                           onClick={() => {
                             if (!currentUserId) {
@@ -427,7 +431,7 @@ export default function CommentList({
                           <span>{c.likes > 0 ? c.likes : "Thích"}</span>
                         </button>
                       )}
-                      {!c.hidden && (
+                      {!c.hidden && !isAdmin && (
                         <button
                           onClick={() => {
                             if (!currentUserId) {
@@ -506,26 +510,28 @@ export default function CommentList({
                             </p>
                           </div>
                           <div className="absolute -right-8 top-1 opacity-0 group-hover/reply:opacity-100 transition-opacity">
-                            <CommentBubbleMenu
-                              role={
-                                currentUserId === r.authorId
-                                  ? "own"
-                                  : currentUserId === postAuthorId
-                                    ? "post-author"
-                                    : "viewer"
-                              }
-                              authorName={r.author.name}
-                              onEdit={() => {}}
-                              onDelete={() => {
-                                setDeletingId(r.id);
-                                setDeletingType("reply");
-                                setDeletingParentId(c.id);
-                              }}
-                              isHidden={c.hidden}
-                              onHide={() => {}}
-                              onBlock={() => setBlockingName(r.author.name)}
-                              onReport={() => {}}
-                            />
+                            {!isAdmin && (
+                              <CommentBubbleMenu
+                                role={
+                                  currentUserId === r.authorId
+                                    ? "own"
+                                    : currentUserId === postAuthorId
+                                      ? "post-author"
+                                      : "viewer"
+                                }
+                                authorName={r.author.name}
+                                onEdit={() => {}}
+                                onDelete={() => {
+                                  setDeletingId(r.id);
+                                  setDeletingType("reply");
+                                  setDeletingParentId(c.id);
+                                }}
+                                isHidden={c.hidden}
+                                onHide={() => {}}
+                                onBlock={() => setBlockingName(r.author.name)}
+                                onReport={() => {}}
+                              />
+                            )}
                           </div>
                         </div>
                         <div
@@ -534,7 +540,7 @@ export default function CommentList({
                             r.hidden && "opacity-50",
                           )}
                         >
-                          {!c.hidden && (
+                          {!c.hidden && !isAdmin && (
                             <button
                               onClick={() => {
                                 if (!currentUserId) {
@@ -555,7 +561,7 @@ export default function CommentList({
                               <span>{r.likes > 0 ? r.likes : "Thích"}</span>
                             </button>
                           )}
-                          {!c.hidden && (
+                          {!c.hidden && !isAdmin && (
                             <button
                               onClick={() => {
                                 if (!currentUserId) {
@@ -606,7 +612,7 @@ export default function CommentList({
                     )}
                 </div>
               )}
-            {replyingToId === c.id && !c.hidden && (
+            {replyingToId === c.id && !c.hidden && !isAdmin && (
               <ReplyInput
                 key={replyingToName ?? c.author.name}
                 replyTo={replyingToName ?? c.author.name}

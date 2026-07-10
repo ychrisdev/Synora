@@ -44,6 +44,8 @@ export default function TrendingTopics({ variant = "feed" }: Props) {
     return () => window.removeEventListener("tags:changed", refetch);
   }, [refetch]);
 
+  if (!loading && topics.length === 0) return null;
+
   return (
     <div
       className={`bg-white rounded-xl border border-surface-200 p-4 ${
@@ -58,10 +60,6 @@ export default function TrendingTopics({ variant = "feed" }: Props) {
         <div className="flex justify-center py-4">
           <Loader2 size={16} className="animate-spin text-text-muted" />
         </div>
-      ) : topics.length === 0 ? (
-        <p className="text-xs text-text-muted text-center py-3">
-          Chưa có chủ đề nào
-        </p>
       ) : (
         <div className="flex flex-col gap-1">
           {topics.map((t, i) => (
