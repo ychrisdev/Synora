@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   Mail,
   Lock,
@@ -11,7 +12,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { SettingsCard } from "./SettingsCard";
-import { SettingsRow } from "./SettingsRow";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
@@ -28,14 +28,18 @@ function formatScheduledDate(requestedAt: string): string {
 }
 
 export function AccountSection() {
+  const { data: authSession, update: updateSession } = useSession();
   const { showToast } = useToast();
-<<<<<<< HEAD
-  const [email] = useState("user@example.com");x
-=======
-  const [email] = useState("user@example.com");
->>>>>>> 18f88ab (feat(settings): add initial settings page and reusable components)
+
+  const currentEmail = authSession?.user?.email ?? "";
+
   const [editingEmail, setEditingEmail] = useState(false);
-  const [newEmail, setNewEmail] = useState(email);
+  const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  useEffect(() => {
+    if (!editingEmail) setNewEmail(currentEmail);
+  }, [currentEmail, editingEmail]);
 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -50,9 +54,33 @@ export function AccountSection() {
     requestedAt: string;
   } | null>(null);
 
-  const handleSaveEmail = () => {
-    showToast("Đã gửi email xác nhận tới địa chỉ mới", "success");
-    setEditingEmail(false);
+  const handleSaveEmail = async () => {
+    const trimmed = newEmail.trim().toLowerCase();
+    if (!trimmed || trimmed === currentEmail) {
+      setEditingEmail(false);
+      setNewEmail(currentEmail);
+      return;
+    }
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/account/email", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Đổi email thất bại", "error");
+        return;
+      }
+      await updateSession({ email: data.email });
+      showToast("Đổi email thành công", "success");
+      setEditingEmail(false);
+    } catch {
+      showToast("Lỗi kết nối, vui lòng thử lại", "error");
+    } finally {
+      setSavingEmail(false);
+    }
   };
 
   const handleChangePassword = async () => {
@@ -70,11 +98,25 @@ export function AccountSection() {
     }
     setSavingPw(true);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      const res = await fetch("/api/account/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: currentPw,
+          newPassword: newPw,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Đổi mật khẩu thất bại", "error");
+        return;
+      }
       showToast("Đổi mật khẩu thành công", "success");
       setCurrentPw("");
       setNewPw("");
       setConfirmPw("");
+    } catch {
+      showToast("Lỗi kết nối, vui lòng thử lại", "error");
     } finally {
       setSavingPw(false);
     }
@@ -118,7 +160,7 @@ export function AccountSection() {
             <Mail size={15} className="text-text-muted shrink-0" />
             <input
               type="email"
-              value={editingEmail ? newEmail : email}
+              value={editingEmail ? newEmail : currentEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               disabled={!editingEmail}
               className="flex-1 bg-transparent text-sm text-text-primary focus:outline-none disabled:text-text-muted disabled:cursor-not-allowed"
@@ -130,9 +172,10 @@ export function AccountSection() {
               <button
                 onClick={() => {
                   setEditingEmail(false);
-                  setNewEmail(email);
+                  setNewEmail(currentEmail);
                 }}
-                className="px-4 py-2 rounded-full text-xs font-semibold text-text-secondary hover:bg-surface-100 transition-colors"
+                disabled={savingEmail}
+                className="px-4 py-2 rounded-full text-xs font-semibold text-text-secondary hover:bg-surface-100 transition-colors disabled:opacity-50"
               >
                 Hủy
               </button>
@@ -141,9 +184,14 @@ export function AccountSection() {
               onClick={() =>
                 editingEmail ? handleSaveEmail() : setEditingEmail(true)
               }
-              className="px-4 py-2 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-700 transition-colors"
+              disabled={savingEmail}
+              className="px-4 py-2 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
-              {editingEmail ? "Lưu thay đổi" : "Thay đổi"}
+              {editingEmail
+                ? savingEmail
+                  ? "Đang lưu..."
+                  : "Lưu thay đổi"
+                : "Thay đổi"}
             </button>
           </div>
         </div>
