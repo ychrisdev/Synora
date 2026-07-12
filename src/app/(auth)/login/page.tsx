@@ -72,12 +72,7 @@ export default function LoginPage() {
             href="/"
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors mb-6 group"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-            >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path
                 d="M9 11L5 7L9 3"
                 stroke="currentColor"
@@ -141,9 +136,12 @@ export default function LoginPage() {
                 <input type="checkbox" className="accent-blue-500" /> Ghi nhớ
                 đăng nhập
               </label>
-              <button className="text-sm text-blue-500 hover:underline">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-blue-500 hover:underline"
+              >
                 Quên mật khẩu?
-              </button>
+              </Link>
             </div>
 
             <button
