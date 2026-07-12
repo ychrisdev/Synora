@@ -25,9 +25,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email và mật khẩu không được để trống");
         }
 
+        const identifier = credentials.email.trim().toLowerCase();
+
         const user = await prisma.user.findFirst({
           where: {
-            OR: [{ email: credentials.email }, { username: credentials.email }],
+            OR: [{ email: identifier }, { username: identifier }],
           },
           include: { profile: true },
         });
@@ -67,6 +69,7 @@ export const authOptions: NextAuthOptions = {
       if (trigger === "update" && session) {
         if (session.name) token.name = session.name;
         if (session.image) token.picture = session.image;
+        if (session.email) token.email = session.email;
       }
       return token;
     },
@@ -77,6 +80,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string;
         if (token.name) session.user.name = token.name as string;
         if (token.picture) session.user.image = token.picture as string;
+        if (token.email) session.user.email = token.email as string;
       }
       return session;
     },
