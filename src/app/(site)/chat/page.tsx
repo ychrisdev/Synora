@@ -50,6 +50,8 @@ import {
 } from "@/lib/chat/utils";
 import { emitChatUnreadCount } from "@/lib/chat/hooks";
 import { useUploadThing } from "@/lib/uploadthing";
+import { useUserPresence } from "@/lib/presence/hooks";
+import { formatLastSeen } from "@/lib/presence/utils";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
@@ -1207,6 +1209,10 @@ export default function ChatPage() {
     emitChatUnreadCount(totalUnread);
   }, [totalUnread]);
   const currentConv = convList.find((c) => c.id === activeId) ?? null;
+  const { isOnline: currentOtherOnline, lastActiveAt: currentOtherLastActive } =
+    useUserPresence(
+      currentConv && !currentConv.isGroup ? currentConv.otherUserId : null,
+    );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -1341,7 +1347,9 @@ export default function ChatPage() {
                   <p className="text-xs text-text-muted">
                     {currentConv.isGroup
                       ? `${currentConv.memberCount ?? 0} thành viên`
-                      : "Đang hoạt động"}
+                      : currentOtherOnline
+                        ? "Đang hoạt động"
+                        : (formatLastSeen(currentOtherLastActive) ?? "")}
                   </p>
                 </div>
               </div>

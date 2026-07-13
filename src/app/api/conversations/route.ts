@@ -217,6 +217,7 @@ export async function GET(_req: NextRequest) {
           : isSelf
             ? me?.username
             : other?.username,
+        otherUserId: conv.isGroup ? undefined : isSelf ? userId : other?.id,
         isSelf,
         lastMessage,
         lastMessageAt: conv.lastMessageAt,
@@ -414,6 +415,7 @@ export async function POST(req: NextRequest) {
         : (target.profile?.displayName ?? target.username),
       avatarUrl: target.profile?.avatarUrl ?? null,
       otherUsername: target.username,
+      otherUserId: target.id,
       isAccepted,
       isSelf: isSelfChat,
       lastMessageAt: lastMessageAt ? lastMessageAt.toISOString() : null,

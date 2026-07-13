@@ -4,6 +4,7 @@ export type Conversation = {
   avatarUrl: string | null;
   isGroup: boolean;
   otherUsername?: string;
+  otherUserId?: string;
   lastMessage: string;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -12,6 +13,7 @@ export type Conversation = {
   isDraft?: boolean;
   isSelf?: boolean;
   isArchived?: boolean;
+  isHidden?: boolean;
 };
 
 export type PendingConversation = {

@@ -56,6 +56,8 @@ import type {
   SharedAttachment,
   GroupMember,
 } from "@/lib/chat/types";
+import { useUserPresence } from "@/lib/presence/hooks";
+import { formatLastSeen } from "@/lib/presence/utils";
 
 function getInitials(name: string) {
   return name
@@ -961,6 +963,9 @@ export function InfoSidebar({
   onLeaveConversation,
 }: InfoSidebarProps) {
   const { showToast } = useToast();
+  const { isOnline, lastActiveAt } = useUserPresence(
+    !conv.isGroup ? conv.otherUserId : null,
+  );
   const [notifOn, setNotifOn] = useState(true);
   const [mediaModalTab, setMediaModalTab] = useState<"images" | "files" | null>(
     null,
@@ -1170,11 +1175,18 @@ export function InfoSidebar({
               Đổi tên nhóm
             </button>
           )}
-          {!conv.isGroup && (
-            <p className="text-xs text-green-500 mt-0.5 font-medium">
-              ● Đang hoạt động
-            </p>
-          )}
+          {!conv.isGroup &&
+            (isOnline ? (
+              <p className="text-xs text-green-500 mt-0.5 font-medium">
+                ● Đang hoạt động
+              </p>
+            ) : (
+              formatLastSeen(lastActiveAt) && (
+                <p className="text-xs text-text-muted mt-0.5 font-medium">
+                  {formatLastSeen(lastActiveAt)}
+                </p>
+              )
+            ))}
           {!conv.isGroup && conv.otherUsername && (
             <Link
               href={`/profile/${conv.otherUsername}`}

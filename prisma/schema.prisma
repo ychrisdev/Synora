@@ -97,6 +97,8 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  lastActiveAt  DateTime?
+
   profile       Profile?
 
   accounts      Account[]
@@ -147,6 +149,8 @@ model Profile {
   grade       String?
   website     String?
   location    String?
+
+  showActivityStatus Boolean @default(true)
 
   updatedAt   DateTime @updatedAt
 

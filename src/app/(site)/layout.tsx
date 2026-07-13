@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
+import { PresenceHeartbeat } from "@/components/providers/PresenceHeartbeat";
 
 export default function MainLayout({
   children,
@@ -26,10 +27,18 @@ export default function MainLayout({
     pathname.startsWith("/friends") ||
     pathname.startsWith("/settings");
 
-  if (hideAll) return <>{children}</>;
+  if (hideAll) {
+    return (
+      <>
+        <PresenceHeartbeat />
+        {children}
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface-50">
+      <PresenceHeartbeat />
       <Navbar
         isLoggedIn={status === "authenticated"}
         session={session}

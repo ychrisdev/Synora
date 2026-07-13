@@ -1,0 +1,3 @@
+export const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+export const HEARTBEAT_INTERVAL_MS = 45 * 1000;
+export const PRESENCE_POLL_INTERVAL_MS = 20 * 1000;

@@ -20,6 +20,7 @@ import Avatar from "@/components/ui/Avatar";
 import { PillBadge } from "./Badge";
 import { getColorForUser, getInitialsFromName } from "@/lib/chat/utils";
 import type { AvatarMenuPanel } from "@/lib/chat/types";
+import { useSyncedBoolean } from "@/lib/settings/hooks";
 
 export function AvatarMenu() {
   const { data: session } = useSession();
@@ -28,6 +29,15 @@ export function AvatarMenu() {
   const avatarUrl = user?.image ?? null;
   const initials = getInitialsFromName(displayName);
   const color = getColorForUser(user?.id ?? "");
+  const {
+    value: showActivity,
+    loading: loadingActivity,
+    toggle: toggleActivity,
+  } = useSyncedBoolean({
+    key: "activityStatus",
+    apiPath: "/api/settings/activity-status",
+    field: "showActivityStatus",
+  });
 
   const [open, setOpen] = useState(false);
   const [panel, setPanel] = useState<AvatarMenuPanel>("main");
@@ -81,8 +91,8 @@ export function AvatarMenu() {
                   <p className="text-sm font-bold text-text-primary truncate">
                     {displayName}
                   </p>
-                  <p className="text-xs text-green-700 font-medium">
-                    Đang hoạt động
+                  <p className="text-xs text-green-500 mt-0.5 font-medium">
+                    ● Đang hoạt động
                   </p>
                 </div>
               </div>
@@ -134,6 +144,27 @@ export function AvatarMenu() {
                 <p className="text-sm font-bold text-text-primary">Cài đặt</p>
               </div>
               <div className="py-2">
+                <div className="flex items-center gap-3 px-4 py-3 hover:bg-surface-50 transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-text-primary">
+                      Trạng thái hoạt động
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      Cho bạn bè thấy bạn đang online
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={showActivity}
+                    disabled={loadingActivity}
+                    onChange={() => {
+                      toggleActivity().catch(() => {});
+                    }}
+                  />
+                </div>
+                <div className="h-px bg-surface-100 my-1 mx-4" />
                 {[
                   {
                     label: "Thông báo đẩy",
