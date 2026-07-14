@@ -1,9 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ban, MoreVertical } from "lucide-react";
 import { SettingsCard } from "./SettingsCard";
-import { SettingsRow } from "./SettingsRow";
-import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import {
   BlockedUsersModal,
   BlockedItemMenu,
@@ -11,10 +9,10 @@ import {
 } from "./BlockModal";
 import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
+import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
 import { useSyncedBoolean } from "@/lib/settings/hooks";
+import { fetchBlockedUsers, unblockUser } from "@/lib/block/utils";
 import { clsx } from "clsx";
-
-const MOCK_BLOCKED: BlockedUser[] = [];
 
 type ProfileVisibility = "public" | "friends" | "private";
 const PREVIEW_LIMIT = 5;
@@ -30,19 +28,37 @@ export function PrivacySection() {
     apiPath: "/api/settings/activity-status",
     field: "showActivityStatus",
   });
-  const [blocked, setBlocked] = useState<BlockedUser[]>(MOCK_BLOCKED);
+  const [blocked, setBlocked] = useState<BlockedUser[]>([]);
+  const [loadingBlocked, setLoadingBlocked] = useState(true);
   const [visibility, setVisibility] = useState<ProfileVisibility>("public");
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchBlockedUsers()
+      .then(setBlocked)
+      .catch(() => setBlocked([]))
+      .finally(() => setLoadingBlocked(false));
+  }, []);
 
   const sortedBlocked = [...blocked].sort(
     (a, b) => new Date(b.blockedAt).getTime() - new Date(a.blockedAt).getTime(),
   );
   const preview = sortedBlocked.slice(0, PREVIEW_LIMIT);
 
-  const handleUnblock = (id: string) => {
-    setBlocked((prev) => prev.filter((u) => u.id !== id));
-    showToast("Đã bỏ chặn người dùng", "success");
+  const handleUnblock = async (id: string) => {
+    const prev = blocked;
+    setBlocked((p) => p.filter((u) => u.id !== id));
+    try {
+      await unblockUser(id);
+      showToast("Đã bỏ chặn người dùng", "success");
+    } catch (e) {
+      setBlocked(prev);
+      showToast(
+        e instanceof Error ? e.message : "Không thể bỏ chặn người dùng",
+        "error",
+      );
+    }
   };
 
   const handleReport = (_id: string) => {
@@ -97,7 +113,19 @@ export function PrivacySection() {
         title="Danh sách chặn"
         description="Những người bạn đã chặn sẽ không thể nhắn tin hoặc xem hồ sơ của bạn"
       >
-        {blocked.length === 0 ? (
+        {loadingBlocked ? (
+          <div className="flex flex-col gap-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 py-2 animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-surface-100 shrink-0" />
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <div className="h-2.5 bg-surface-100 rounded-full w-1/3" />
+                  <div className="h-2 bg-surface-100 rounded-full w-1/4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : blocked.length === 0 ? (
           <div className="flex flex-col items-center py-8 gap-2 text-text-muted">
             <div className="w-11 h-11 rounded-full bg-surface-100 flex items-center justify-center">
               <Ban size={18} className="opacity-50" />
