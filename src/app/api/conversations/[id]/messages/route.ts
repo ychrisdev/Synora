@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isBlockedEitherWay } from "@/lib/block/server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -141,6 +142,34 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { isAccepted: true, lastReadAt: new Date(), markedUnreadAt: null },
     });
   }
+  if (!membership.isAccepted) {
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId } },
+      data: { isAccepted: true, lastReadAt: new Date(), markedUnreadAt: null },
+    });
+  }
+
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      isGroup: true,
+      members: { where: { userId: { not: userId } }, select: { userId: true } },
+    },
+  });
+
+  if (conversation && !conversation.isGroup) {
+    const other = conversation.members[0];
+    if (other) {
+      const blocked = await isBlockedEitherWay(userId, other.userId);
+      if (blocked) {
+        return NextResponse.json(
+          { error: "Không thể gửi tin nhắn cho người dùng này" },
+          { status: 403 },
+        );
+      }
+    }
+  }
+
   const body = await req.json();
   const { content, replyToId, attachments } = body as {
     content?: string;

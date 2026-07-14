@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildAttachmentLabel } from "@/lib/chat/utils";
 import { areFriends } from "@/lib/chat/friends";
+import { getBlockStatus, isBlockedEitherWay } from "@/lib/block/server";
 
 export async function GET(_req: NextRequest) {
   const { searchParams } = new URL(_req.url);
@@ -207,6 +208,14 @@ export async function GET(_req: NextRequest) {
         lastMessage = candidates[0].label;
       }
 
+      let isBlockedByMe = false;
+      let hasBlockedMe = false;
+      if (!conv.isGroup && !isSelf && other) {
+        const status = await getBlockStatus(userId, other.id);
+        isBlockedByMe = status.blockedByMe;
+        hasBlockedMe = status.blockedMe;
+      }
+
       return {
         id: conv.id,
         isGroup: conv.isGroup,
@@ -224,6 +233,8 @@ export async function GET(_req: NextRequest) {
         unreadCount,
         memberCount: conv._count.members,
         isHidden: !!m.hiddenAt,
+        isBlockedByMe,
+        hasBlockedMe,
       };
     }),
   );
@@ -367,6 +378,16 @@ export async function POST(req: NextRequest) {
         data: { hiddenAt: null, isArchived: false },
       });
     } else {
+      if (!isSelfChat) {
+        const blocked = await isBlockedEitherWay(userId, target.id);
+        if (blocked) {
+          return NextResponse.json(
+            { error: "Không thể bắt đầu trò chuyện với người dùng này" },
+            { status: 403 },
+          );
+        }
+      }
+
       const friends = isSelfChat ? true : await areFriends(userId, target.id);
       const memberData = isSelfChat
         ? [{ userId, isAccepted: true }]
@@ -407,6 +428,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const blockStatus = isSelfChat
+      ? { blockedByMe: false, blockedMe: false }
+      : await getBlockStatus(userId, target.id);
+
     return NextResponse.json({
       id: conversationId,
       isGroup: false,
@@ -419,6 +444,8 @@ export async function POST(req: NextRequest) {
       isAccepted,
       isSelf: isSelfChat,
       lastMessageAt: lastMessageAt ? lastMessageAt.toISOString() : null,
+      isBlockedByMe: blockStatus.blockedByMe,
+      hasBlockedMe: blockStatus.blockedMe,
     });
   } catch (err) {
     console.error("POST /api/conversations error:", err);

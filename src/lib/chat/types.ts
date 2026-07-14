@@ -14,6 +14,8 @@ export type Conversation = {
   isSelf?: boolean;
   isArchived?: boolean;
   isHidden?: boolean;
+  isBlockedByMe?: boolean;
+  hasBlockedMe?: boolean;
 };
 
 export type PendingConversation = {
