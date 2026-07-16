@@ -10,6 +10,8 @@ import CommentBubbleMenu from "./CommentBubbleMenu";
 import EditCommentInput from "./EditCommentInput";
 import ReplyInput from "./ReplyInput";
 import { CommentMediaThumb, CommentFileBadge } from "./CommentInput";
+import { useToast } from "@/components/ui/Toast";
+import { blockUser } from "@/lib/block/utils";
 
 export function BlockConfirmDialog({
   name,
@@ -42,16 +44,26 @@ export function BlockConfirmDialog({
         </div>
         <div className="flex gap-2 mt-4">
           <button
+<<<<<<< Updated upstream
             onClick={onCancel}
             className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
           >
             Hủy
           </button>
           <button
+=======
+>>>>>>> Stashed changes
             onClick={onConfirm}
             className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
           >
             Chặn
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Hủy
           </button>
         </div>
       </div>
@@ -126,6 +138,7 @@ export default function CommentList({
   scrollContainer,
   disabled = false,
   isAdmin = false,
+  onUserBlocked,
 }: {
   postAuthorId: string;
   comments: Comment[];
@@ -148,6 +161,7 @@ export default function CommentList({
   scrollContainer?: React.RefObject<HTMLDivElement | null>;
   disabled?: boolean;
   isAdmin?: boolean;
+  onUserBlocked?: (authorId: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -155,7 +169,12 @@ export default function CommentList({
     null,
   );
   const [deletingParentId, setDeletingParentId] = useState<string | null>(null);
-  const [blockingName, setBlockingName] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const [blockingTarget, setBlockingTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+const [blockLoading, setBlockLoading] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
     new Set<string>(),
   );
@@ -194,6 +213,33 @@ export default function CommentList({
     });
     return () => cancelAnimationFrame(rafId);
   }, [targetCommentId, comments, scrollContainer]);
+
+  const handleConfirmBlock = async () => {
+    if (!blockingTarget) return;
+    setBlockLoading(true);
+    try {
+      await blockUser(blockingTarget.id);
+      showToast("Đã chặn người dùng", "success");
+      const removed = comments.reduce((acc, c) => {
+        let count = 0;
+        if (c.authorId === blockingTarget.id && !c.hidden) count += 1;
+        count += c.replies.filter(
+          (r) => r.authorId === blockingTarget.id && !r.hidden,
+        ).length;
+        return acc + count;
+      }, 0);
+      onCountChange?.(-removed);
+      onUserBlocked?.(blockingTarget.id);
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể chặn người dùng",
+        "error",
+      );
+    } finally {
+      setBlockLoading(false);
+      setBlockingTarget(null);
+    }
+  };
 
   return (
     <>
@@ -355,7 +401,7 @@ export default function CommentList({
                         }}
                         isHidden={c.hidden}
                         onHide={() => onHideComment(c.id)}
-                        onBlock={() => setBlockingName(c.author.name)}
+                        onBlock={() => setBlockingTarget({ id: c.authorId, name: c.author.name })}
                         onReport={() => {}}
                       />
                     )}
@@ -528,7 +574,7 @@ export default function CommentList({
                                 }}
                                 isHidden={c.hidden}
                                 onHide={() => {}}
-                                onBlock={() => setBlockingName(r.author.name)}
+                                onBlock={() => setBlockingTarget({ id: r.authorId, name: r.author.name })}
                                 onReport={() => {}}
                               />
                             )}
@@ -647,11 +693,11 @@ export default function CommentList({
           }}
         />
       )}
-      {blockingName && (
+      {blockingTarget && (
         <BlockConfirmDialog
-          name={blockingName}
-          onConfirm={() => setBlockingName(null)}
-          onCancel={() => setBlockingName(null)}
+          name={blockingTarget.name}
+          onConfirm={handleConfirmBlock}
+          onCancel={() => setBlockingTarget(null)}
         />
       )}
     </>

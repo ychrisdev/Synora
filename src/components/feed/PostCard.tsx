@@ -17,6 +17,7 @@ import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import AuthGuardModal from "@/components/ui/AuthGuardModal";
 import { notifyTagsChanged } from "@/lib/feed/utils";
+import { blockUser } from "@/lib/block/utils";
 import type { Post, ModalState } from "@/lib/feed/types";
 
 import RichContent from "./PostCard/RichContent";
@@ -28,6 +29,7 @@ import MediaLightbox from "./PostCard/MediaLightbox";
 import CommentModal from "./PostCard/CommentModal";
 import ReportPostModal from "./PostCard/ReportPostModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { BlockConfirmDialog } from "@/components/feed/comment/CommentList";
 
 export default function PostCard({
   post,
@@ -71,7 +73,11 @@ export default function PostCard({
   const [saved, setSaved] = useState(isSavedInitially);
   const { showToast } = useToast();
   const [deleted, setDeleted] = useState(false);
-  const [blockingName, setBlockingName] = useState<string | null>(null);
+  const [blockTarget, setBlockTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [blockLoading, setBlockLoading] = useState(false);
   const [authModal, setAuthModal] = useState<string | null>(null);
 
   const isOwner = session?.user?.id === post.authorId;
@@ -171,6 +177,25 @@ export default function PostCard({
     setShowDeleteConfirm(false);
   };
 
+  const handleConfirmBlock = async () => {
+    if (!blockTarget) return;
+    setBlockLoading(true);
+    try {
+      await blockUser(blockTarget.id);
+      showToast("Đã chặn người dùng", "success");
+      setDeleted(true);
+      onDeleted?.(post.id);
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể chặn người dùng",
+        "error",
+      );
+    } finally {
+      setBlockLoading(false);
+      setBlockTarget(null);
+    }
+  };
+
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -209,7 +234,7 @@ export default function PostCard({
     isSaved: saved,
     authorName: post.author.name,
     onSave: handleSave,
-    onBlock: () => setBlockingName(post.author.name),
+    onBlock: () => setBlockTarget({ id: post.authorId, name: post.author.name }),
     onReport: () => setShowReportModal(true),
     isAdmin,
   };
@@ -414,6 +439,14 @@ export default function PostCard({
         <ReportPostModal
           postId={post.id}
           onClose={() => setShowReportModal(false)}
+        />
+      )}
+
+      {blockTarget && (
+        <BlockConfirmDialog
+          name={blockTarget.name}
+          onConfirm={handleConfirmBlock}
+          onCancel={() => setBlockTarget(null)}
         />
       )}
 

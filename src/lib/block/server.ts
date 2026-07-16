@@ -28,3 +28,13 @@ export async function getBlockStatus(viewerId: string, otherId: string) {
     blockedMe: blocks.some((b) => b.blockerId === otherId),
   };
 }
+
+export async function getBlockedIds(userId: string): Promise<string[]> {
+  const blocks = await prisma.block.findMany({
+    where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+    select: { blockerId: true, blockedId: true },
+  });
+  return blocks.map((b) =>
+    b.blockerId === userId ? b.blockedId : b.blockerId,
+  );
+}

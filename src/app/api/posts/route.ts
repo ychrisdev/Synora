@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getBlockedIds } from "@/lib/block/server";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   try {
     const friendIds: string[] = [];
+    let blockedIds: string[] = [];
 
     if (session?.user?.id) {
       const accepted = await prisma.friendRequest.findMany({
@@ -21,10 +23,12 @@ export async function GET() {
           r.senderId === session.user.id ? r.receiverId : r.senderId,
         );
       }
+      blockedIds = await getBlockedIds(session.user.id);
     }
 
     const posts = await prisma.post.findMany({
       where: {
+        ...(blockedIds.length > 0 ? { authorId: { notIn: blockedIds } } : {}),
         OR: [
           { visibility: "PUBLIC" },
           ...(session?.user?.id

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getBlockedIds } from "@/lib/block/server";
 
 export async function GET(
   req: NextRequest,
@@ -14,10 +15,15 @@ export async function GET(
       ? { where: { userId: session.user.id }, select: { id: true } }
       : undefined;
 
+    const blockedIds = session?.user?.id
+      ? await getBlockedIds(session.user.id)
+      : [];
+
     const comments = await prisma.comment.findMany({
       where: {
         postId: id,
         parentId: null,
+        ...(blockedIds.length > 0 ? { authorId: { notIn: blockedIds } } : {}),
         OR: [
           { hidden: false },
           { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
@@ -29,6 +35,9 @@ export async function GET(
         author: { include: { profile: true } },
         replies: {
           where: {
+            ...(blockedIds.length > 0
+              ? { authorId: { notIn: blockedIds } }
+              : {}),
             OR: [
               { hidden: false },
               { hidden: true, hiddenByAuthor: session?.user?.id ?? "" },
