@@ -15,17 +15,19 @@ import { blockUser } from "@/lib/block/utils";
 
 export function BlockConfirmDialog({
   name,
+  loading = false,
   onConfirm,
   onCancel,
 }: {
   name: string;
+  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
+      onClick={(e) => !loading && e.target === e.currentTarget && onCancel()}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
         <div className="flex items-center gap-3 mb-3">
@@ -44,19 +46,11 @@ export function BlockConfirmDialog({
         </div>
         <div className="flex gap-2 mt-4">
           <button
-<<<<<<< Updated upstream
-            onClick={onCancel}
-            className="flex-1 py-2 rounded-xl border border-surface-200 text-sm text-text-secondary hover:bg-surface-50 transition-colors"
-          >
-            Hủy
-          </button>
-          <button
-=======
->>>>>>> Stashed changes
             onClick={onConfirm}
-            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors"
+            disabled={loading}
+            className="flex-1 py-2 rounded-xl bg-red-500 text-sm text-white font-medium hover:bg-red-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Chặn
+            {loading ? "Đang chặn..." : "Chặn"}
           </button>
           <button
             onClick={onCancel}
@@ -174,7 +168,7 @@ export default function CommentList({
     id: string;
     name: string;
   } | null>(null);
-const [blockLoading, setBlockLoading] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(
     new Set<string>(),
   );
@@ -401,7 +395,12 @@ const [blockLoading, setBlockLoading] = useState(false);
                         }}
                         isHidden={c.hidden}
                         onHide={() => onHideComment(c.id)}
-                        onBlock={() => setBlockingTarget({ id: c.authorId, name: c.author.name })}
+                        onBlock={() =>
+                          setBlockingTarget({
+                            id: c.authorId,
+                            name: c.author.name,
+                          })
+                        }
                         onReport={() => {}}
                       />
                     )}
@@ -574,7 +573,12 @@ const [blockLoading, setBlockLoading] = useState(false);
                                 }}
                                 isHidden={c.hidden}
                                 onHide={() => {}}
-                                onBlock={() => setBlockingTarget({ id: r.authorId, name: r.author.name })}
+                                onBlock={() =>
+                                  setBlockingTarget({
+                                    id: r.authorId,
+                                    name: r.author.name,
+                                  })
+                                }
                                 onReport={() => {}}
                               />
                             )}
@@ -696,6 +700,7 @@ const [blockLoading, setBlockLoading] = useState(false);
       {blockingTarget && (
         <BlockConfirmDialog
           name={blockingTarget.name}
+          loading={blockLoading}
           onConfirm={handleConfirmBlock}
           onCancel={() => setBlockingTarget(null)}
         />

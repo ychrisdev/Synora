@@ -445,6 +445,7 @@ export default function PostCard({
       {blockTarget && (
         <BlockConfirmDialog
           name={blockTarget.name}
+          loading={blockLoading}
           onConfirm={handleConfirmBlock}
           onCancel={() => setBlockTarget(null)}
         />
