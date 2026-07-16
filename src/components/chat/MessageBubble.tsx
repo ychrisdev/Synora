@@ -660,6 +660,7 @@ interface MessageBubbleProps {
   onForward: (m: Message) => void;
   onTogglePin: (m: Message) => void;
   onStartDM?: (userId: string, username: string) => void;
+  onBlockUser?: (userId: string, username: string) => void;
 }
 
 function AvatarPopup({
@@ -667,11 +668,13 @@ function AvatarPopup({
   userId,
   onClose,
   onStartDM,
+  onBlock,
 }: {
   username: string;
   userId: string;
   onClose: () => void;
   onStartDM: (userId: string, username: string) => void;
+  onBlock: (userId: string, username: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useOutsideClickRefs([ref], onClose);
@@ -701,7 +704,10 @@ function AvatarPopup({
       </button>
       <div className="h-px bg-surface-100 my-0.5" />
       <button
-        onClick={onClose}
+        onClick={() => {
+          onBlock(userId, username);
+          onClose();
+        }}
         className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-red-500 hover:bg-red-50 transition-colors"
       >
         <BanIcon size={13} className="shrink-0" />
@@ -723,6 +729,7 @@ export function MessageBubble({
   onForward,
   onTogglePin,
   onStartDM,
+  onBlockUser,
 }: MessageBubbleProps) {
   const [reacting, setReacting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -880,6 +887,7 @@ export function MessageBubble({
                 userId={msg.senderId}
                 onClose={() => setAvatarPopupOpen(false)}
                 onStartDM={onStartDM ?? (() => {})}
+                onBlock={onBlockUser ?? (() => {})}
               />
             )}
           </div>

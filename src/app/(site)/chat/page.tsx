@@ -24,6 +24,7 @@ import {
   Pin,
   Trash2,
   Archive,
+  Ban,
 } from "lucide-react";
 import { clsx } from "clsx";
 import type {
@@ -52,6 +53,7 @@ import { emitChatUnreadCount } from "@/lib/chat/hooks";
 import { useUploadThing } from "@/lib/uploadthing";
 import { useUserPresence } from "@/lib/presence/hooks";
 import { formatLastSeen } from "@/lib/presence/utils";
+import { blockUser, unblockUser } from "@/lib/block/utils";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { AvatarMenu } from "@/components/chat/AvatarMenu";
 import { NewConversationModal } from "@/components/chat/NewConversationModal";
@@ -161,6 +163,11 @@ export default function ChatPage() {
     conv: Conversation;
   } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<{
+    userId: string;
+    username: string;
+  } | null>(null);
+  const [blockLoading, setBlockLoading] = useState(false);
   const convListRef = useRef<Conversation[]>([]);
   const convRequestSeqRef = useRef(0);
   const isPreviewingPendingRef = useRef(false);
@@ -1024,9 +1031,62 @@ export default function ChatPage() {
     [fetchConversations, showToast],
   );
 
-  const handleBlockConv = useCallback(
-    (_id: string) => {
-      showToast("Chức năng chặn đang được phát triển", "error");
+  const handleBlockConv = useCallback((id: string) => {
+    const conv = convListRef.current.find((c) => c.id === id);
+    if (!conv?.otherUserId) return;
+    setBlockTarget({
+      userId: conv.otherUserId,
+      username: conv.otherUsername ?? conv.name,
+    });
+  }, []);
+
+  const handleRequestBlockUser = useCallback(
+    (userId: string, username: string) => {
+      setBlockTarget({ userId, username });
+    },
+    [],
+  );
+
+  const handleConfirmBlockUser = async () => {
+    if (!blockTarget) return;
+    setBlockLoading(true);
+    try {
+      await blockUser(blockTarget.userId);
+      setConvList((prev) =>
+        prev.map((c) =>
+          c.otherUserId === blockTarget.userId
+            ? { ...c, isBlockedByMe: true }
+            : c,
+        ),
+      );
+      showToast("Đã chặn người dùng", "success");
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể chặn người dùng",
+        "error",
+      );
+    } finally {
+      setBlockLoading(false);
+      setBlockTarget(null);
+    }
+  };
+
+  const handleUnblockConv = useCallback(
+    async (id: string) => {
+      const conv = convListRef.current.find((c) => c.id === id);
+      if (!conv?.otherUserId) return;
+      try {
+        await unblockUser(conv.otherUserId);
+        setConvList((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, isBlockedByMe: false } : c)),
+        );
+        showToast("Đã bỏ chặn người dùng", "success");
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : "Không thể bỏ chặn người dùng",
+          "error",
+        );
+      }
     },
     [showToast],
   );
@@ -1128,6 +1188,8 @@ export default function ChatPage() {
             const patch = {
               isPending: !data.isAccepted,
               isDraft: !!data.isAccepted && !data.lastMessageAt,
+              isBlockedByMe: !!data.isBlockedByMe,
+              hasBlockedMe: !!data.hasBlockedMe,
             };
             if (prev.some((c) => c.id === data.id)) {
               return prev.map((c) =>
@@ -1549,6 +1611,7 @@ export default function ChatPage() {
                         onTogglePin={handleTogglePin}
                         onForward={(m) => setForwardingMsg(m)}
                         onStartDM={handleStartDM}
+                        onBlockUser={handleRequestBlockUser}
                       />
                     ) : (
                       <div key={item.key}>{item.render()}</div>
@@ -1678,6 +1741,22 @@ export default function ChatPage() {
                 >
                   Bỏ lưu trữ
                 </button>
+              </div>
+            ) : currentConv.isBlockedByMe || currentConv.hasBlockedMe ? (
+              <div className="px-4 py-4 border-t border-surface-200 bg-white shrink-0 flex items-center justify-center gap-3">
+                <p className="text-xs text-text-muted">
+                  {currentConv.isBlockedByMe
+                    ? "Bạn đã chặn người dùng này"
+                    : "Bạn không thể nhắn tin cho người này"}
+                </p>
+                {currentConv.isBlockedByMe && (
+                  <button
+                    onClick={() => handleUnblockConv(activeId!)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-primary text-white hover:bg-primary-700 transition-colors"
+                  >
+                    Bỏ chặn
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -1859,6 +1938,19 @@ export default function ChatPage() {
           loading={confirmLoading}
           onConfirm={handleConfirmAction}
           onCancel={() => setConfirmAction(null)}
+        />
+      )}
+      {blockTarget && (
+        <ConfirmDialog
+          icon={<Ban size={20} className="text-red-500" />}
+          iconBgClass="bg-red-100"
+          title={`Chặn ${blockTarget.username}?`}
+          description="Người này sẽ không thể nhắn tin, xem trang cá nhân hoặc kết bạn với bạn nữa."
+          confirmLabel="Chặn"
+          confirmVariant="danger"
+          loading={blockLoading}
+          onConfirm={handleConfirmBlockUser}
+          onCancel={() => setBlockTarget(null)}
         />
       )}
     </div>

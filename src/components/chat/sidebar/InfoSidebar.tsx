@@ -58,6 +58,7 @@ import type {
 } from "@/lib/chat/types";
 import { useUserPresence } from "@/lib/presence/hooks";
 import { formatLastSeen } from "@/lib/presence/utils";
+import { blockUser, unblockUser } from "@/lib/block/utils";
 
 function getInitials(name: string) {
   return name
@@ -949,7 +950,7 @@ interface InfoSidebarProps {
   conv: Conversation;
   currentUserId: string;
   onClose: () => void;
-  onConvUpdated?: (patch: { name?: string; avatarUrl?: string }) => void;
+  onConvUpdated?: (patch: Partial<Conversation>) => void;
   onStartDM?: (userId: string, username: string) => void;
   onLeaveConversation?: (conversationId: string) => void;
 }
@@ -1040,6 +1041,30 @@ export function InfoSidebar({
   const handleSaveName = async (trimmed: string) => {
     await updateConversationInfo(conv.id, { name: trimmed });
     onConvUpdated?.({ name: trimmed });
+  };
+
+  const handleBlockUser = async () => {
+    if (!conv.otherUserId) return;
+    try {
+      await blockUser(conv.otherUserId);
+      onConvUpdated?.({ isBlockedByMe: true });
+      showToast("Đã chặn người dùng", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+    } finally {
+      setConfirm(null);
+    }
+  };
+
+  const handleUnblockUser = async () => {
+    if (!conv.otherUserId) return;
+    try {
+      await unblockUser(conv.otherUserId);
+      onConvUpdated?.({ isBlockedByMe: false });
+      showToast("Đã bỏ chặn người dùng", "success");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Có lỗi xảy ra", "error");
+    }
   };
 
   const handleLeaveClick = () => {
@@ -1367,7 +1392,9 @@ export function InfoSidebar({
           </p>
           {!conv.isGroup && (
             <button
-              onClick={() => setConfirm("block")}
+              onClick={() =>
+                conv.isBlockedByMe ? handleUnblockUser() : setConfirm("block")
+              }
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors group w-full text-left"
             >
               <div className="w-7 h-7 rounded-lg bg-surface-100 group-hover:bg-red-100 flex items-center justify-center transition-colors shrink-0">
@@ -1378,10 +1405,14 @@ export function InfoSidebar({
               </div>
               <div>
                 <p className="text-xs font-semibold text-text-secondary group-hover:text-red-500 transition-colors">
-                  Chặn người dùng
+                  {conv.isBlockedByMe
+                    ? "Bỏ chặn người dùng"
+                    : "Chặn người dùng"}
                 </p>
                 <p className="text-[11px] text-text-muted">
-                  Ngừng nhận tin từ người này
+                  {conv.isBlockedByMe
+                    ? "Cho phép nhắn tin trở lại"
+                    : "Ngừng nhận tin từ người này"}
                 </p>
               </div>
             </button>
@@ -1558,14 +1589,14 @@ export function InfoSidebar({
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() =>
-                  confirm === "leave" ? handleSimpleLeave() : setConfirm(null)
-                }
+                onClick={() => {
+                  if (confirm === "leave") handleSimpleLeave();
+                  else if (confirm === "block") handleBlockUser();
+                  else setConfirm(null);
+                }}
                 className={clsx(
                   "flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-colors",
-                  confirm === "leave"
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "bg-red-500 hover:bg-red-600",
+                  "bg-red-500 hover:bg-red-600",
                 )}
               >
                 {confirm === "block"

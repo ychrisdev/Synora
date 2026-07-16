@@ -24,6 +24,7 @@ import { useOutsideClickRefs } from "@/lib/chat/hooks";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { PendingConversation, Conversation } from "@/lib/chat/types";
+import { blockUser } from "@/lib/block/utils";
 
 type Tab = "pending" | "archived";
 
@@ -206,6 +207,7 @@ export function PendingMessages({
     | { type: "deletePending"; id: string; name: string }
     | { type: "deleteArchived"; conv: Conversation }
     | { type: "unarchive"; conv: Conversation }
+    | { type: "block"; id: string; senderId: string; name: string }
     | null
   >(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -326,8 +328,10 @@ export function PendingMessages({
         await handleDelete(confirmAction.id);
       } else if (confirmAction.type === "deleteArchived") {
         await handleArchivedDelete(confirmAction.conv);
-      } else {
+      } else if (confirmAction.type === "unarchive") {
         await handleUnarchive(confirmAction.conv);
+      } else {
+        await handleBlockUser(confirmAction.senderId, confirmAction.id);
       }
     } finally {
       setConfirmLoading(false);
@@ -335,9 +339,18 @@ export function PendingMessages({
     }
   };
 
-  const handleBlock = () => {
-    setMenuOpenId(null);
-    showToast("Chức năng chặn đang được phát triển", "error");
+  const handleBlockUser = async (senderId: string, pendingId: string) => {
+    try {
+      await blockUser(senderId);
+      setItems((prev) => prev.filter((i) => i.id !== pendingId));
+      onDeleted?.(pendingId);
+      showToast("Đã chặn người dùng", "success");
+    } catch (e) {
+      showToast(
+        e instanceof Error ? e.message : "Không thể chặn người dùng",
+        "error",
+      );
+    }
   };
 
   const handleReport = () => {
@@ -544,7 +557,15 @@ export function PendingMessages({
                               <PendingItemMenu
                                 username={msg.senderUsername}
                                 onClose={() => setMenuOpenId(null)}
-                                onBlock={handleBlock}
+                                onBlock={() => {
+                                  setMenuOpenId(null);
+                                  setConfirmAction({
+                                    type: "block",
+                                    id: msg.id,
+                                    senderId: msg.senderId,
+                                    name: msg.sender,
+                                  });
+                                }}
                                 onDelete={() =>
                                   setConfirmAction({
                                     type: "deletePending",
@@ -717,7 +738,9 @@ export function PendingMessages({
               ? "Bỏ lưu trữ cuộc trò chuyện?"
               : confirmAction.type === "deletePending"
                 ? "Xóa tin nhắn chờ?"
-                : "Xóa cuộc trò chuyện?"
+                : confirmAction.type === "block"
+                  ? `Chặn ${confirmAction.name}?`
+                  : "Xóa cuộc trò chuyện?"
           }
           description={
             confirmAction.type === "unarchive" ? (
@@ -727,6 +750,14 @@ export function PendingMessages({
                   {confirmAction.conv.name}
                 </span>{" "}
                 sẽ được chuyển về danh sách tin nhắn chính.
+              </>
+            ) : confirmAction.type === "block" ? (
+              <>
+                <span className="font-medium text-text-secondary">
+                  {confirmAction.name}
+                </span>{" "}
+                sẽ không thể nhắn tin, xem trang cá nhân hoặc kết bạn với bạn
+                nữa.
               </>
             ) : (
               <>
@@ -741,7 +772,11 @@ export function PendingMessages({
             )
           }
           confirmLabel={
-            confirmAction.type === "unarchive" ? "Bỏ lưu trữ" : "Xóa"
+            confirmAction.type === "unarchive"
+              ? "Bỏ lưu trữ"
+              : confirmAction.type === "block"
+                ? "Chặn"
+                : "Xóa"
           }
           confirmVariant={
             confirmAction.type === "unarchive" ? "primary" : "danger"
