@@ -348,6 +348,17 @@ export function useComments(
     [postId],
   );
 
+  const removeCommentsByAuthor = useCallback((authorId: string) => {
+    setComments((prev) =>
+      prev
+        .filter((c) => c.authorId !== authorId)
+        .map((c) => ({
+          ...c,
+          replies: c.replies.filter((r) => r.authorId !== authorId),
+        })),
+    );
+  }, []);
+
   const sortedComments = useMemo(() => {
     if (sort === "newest") return [...comments].reverse();
     return comments;
@@ -380,6 +391,7 @@ export function useComments(
     deleteReply,
     editComment,
     hideComment,
+    removeCommentsByAuthor,
     cancelReply: () => setReplyingTo(null),
   };
 }

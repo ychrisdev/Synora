@@ -70,6 +70,7 @@ export default function CommentModal({
     deleteReply,
     editComment,
     hideComment,
+    removeCommentsByAuthor,
   } = useComments(post.id, sort);
 
   useEffect(() => {
@@ -293,6 +294,7 @@ export default function CommentModal({
             targetCommentId={targetCommentId}
             disabled={commentsLoading}
             isAdmin={isAdmin}
+            onUserBlocked={removeCommentsByAuthor}
           />
         </div>
 
