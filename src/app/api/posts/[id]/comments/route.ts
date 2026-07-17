@@ -179,6 +179,8 @@ export async function POST(
 
       for (const u of mentionedUsers) {
         if (u.id === session.user.id || recipientIds.has(u.id)) continue;
+        const blocked = await isBlockedEitherWay(session.user.id, u.id);
+        if (blocked) continue;
         recipientIds.add(u.id);
         await prisma.notification.create({
           data: {
