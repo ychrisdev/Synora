@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getBlockedIds } from "@/lib/block/server";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -39,6 +40,10 @@ export async function GET(req: NextRequest) {
       );
     }
   }
+
+  const blockedIds = session?.user?.id
+    ? await getBlockedIds(session.user.id)
+    : [];
 
   const postVisibilityFilter = session?.user?.id
     ? {
@@ -81,7 +86,7 @@ export async function GET(req: NextRequest) {
       ? { createdAt: "desc" as const }
       : { downloadCount: "desc" as const };
 
-  const postWhere = strictTag
+  const postWhereBase = strictTag
     ? {
         AND: [
           postVisibilityFilter,
@@ -134,6 +139,11 @@ export async function GET(req: NextRequest) {
           ],
         };
 
+  const postWhere =
+    blockedIds.length > 0
+      ? { AND: [postWhereBase, { authorId: { notIn: blockedIds } }] }
+      : postWhereBase;
+
   const topicWhere = {
     name: { contains: q, mode: "insensitive" as const },
     posts: { some: tagVisibilityFilter },
@@ -156,6 +166,7 @@ export async function GET(req: NextRequest) {
         !isHashtag
           ? prisma.user.count({
               where: {
+                ...(blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {}),
                 OR: [
                   { username: { contains: q, mode: "insensitive" } },
                   {
@@ -242,6 +253,7 @@ export async function GET(req: NextRequest) {
     !isHashtag && (tab === "all" || tab === "people")
       ? prisma.user.findMany({
           where: {
+            ...(blockedIds.length > 0 ? { id: { notIn: blockedIds } } : {}),
             OR: [
               { username: { contains: q, mode: "insensitive" } },
               {
