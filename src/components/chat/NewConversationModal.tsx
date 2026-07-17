@@ -7,6 +7,7 @@ import { clsx } from "clsx";
 import Avatar from "@/components/ui/Avatar";
 import { getColorForUser, getInitialsFromName } from "@/lib/chat/utils";
 import type { NewConvTab, Conversation } from "@/lib/chat/types";
+import { fetchBlockedUsers } from "@/lib/block/utils";
 
 interface FriendItem {
   id: string;
@@ -31,6 +32,9 @@ export function NewConversationModal({
   const [tab, setTab] = useState<NewConvTab>("direct");
   const [search, setSearch] = useState("");
   const [friends, setFriends] = useState<FriendItem[]>([]);
+  const [blockedUsernames, setBlockedUsernames] = useState<Set<string>>(
+    new Set(),
+  );
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [selected, setSelected] = useState<FriendItem[]>([]);
   const [groupName, setGroupName] = useState("");
@@ -47,6 +51,12 @@ export function NewConversationModal({
       .catch(() => setFriends([]))
       .finally(() => setLoadingFriends(false));
   }, [session?.user?.username]);
+
+  useEffect(() => {
+    fetchBlockedUsers()
+      .then((list) => setBlockedUsernames(new Set(list.map((u) => u.username))))
+      .catch(() => setBlockedUsernames(new Set()));
+  }, []);
 
   const currentUserId = session?.user?.id ?? "";
 
@@ -115,8 +125,8 @@ export function NewConversationModal({
       }
     }
 
-    return result;
-  }, [recentContacts, friends]);
+    return result.filter((f) => !blockedUsernames.has(f.username));
+  }, [recentContacts, friends, blockedUsernames]);
 
   const matchesQuery = (f: FriendItem) =>
     f.displayName.toLowerCase().includes(search.toLowerCase()) ||
