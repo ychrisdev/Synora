@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isBlockedEitherWay } from "@/lib/block/server";
 
 export async function GET(
   req: NextRequest,
@@ -28,6 +29,16 @@ export async function GET(
         { error: "Không tìm thấy người dùng" },
         { status: 404 },
       );
+    }
+
+    if (session?.user?.id && session.user.id !== user.id) {
+      const blocked = await isBlockedEitherWay(session.user.id, user.id);
+      if (blocked) {
+        return NextResponse.json(
+          { error: "Không thể xem trang cá nhân này", isBlocked: true },
+          { status: 403 },
+        );
+      }
     }
 
     const followerCount = await prisma.follow.count({
