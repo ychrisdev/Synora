@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Trash2,
   Clock,
+  Lock,
 } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
@@ -114,6 +115,22 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
+function HiddenState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-3">
+        <Lock size={22} className="text-text-muted" />
+      </div>
+      <p className="text-sm font-medium text-text-primary mb-1">
+        Danh sách bạn bè đã được ẩn
+      </p>
+      <p className="text-xs text-text-muted">
+        Người dùng này đã giới hạn hiển thị danh sách bạn bè
+      </p>
+    </div>
+  );
+}
+
 export default function FriendsPage() {
   const { username } = useParams<{ username: string }>();
   const { data: session } = useSession();
@@ -122,6 +139,7 @@ export default function FriendsPage() {
   const [requests, setRequests] = useState<PersonCard[]>([]);
   const [pendingSent, setPendingSent] = useState<PersonCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const [confirm, setConfirm] = useState<{
@@ -148,6 +166,8 @@ export default function FriendsPage() {
       ]);
 
       const friendsData = await friendsRes.json();
+      setHidden(!!friendsData.hidden);
+
       const uniqueFriends = Array.from(
         new Map(
           (friendsData.friends ?? []).map((f: PersonCard) => [f.id, f]),
@@ -289,6 +309,8 @@ export default function FriendsPage() {
     (tab === "requests" && requests.length === 0) ||
     (tab === "pending" && pendingSent.length === 0);
 
+  const showHiddenState = hidden && !isOwner;
+
   return (
     <div className="min-h-screen bg-surface-50">
       <Toast toast={toast} />
@@ -343,189 +365,197 @@ export default function FriendsPage() {
         </div>
 
         <div className="bg-white border border-surface-200 rounded-2xl overflow-hidden">
-          <div className="flex border-b border-surface-100 px-2 pt-2">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={clsx(
-                  "px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px rounded-t-lg",
-                  tab === t.key
-                    ? "border-primary text-primary bg-primary/5"
-                    : "border-transparent text-text-muted hover:text-text-primary hover:bg-surface-50",
-                )}
-              >
-                {t.label}
-                {t.count > 0 && (
-                  <span
+          {!loading && showHiddenState ? (
+            <div className="p-4">
+              <HiddenState />
+            </div>
+          ) : (
+            <>
+              <div className="flex border-b border-surface-100 px-2 pt-2">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setTab(t.key)}
                     className={clsx(
-                      "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                      "px-4 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px rounded-t-lg",
                       tab === t.key
-                        ? "bg-primary/10 text-primary"
-                        : "bg-surface-100 text-text-muted",
+                        ? "border-primary text-primary bg-primary/5"
+                        : "border-transparent text-text-muted hover:text-text-primary hover:bg-surface-50",
                     )}
                   >
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="p-4">
-            {loading ? (
-              <div className="grid grid-cols-2 gap-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="h-20 bg-surface-100 rounded-xl animate-pulse"
-                  />
+                    {t.label}
+                    {t.count > 0 && (
+                      <span
+                        className={clsx(
+                          "ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                          tab === t.key
+                            ? "bg-primary/10 text-primary"
+                            : "bg-surface-100 text-text-muted",
+                        )}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
-            ) : isEmpty ? (
-              <div className="grid grid-cols-2">
-                <EmptyState
-                  message={
-                    tab === "all"
-                      ? "Chưa có bạn bè nào"
-                      : tab === "requests"
-                        ? "Không có yêu cầu kết bạn"
-                        : "Không có lời mời nào đang chờ"
-                  }
-                />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {tab === "all" &&
-                  friends.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
-                    >
-                      <NextLink
-                        href={`/profile/${f.username}`}
-                        className="shrink-0"
-                      >
-                        <Avatar
-                          src={f.avatarUrl}
-                          name={f.displayName}
-                          initials={getInitials(f.displayName)}
-                          color="bg-primary"
-                          size="md"
-                        />
-                      </NextLink>
-                      <div className="flex-1 min-w-0">
-                        <NextLink href={`/profile/${f.username}`}>
-                          <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
-                            {f.displayName}
-                          </p>
-                        </NextLink>
-                        <p className="text-[10px] text-text-muted mt-0.5">
-                          {f.followerCount.toLocaleString("vi-VN")} người theo
-                          dõi
-                        </p>
-                        {isOwner && (
-                          <button
-                            onClick={() => handleUnfriend(f)}
-                            className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
-                          >
-                            <UserMinus size={11} /> Hủy kết bạn
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
 
-                {tab === "requests" &&
-                  requests.map((r) => (
-                    <div
-                      key={r.requestId}
-                      className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
-                    >
-                      <NextLink
-                        href={`/profile/${r.username}`}
-                        className="shrink-0"
-                      >
-                        <Avatar
-                          src={r.avatarUrl}
-                          name={r.displayName}
-                          initials={getInitials(r.displayName)}
-                          color="bg-primary"
-                          size="md"
-                        />
-                      </NextLink>
-                      <div className="flex-1 min-w-0">
-                        <NextLink href={`/profile/${r.username}`}>
-                          <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
-                            {r.displayName}
-                          </p>
-                        </NextLink>
-                        <p className="text-[10px] text-text-muted mt-0.5">
-                          {r.followerCount.toLocaleString("vi-VN")} người theo
-                          dõi
-                        </p>
-                        <div className="flex gap-1.5 mt-2">
-                          <button
-                            onClick={() =>
-                              handleRequestAction(r.requestId!, "accept", r)
-                            }
-                            className="flex items-center gap-1 text-[10px] font-semibold text-white bg-primary hover:bg-primary/90 px-2 py-1 rounded-full transition-colors"
-                          >
-                            <UserCheck size={10} /> Chấp nhận
-                          </button>
-                          <button
-                            onClick={() =>
-                              handleRequestAction(r.requestId!, "reject", r)
-                            }
-                            className="flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
-                          >
-                            <UserX size={10} /> Từ chối
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                {tab === "pending" &&
-                  pendingSent.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
-                    >
-                      <NextLink
-                        href={`/profile/${p.username}`}
-                        className="shrink-0"
-                      >
-                        <Avatar
-                          src={p.avatarUrl}
-                          name={p.displayName}
-                          initials={getInitials(p.displayName)}
-                          color="bg-primary"
-                          size="md"
-                        />
-                      </NextLink>
-                      <div className="flex-1 min-w-0">
-                        <NextLink href={`/profile/${p.username}`}>
-                          <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
-                            {p.displayName}
-                          </p>
-                        </NextLink>
-                        <p className="text-[10px] text-text-muted mt-0.5">
-                          {p.followerCount.toLocaleString("vi-VN")} người theo
-                          dõi
-                        </p>
-                        <button
-                          onClick={() => handleCancelRequest(p)}
-                          className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
+              <div className="p-4">
+                {loading ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className="h-20 bg-surface-100 rounded-xl animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : isEmpty ? (
+                  <div className="grid grid-cols-2">
+                    <EmptyState
+                      message={
+                        tab === "all"
+                          ? "Chưa có bạn bè nào"
+                          : tab === "requests"
+                            ? "Không có yêu cầu kết bạn"
+                            : "Không có lời mời nào đang chờ"
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {tab === "all" &&
+                      friends.map((f) => (
+                        <div
+                          key={f.id}
+                          className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
                         >
-                          <Clock size={11} /> Thu hồi lời mời
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                          <NextLink
+                            href={`/profile/${f.username}`}
+                            className="shrink-0"
+                          >
+                            <Avatar
+                              src={f.avatarUrl}
+                              name={f.displayName}
+                              initials={getInitials(f.displayName)}
+                              color="bg-primary"
+                              size="md"
+                            />
+                          </NextLink>
+                          <div className="flex-1 min-w-0">
+                            <NextLink href={`/profile/${f.username}`}>
+                              <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
+                                {f.displayName}
+                              </p>
+                            </NextLink>
+                            <p className="text-[10px] text-text-muted mt-0.5">
+                              {f.followerCount.toLocaleString("vi-VN")} người theo
+                              dõi
+                            </p>
+                            {isOwner && (
+                              <button
+                                onClick={() => handleUnfriend(f)}
+                                className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
+                              >
+                                <UserMinus size={11} /> Hủy kết bạn
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                    {tab === "requests" &&
+                      requests.map((r) => (
+                        <div
+                          key={r.requestId}
+                          className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
+                        >
+                          <NextLink
+                            href={`/profile/${r.username}`}
+                            className="shrink-0"
+                          >
+                            <Avatar
+                              src={r.avatarUrl}
+                              name={r.displayName}
+                              initials={getInitials(r.displayName)}
+                              color="bg-primary"
+                              size="md"
+                            />
+                          </NextLink>
+                          <div className="flex-1 min-w-0">
+                            <NextLink href={`/profile/${r.username}`}>
+                              <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
+                                {r.displayName}
+                              </p>
+                            </NextLink>
+                            <p className="text-[10px] text-text-muted mt-0.5">
+                              {r.followerCount.toLocaleString("vi-VN")} người theo
+                              dõi
+                            </p>
+                            <div className="flex gap-1.5 mt-2">
+                              <button
+                                onClick={() =>
+                                  handleRequestAction(r.requestId!, "accept", r)
+                                }
+                                className="flex items-center gap-1 text-[10px] font-semibold text-white bg-primary hover:bg-primary/90 px-2 py-1 rounded-full transition-colors"
+                              >
+                                <UserCheck size={10} /> Chấp nhận
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleRequestAction(r.requestId!, "reject", r)
+                                }
+                                className="flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
+                              >
+                                <UserX size={10} /> Từ chối
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                    {tab === "pending" &&
+                      pendingSent.map((p) => (
+                        <div
+                          key={p.id}
+                          className="flex items-center gap-3 bg-surface-50 border border-surface-100 rounded-xl px-3 py-3 hover:border-surface-200 transition-colors"
+                        >
+                          <NextLink
+                            href={`/profile/${p.username}`}
+                            className="shrink-0"
+                          >
+                            <Avatar
+                              src={p.avatarUrl}
+                              name={p.displayName}
+                              initials={getInitials(p.displayName)}
+                              color="bg-primary"
+                              size="md"
+                            />
+                          </NextLink>
+                          <div className="flex-1 min-w-0">
+                            <NextLink href={`/profile/${p.username}`}>
+                              <p className="text-xs font-semibold text-text-primary hover:text-primary transition-colors truncate">
+                                {p.displayName}
+                              </p>
+                            </NextLink>
+                            <p className="text-[10px] text-text-muted mt-0.5">
+                              {p.followerCount.toLocaleString("vi-VN")} người theo
+                              dõi
+                            </p>
+                            <button
+                              onClick={() => handleCancelRequest(p)}
+                              className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-red-500 border border-surface-200 hover:border-red-200 px-2 py-1 rounded-full transition-colors"
+                            >
+                              <Clock size={11} /> Thu hồi lời mời
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -17,24 +17,6 @@ interface Friend {
   followerCount: number;
 }
 
-const COLORS = [
-  "bg-violet-500",
-  "bg-teal-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-  "bg-amber-500",
-  "bg-cyan-600",
-];
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(-2)
-    .join("")
-    .toUpperCase();
-}
-
 export function FriendsWidget({
   username,
   refreshKey,
@@ -47,15 +29,18 @@ export function FriendsWidget({
   const { data: session } = useSession();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const [confirmFriend, setConfirmFriend] = useState<Friend | null>(null);
   const { showToast } = useToast();
   const actionInProgress = useRef<Set<string>>(new Set());
   const isOwner = session?.user?.username === username;
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/profile/${username}/friends`)
       .then((r) => r.json())
       .then((data) => {
+        setHidden(!!data.hidden);
         const unique = Array.from(
           new Map((data.friends ?? []).map((f: Friend) => [f.id, f])).values(),
         ) as Friend[];
@@ -116,15 +101,21 @@ export function FriendsWidget({
               </span>
             )}
           </div>
-          <NextLink
-            href={`/friends/${username}`}
-            className="flex items-center gap-0.5 text-[11px] font-medium text-primary transition-colors"
-          >
-            Tất cả
-          </NextLink>
+          {!hidden && (
+            <NextLink
+              href={`/friends/${username}`}
+              className="flex items-center gap-0.5 text-[11px] font-medium text-primary transition-colors"
+            >
+              Tất cả
+            </NextLink>
+          )}
         </div>
 
-        {friends.length === 0 ? (
+        {hidden ? (
+          <p className="text-[11px] text-text-muted text-center py-3">
+            Danh sách bạn bè đã được ẩn.
+          </p>
+        ) : friends.length === 0 ? (
           <p className="text-[11px] text-text-muted text-center py-3">
             Chưa có bạn bè nào.
           </p>
