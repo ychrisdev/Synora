@@ -10,11 +10,10 @@ import {
 import Avatar from "@/components/ui/Avatar";
 import { useToast } from "@/components/ui/Toast";
 import { ToggleSwitch } from "@/components/ui/ToggleSwitch";
-import { useSyncedBoolean } from "@/lib/settings/hooks";
 import { fetchBlockedUsers, unblockUser } from "@/lib/block/utils";
+import { useSyncedBoolean, useSyncedPermission } from "@/lib/settings/hooks";
 import { clsx } from "clsx";
 
-type ProfileVisibility = "public" | "friends" | "private";
 const PREVIEW_LIMIT = 5;
 
 export function PrivacySection() {
@@ -30,7 +29,6 @@ export function PrivacySection() {
   });
   const [blocked, setBlocked] = useState<BlockedUser[]>([]);
   const [loadingBlocked, setLoadingBlocked] = useState(true);
-  const [visibility, setVisibility] = useState<ProfileVisibility>("public");
   const [modalOpen, setModalOpen] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
@@ -65,25 +63,57 @@ export function PrivacySection() {
     showToast("Chức năng báo cáo đang được phát triển", "error");
   };
 
-  const visibilityOptions: {
-    value: ProfileVisibility;
+  const {
+    value: friendRequestPermission,
+    loading: loadingPermission,
+    update: updatePermission,
+  } = useSyncedPermission({
+    key: "friendRequestPermission",
+    apiPath: "/api/settings/friend-request-permission",
+    field: "friendRequestPermission",
+  });
+
+  const {
+    value: messageFromFriendsOnly,
+    loading: loadingMessagePrivacy,
+    toggle: toggleMessagePrivacy,
+  } = useSyncedBoolean({
+    key: "messageFromFriendsOnly",
+    apiPath: "/api/settings/message-privacy",
+    field: "messageFromFriendsOnly",
+    defaultValue: false,
+  });
+
+  const {
+    value: showFriendsList,
+    loading: loadingFriendsListVisibility,
+    toggle: toggleFriendsListVisibility,
+  } = useSyncedBoolean({
+    key: "showFriendsList",
+    apiPath: "/api/settings/friends-list-visibility",
+    field: "showFriendsList",
+    defaultValue: true,
+  });
+
+  const permissionOptions: {
+    value: "EVERYONE" | "FRIENDS_OF_FRIENDS" | "NOBODY";
     label: string;
     desc: string;
   }[] = [
     {
-      value: "public",
-      label: "Công khai",
-      desc: "Mọi người đều xem được hồ sơ của bạn",
+      value: "EVERYONE",
+      label: "Mọi người",
+      desc: "Bất kỳ ai cũng có thể gửi lời mời kết bạn cho bạn",
     },
     {
-      value: "friends",
-      label: "Chỉ bạn bè",
-      desc: "Chỉ những người bạn kết nối mới xem được",
+      value: "FRIENDS_OF_FRIENDS",
+      label: "Bạn của bạn bè",
+      desc: "Chỉ những người có bạn chung với bạn mới gửi được",
     },
     {
-      value: "private",
-      label: "Riêng tư",
-      desc: "Chỉ mình bạn xem được hồ sơ",
+      value: "NOBODY",
+      label: "Không ai",
+      desc: "Không ai có thể gửi lời mời kết bạn cho bạn",
     },
   ];
 
@@ -116,7 +146,10 @@ export function PrivacySection() {
         {loadingBlocked ? (
           <div className="flex flex-col gap-2">
             {[1, 2].map((i) => (
-              <div key={i} className="flex items-center gap-3 py-2 animate-pulse">
+              <div
+                key={i}
+                className="flex items-center gap-3 py-2 animate-pulse"
+              >
                 <div className="w-9 h-9 rounded-full bg-surface-100 shrink-0" />
                 <div className="flex-1 flex flex-col gap-1.5">
                   <div className="h-2.5 bg-surface-100 rounded-full w-1/3" />
@@ -193,17 +226,22 @@ export function PrivacySection() {
       </SettingsCard>
 
       <SettingsCard
-        title="Quyền xem hồ sơ"
-        description="Chọn ai có thể xem thông tin hồ sơ của bạn"
+        title="Ai có thể gửi lời mời kết bạn"
+        description="Kiểm soát ai được phép gửi lời mời kết bạn đến bạn"
       >
         <div className="flex flex-col gap-2">
-          {visibilityOptions.map((opt) => (
+          {permissionOptions.map((opt) => (
             <button
               key={opt.value}
-              onClick={() => setVisibility(opt.value)}
+              disabled={loadingPermission}
+              onClick={() => {
+                updatePermission(opt.value).catch(() =>
+                  showToast("Không thể cập nhật cài đặt", "error"),
+                );
+              }}
               className={clsx(
-                "flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border text-left transition-colors",
-                visibility === opt.value
+                "flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border text-left transition-colors disabled:opacity-50",
+                friendRequestPermission === opt.value
                   ? "border-primary bg-primary/5"
                   : "border-surface-200 hover:bg-surface-50",
               )}
@@ -217,12 +255,12 @@ export function PrivacySection() {
               <div
                 className={clsx(
                   "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center",
-                  visibility === opt.value
+                  friendRequestPermission === opt.value
                     ? "border-primary"
                     : "border-surface-300",
                 )}
               >
-                {visibility === opt.value && (
+                {friendRequestPermission === opt.value && (
                   <div className="w-2 h-2 rounded-full bg-primary" />
                 )}
               </div>
@@ -230,6 +268,47 @@ export function PrivacySection() {
           ))}
         </div>
       </SettingsCard>
+
+      <div className="bg-white border border-surface-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-text-primary">
+            Chỉ bạn bè mới được nhắn tin
+          </h3>
+          <p className="text-xs text-text-muted mt-1">
+            Khi bật, chỉ những người là bạn bè mới có thể mở cuộc trò chuyện với
+            bạn
+          </p>
+        </div>
+        <ToggleSwitch
+          checked={messageFromFriendsOnly}
+          disabled={loadingMessagePrivacy}
+          onChange={() => {
+            toggleMessagePrivacy().catch(() =>
+              showToast("Không thể cập nhật cài đặt tin nhắn", "error"),
+            );
+          }}
+        />
+      </div>
+
+      <div className="bg-white border border-surface-200 rounded-2xl p-5 flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-text-primary">
+            Hiển thị danh sách bạn bè
+          </h3>
+          <p className="text-xs text-text-muted mt-1">
+            Cho phép người khác xem danh sách bạn bè trên hồ sơ của bạn
+          </p>
+        </div>
+        <ToggleSwitch
+          checked={showFriendsList}
+          disabled={loadingFriendsListVisibility}
+          onChange={() => {
+            toggleFriendsListVisibility().catch(() =>
+              showToast("Không thể cập nhật cài đặt hồ sơ", "error"),
+            );
+          }}
+        />
+      </div>
 
       {modalOpen && (
         <BlockedUsersModal
