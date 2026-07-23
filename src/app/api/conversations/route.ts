@@ -389,6 +389,18 @@ export async function POST(req: NextRequest) {
       }
 
       const friends = isSelfChat ? true : await areFriends(userId, target.id);
+      if (!isSelfChat && !friends) {
+        const targetProfile = await prisma.profile.findUnique({
+          where: { userId: target.id },
+          select: { messageFromFriendsOnly: true },
+        });
+        if (targetProfile?.messageFromFriendsOnly) {
+          return NextResponse.json(
+            { error: "Người này chỉ nhận tin nhắn từ bạn bè" },
+            { status: 403 },
+          );
+        }
+      }
       const memberData = isSelfChat
         ? [{ userId, isAccepted: true }]
         : [

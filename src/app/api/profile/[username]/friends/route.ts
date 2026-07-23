@@ -17,6 +17,22 @@ export async function GET(
   if (!user)
     return NextResponse.json({ error: "Không tìm thấy" }, { status: 404 });
 
+  const isOwner = session?.user?.id === user.id;
+  if (!isOwner) {
+    const profile = await prisma.profile.findUnique({
+      where: { userId: user.id },
+      select: { showFriendsList: true },
+    });
+    if (profile?.showFriendsList === false) {
+      return NextResponse.json({
+        friends: [],
+        pendingSent: [],
+        suggestions: [],
+        hidden: true,
+      });
+    }
+  }
+
   const acceptedRequests = await prisma.friendRequest.findMany({
     where: {
       status: "ACCEPTED",
@@ -62,7 +78,7 @@ export async function GET(
   let pendingSent: object[] = [];
   let suggestions: object[] = [];
 
-  if (session?.user?.id === user.id) {
+  if (isOwner) {
     const sent = await prisma.friendRequest.findMany({
       where: { senderId: user.id, status: "PENDING" },
       orderBy: { createdAt: "desc" },
@@ -120,5 +136,5 @@ export async function GET(
     }));
   }
 
-  return NextResponse.json({ friends, pendingSent, suggestions });
+  return NextResponse.json({ friends, pendingSent, suggestions, hidden: false });
 }

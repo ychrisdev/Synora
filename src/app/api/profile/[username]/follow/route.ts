@@ -28,6 +28,33 @@ export async function POST(
   const receiverId = target.id;
 
   return await prisma.$transaction(async (tx) => {
+    async function hasMutualFriend(a: string, b: string) {
+      const [rowsA, rowsB] = await Promise.all([
+        tx.friendRequest.findMany({
+          where: {
+            status: "ACCEPTED",
+            OR: [{ senderId: a }, { receiverId: a }],
+          },
+          select: { senderId: true, receiverId: true },
+        }),
+        tx.friendRequest.findMany({
+          where: {
+            status: "ACCEPTED",
+            OR: [{ senderId: b }, { receiverId: b }],
+          },
+          select: { senderId: true, receiverId: true },
+        }),
+      ]);
+      const friendsA = new Set(
+        rowsA.map((r) => (r.senderId === a ? r.receiverId : r.senderId)),
+      );
+      const friendsB = new Set(
+        rowsB.map((r) => (r.senderId === b ? r.receiverId : r.senderId)),
+      );
+      for (const id of friendsA) if (friendsB.has(id)) return true;
+      return false;
+    }
+
     const existingRequest = await tx.friendRequest.findUnique({
       where: { senderId_receiverId: { senderId, receiverId } },
     });
@@ -92,6 +119,30 @@ export async function POST(
       });
 
       return NextResponse.json({ status: "friends" });
+    }
+
+    const targetProfile = await tx.profile.findUnique({
+      where: { userId: receiverId },
+      select: { friendRequestPermission: true },
+    });
+    const permission = targetProfile?.friendRequestPermission ?? "EVERYONE";
+
+    if (permission === "NOBODY") {
+      return NextResponse.json(
+        { error: "Người này không nhận lời mời kết bạn" },
+        { status: 403 },
+      );
+    }
+    if (permission === "FRIENDS_OF_FRIENDS") {
+      const mutual = await hasMutualFriend(senderId, receiverId);
+      if (!mutual) {
+        return NextResponse.json(
+          {
+            error: "Bạn cần có bạn chung với người này để gửi lời mời kết bạn",
+          },
+          { status: 403 },
+        );
+      }
     }
 
     await tx.friendRequest.create({
