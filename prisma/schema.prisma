@@ -73,6 +73,12 @@ enum FriendRequestStatus {
   REJECTED
 }
 
+enum FriendRequestPermission {
+  EVERYONE
+  FRIENDS_OF_FRIENDS
+  NOBODY
+}
+
 model FriendRequest {
   id         String              @id @default(cuid())
   senderId   String
@@ -166,6 +172,9 @@ model Profile {
   website     String?
   location    String?
 
+  friendRequestPermission FriendRequestPermission @default(EVERYONE)
+  messageFromFriendsOnly  Boolean                 @default(false)
+  showFriendsList         Boolean                 @default(true)
   showActivityStatus Boolean @default(true)
 
   updatedAt   DateTime @updatedAt
